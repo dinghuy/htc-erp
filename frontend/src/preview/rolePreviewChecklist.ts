@@ -23,24 +23,13 @@ export function buildRolePreviewChecklist(roleCodes: SystemRole[]): RolePreviewC
       };
     case 'project_manager':
       return {
-        title: 'PM QA checklist',
-        description: 'Rà execution flow và xác nhận PM không can thiệp sâu vào commercial authoring.',
+        title: 'Project Manager QA checklist',
+        description: 'Rà PM flow hợp nhất từ commercial, handoff tới execution trên cùng workspace.',
         items: [
-          'My Work focus execution queue, blockers và readiness items.',
-          'Workspace mẫu mở ở timeline hoặc delivery-related path.',
-          'Commercial tab ở chế độ read-only; milestone/task/timeline lane hoạt động đúng.',
+          'My Work hiển thị queue hợp nhất cho commercial handoff, blockers và readiness items.',
+          'Workspace mẫu mở được commercial tab nhưng vẫn nhìn rõ timeline/tasks/delivery theo cùng một flow.',
+          'Commercial CTA và execution CTA cùng tồn tại, nhưng vẫn bị chặn đúng bởi capability thật.',
           'Không xuất hiện action approve finance/legal nếu không có role bổ sung.',
-        ],
-      };
-    case 'sales_pm_combined':
-      return {
-        title: 'Sales + PM QA checklist',
-        description: 'Rà unified persona từ quotation sang execution trên cùng workspace.',
-        items: [
-          'Home/My Work hiển thị combined queue, không tách sales và PM thành hai nơi.',
-          'Workspace mẫu mở commercial nhưng vẫn thấy timeline/tasks đúng ngữ cảnh.',
-          'Commercial CTA và execution CTA cùng tồn tại, nhưng chỉ theo capability hợp lệ.',
-          'Audit-oriented preview copy và read-only badge không bị sai role.',
         ],
       };
     case 'procurement':

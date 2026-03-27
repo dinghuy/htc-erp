@@ -44,6 +44,49 @@ type HelpArticle = {
   sections: Array<{ title: string; body: string }>;
 };
 
+const ROLE_HELP_COPY: Record<string, { title: string; subtitle: string; recommended: string[] }> = {
+  sales: {
+    title: 'Sales Help Center',
+    subtitle: 'Ưu tiên các hướng dẫn về quotation, pricing và funnel để chốt deal nhanh hơn mà không làm bẩn handoff.',
+    recommended: ['quotation', 'pricing', 'funnel'],
+  },
+  project_manager: {
+    title: 'PM Help Center',
+    subtitle: 'Một lớp hướng dẫn xuyên từ quotation, handoff data tới execution cho PM đang giữ luôn commercial flow.',
+    recommended: ['quotation', 'pricing', 'funnel'],
+  },
+  procurement: {
+    title: 'Procurement Help Center',
+    subtitle: 'Tập trung vào dữ liệu line item, import, và các nội dung hỗ trợ theo dõi ETA, vendor và delivery risk.',
+    recommended: ['import', 'pricing', 'quotation'],
+  },
+  accounting: {
+    title: 'Finance Help Center',
+    subtitle: 'Dùng màn này để theo dõi ticket hỗ trợ, cấu hình dữ liệu và các hướng dẫn giúp giữ hồ sơ tài chính sạch.',
+    recommended: ['import', 'branding', 'users'],
+  },
+  legal: {
+    title: 'Legal Help Center',
+    subtitle: 'Ưu tiên tài liệu liên quan hồ sơ hợp đồng, phân quyền và các ticket cần phối hợp với admin hoặc commercial.',
+    recommended: ['quotation', 'users', 'branding'],
+  },
+  director: {
+    title: 'Executive Help Center',
+    subtitle: 'Một điểm vào gọn cho tài liệu hệ thống, support ticket và những thay đổi có thể ảnh hưởng tới toàn bộ workflow.',
+    recommended: ['users', 'branding', 'funnel'],
+  },
+  admin: {
+    title: 'Admin Help Center',
+    subtitle: 'Admin dùng màn này để xử lý support ticket, hướng dẫn người dùng và giữ cho lớp vận hành hệ thống không trở thành approval lane nghiệp vụ.',
+    recommended: ['users', 'import', 'branding'],
+  },
+  viewer: {
+    title: 'Role Help Center',
+    subtitle: 'Xem nhanh tài liệu phù hợp và gửi yêu cầu hỗ trợ khi cần, trong phạm vi read-only của bạn.',
+    recommended: ['quotation', 'import', 'funnel'],
+  },
+};
+
 const API = API_BASE;
 
 const CATEGORY_OPTIONS = [
@@ -160,6 +203,14 @@ function statusBadge(status: string) {
 
 export function Support({ isMobile, currentUser }: { isMobile?: boolean; currentUser?: any } = {}) {
   const profile = buildRoleProfile(currentUser?.roleCodes, currentUser?.systemRole);
+  const helpCopy = ROLE_HELP_COPY[profile.personaMode] || ROLE_HELP_COPY.viewer;
+  const recommendedArticleOrder = [
+    ...helpCopy.recommended,
+    ...HELP_ARTICLES.map((item) => item.id).filter((id) => !helpCopy.recommended.includes(id)),
+  ];
+  const orderedArticles = recommendedArticleOrder
+    .map((id) => HELP_ARTICLES.find((item) => item.id === id))
+    .filter(Boolean) as HelpArticle[];
   const [activeSupportTab, setActiveSupportTab] = useState('Help');
   const [selectedArticle, setSelectedArticle] = useState<HelpArticle | null>(null);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -340,14 +391,14 @@ export function Support({ isMobile, currentUser }: { isMobile?: boolean; current
 
   const HelpCenter = () => (
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px' }}>
-      {HELP_ARTICLES.map((item) => (
+      {orderedArticles.map((item, index) => (
         <button
           key={item.id}
           type="button"
           onClick={() => setSelectedArticle(item)}
           style={{ ...S.guideCard, textAlign: 'left' as const }}
         >
-          <div style={S.eyebrow}>{item.eyebrow}</div>
+          <div style={S.eyebrow}>{index < helpCopy.recommended.length ? `Recommended · ${item.eyebrow}` : item.eyebrow}</div>
           <div style={{ width: '32px', height: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: tokens.colors.primary }}>{item.icon}</div>
           <div style={{ fontWeight: 700, fontSize: '15px', color: tokens.colors.textPrimary }}>{item.title}</div>
           <div style={{ fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{item.summary}</div>
@@ -581,9 +632,9 @@ export function Support({ isMobile, currentUser }: { isMobile?: boolean; current
       )}
 
       <h1 style={{ ...S.header, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-        <SupportIcon size={24} /> Huynh Thy Help Center
+        <SupportIcon size={24} /> {helpCopy.title}
       </h1>
-      <p style={S.subtitle}>Chúng tôi ở đây để hỗ trợ bạn tối ưu hóa công việc hàng ngày và xử lý các vướng mắc vận hành càng sớm càng tốt.</p>
+      <p style={S.subtitle}>{helpCopy.subtitle}</p>
 
       {profile.personaMode === 'admin' ? (
         <div style={{ ...S.card, marginBottom: '24px', padding: isMobile ? '20px' : '24px', display: 'grid', gap: '16px' }}>

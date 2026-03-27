@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { buildRoleProfile, ROLE_LABELS, type CurrentUser } from './auth';
 import { API_BASE } from './config';
-import { consumeNavContext } from './navContext';
+import { consumeNavContext, setNavContext } from './navContext';
 import { buildRolePreviewNotice } from './preview/rolePreviewNotice';
 import { requestJsonWithAuth } from './shared/api/client';
 import { resolveApprovalLane } from './shared/domain/contracts';
 import { QA_TEST_IDS } from './testing/testIds';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
+import { buildMyWorkActions } from './work/phaseDrivenActions';
 
 type MyWorkPayload = {
   persona?: {
@@ -36,8 +37,25 @@ type MyWorkPayload = {
     value: number;
     tone?: 'good' | 'warn' | 'bad' | 'info';
   }>;
-  tasks?: any[];
-  approvals?: any[];
+  tasks?: Array<any & {
+    actionAvailability?: {
+      workspaceTab?: string;
+      canOpenTask?: boolean;
+      canOpenProject?: boolean;
+      canOpenQuotation?: boolean;
+      primaryActionLabel?: string;
+      blockers?: string[];
+    } | null;
+  }>;
+  approvals?: Array<any & {
+    actionAvailability?: {
+      lane?: string | null;
+      canDecide?: boolean;
+      isRequester?: boolean;
+      isAssignedApprover?: boolean;
+      availableDecisions?: string[];
+    } | null;
+  }>;
   projects?: any[];
 };
 
@@ -54,6 +72,44 @@ function Section({ title, description, children, action }: any) {
         {action}
       </div>
       {children}
+    </section>
+  );
+}
+
+function ActionBar({
+  actions,
+  onRunAction,
+}: {
+  actions: ReturnType<typeof buildMyWorkActions>;
+  onRunAction: (index: number) => void;
+}) {
+  return (
+    <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+      {actions.map((action, index) => (
+        <button
+          key={`${action.route}-${action.label}`}
+          type="button"
+          onClick={() => onRunAction(index)}
+          style={{
+            ...ui.card.base,
+            padding: '18px',
+            display: 'grid',
+            gap: '8px',
+            textAlign: 'left',
+            cursor: 'pointer',
+            border: `1px solid ${tokens.colors.border}`,
+            background: tokens.colors.surface,
+          }}
+        >
+          <div>
+            <span style={action.tone === 'primary' ? ui.badge.info : action.tone === 'secondary' ? ui.badge.warning : ui.badge.neutral}>
+              {action.tone === 'primary' ? 'Primary action' : action.tone === 'secondary' ? 'Next step' : 'Watchlist'}
+            </span>
+          </div>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary }}>{action.label}</div>
+          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>{action.hint}</div>
+        </button>
+      ))}
     </section>
   );
 }
@@ -114,10 +170,6 @@ export function MyWork({
       label: 'execution queue',
       helper: 'Ưu tiên blockers, readiness và dependency liên phòng ban để QA flow PM.',
     },
-    combined: {
-      label: 'combined sales + PM queue',
-      helper: 'Giữ cùng một queue từ commercial sang execution để test unified persona.',
-    },
   };
   const filteredApprovals = workFocus === 'commercial'
     ? (payload?.approvals || []).filter((approval) => resolveApprovalLane(approval) === 'commercial')
@@ -153,14 +205,9 @@ export function MyWork({
         { label: 'Projects theo dõi', value: projectCount, tone: ui.badge.success },
       ],
       project_manager: [
-        { label: 'Projects cần đẩy', value: taskCount, tone: ui.badge.info },
-        { label: 'Execution approvals', value: approvalCount, tone: ui.badge.warning },
-        { label: 'Workspaces active', value: projectCount, tone: ui.badge.success },
-      ],
-      sales_pm_combined: [
-        { label: 'Deals cần chốt', value: taskCount, tone: ui.badge.info },
+        { label: 'Deals + projects', value: taskCount, tone: ui.badge.info },
         { label: 'Handoff / approvals', value: approvalCount, tone: ui.badge.warning },
-        { label: 'Projects cần đẩy', value: projectCount, tone: ui.badge.success },
+        { label: 'Workspaces active', value: projectCount, tone: ui.badge.success },
       ],
       procurement: [
         { label: 'Procurement tasks', value: taskCount, tone: ui.badge.info },
@@ -207,14 +254,6 @@ export function MyWork({
       approvalDescription: 'Các approval thương mại bạn đang theo dõi hoặc đã khởi tạo.',
     },
     project_manager: {
-      title: 'My Work',
-      description: 'Queue execution để xử lý milestone, blocker và readiness trên các project đang chạy.',
-      taskTitle: 'Execution Queue',
-      taskDescription: 'Các đầu việc operational đang gắn trực tiếp cho bạn.',
-      approvalTitle: 'Execution Dependencies',
-      approvalDescription: 'Các approval đang ảnh hưởng tới delivery hoặc project readiness.',
-    },
-    sales_pm_combined: {
       title: 'My Work',
       description: 'Queue hợp nhất từ quotation sang execution, không cần tách deal và project thành hai nơi.',
       taskTitle: 'Deals + Projects',
@@ -272,6 +311,18 @@ export function MyWork({
     },
   };
   const pageCopy = payload?.view || copyByMode[profile.personaMode] || copyByMode.viewer;
+  const phaseActions = buildMyWorkActions(profile.personaMode, payload?.summary, workFocus);
+
+  const openProjectWorkspace = (projectId?: string | null, workspaceTab?: string | null) => {
+    if (!projectId) return;
+    setNavContext({
+      route: 'Projects',
+      entityType: 'Project',
+      entityId: projectId,
+      filters: workspaceTab ? { workspaceTab } : undefined,
+    });
+    onNavigate?.('Projects');
+  };
 
   return (
     <div style={{ display: 'grid', gap: '22px' }}>
@@ -309,6 +360,18 @@ export function MyWork({
         </div>
       </section>
 
+      <ActionBar
+        actions={phaseActions}
+        onRunAction={(index) => {
+          const action = phaseActions[index];
+          if (!action?.route) return;
+          if (action.navContext) {
+            setNavContext(action.navContext);
+          }
+          onNavigate?.(action.route);
+        }}
+      />
+
       {error ? <div style={{ ...ui.card.base, padding: '16px', color: tokens.colors.error }}>{error}</div> : null}
 
       <div data-testid={QA_TEST_IDS.myWork.tasksSection}>
@@ -327,8 +390,25 @@ export function MyWork({
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={ui.badge.neutral}>{task.status || 'pending'}</span>
                     <span style={ui.badge.info}>{task.priority || 'medium'}</span>
+                    {task.actionAvailability?.workspaceTab ? <span style={ui.badge.warning}>Tab {task.actionAvailability.workspaceTab}</span> : null}
                   </div>
                 </div>
+                {Array.isArray(task.actionAvailability?.blockers) && task.actionAvailability?.blockers?.length ? (
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: tokens.colors.textSecondary }}>
+                    {task.actionAvailability.blockers[0]}
+                  </div>
+                ) : null}
+                {task.actionAvailability?.canOpenProject ? (
+                  <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      style={ui.btn.outline as any}
+                      onClick={() => openProjectWorkspace(task.projectId, task.actionAvailability?.workspaceTab)}
+                    >
+                      {task.actionAvailability?.primaryActionLabel || 'Mở workspace'}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -349,7 +429,34 @@ export function MyWork({
                       {approval.projectCode ? `${approval.projectCode} · ` : ''}{approval.projectName || 'No project'} · {approval.requestType}
                     </div>
                   </div>
-                  <span style={approval.status === 'pending' ? ui.badge.warning : ui.badge.success}>{approval.status}</span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={approval.status === 'pending' ? ui.badge.warning : ui.badge.success}>{approval.status}</span>
+                    {approval.actionAvailability?.lane ? <span style={ui.badge.neutral}>Lane {approval.actionAvailability.lane}</span> : null}
+                  </div>
+                </div>
+                <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    style={ui.btn.outline as any}
+                    onClick={() => {
+                      setNavContext({
+                        route: 'Approvals',
+                        filters: approval.actionAvailability?.lane ? { approvalLane: approval.actionAvailability.lane } : undefined,
+                      });
+                      onNavigate?.('Approvals');
+                    }}
+                  >
+                    {approval.actionAvailability?.canDecide ? 'Mở lane để quyết định' : 'Mở approval queue'}
+                  </button>
+                  {approval.projectId ? (
+                    <button
+                      type="button"
+                      style={ui.btn.outline as any}
+                      onClick={() => openProjectWorkspace(approval.projectId, 'commercial')}
+                    >
+                      Mở project
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}

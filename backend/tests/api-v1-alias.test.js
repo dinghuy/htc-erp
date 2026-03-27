@@ -83,8 +83,14 @@ async function main() {
     assert.ok(Array.isArray(authenticated.body));
   });
 
-  await run('versioned quotation and task list routes are reachable', async () => {
-    const quotations = await api('/api/v1/quotations');
+  await run('versioned quotation route preserves auth while task list remains reachable', async () => {
+    const unauthenticatedQuotations = await api('/api/v1/quotations');
+    assert.equal(unauthenticatedQuotations.response.status, 401);
+
+    const login = await loginV1('admin', 'admin123');
+    const quotations = await api('/api/v1/quotations', {
+      headers: { Authorization: `Bearer ${login.body.token}` },
+    });
     assert.equal(quotations.response.status, 200);
     assert.ok(Array.isArray(quotations.body));
 

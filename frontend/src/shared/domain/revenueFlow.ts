@@ -2,7 +2,6 @@ import type {
   ApprovalGateType,
   ApprovalOwnerRole,
   DeliveryLineStatus,
-  SalesOrderStatus,
   WorkflowTransitionResult,
 } from './contracts';
 

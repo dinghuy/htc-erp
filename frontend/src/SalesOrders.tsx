@@ -26,6 +26,24 @@ type SalesOrderRow = {
   notes?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  approvalGateState?: {
+    gateType?: string;
+    status?: string | null;
+    latestApprovalId?: string | null;
+    pendingCount?: number;
+    pendingApprovers?: Array<{
+      approvalId?: string;
+      approverRole?: string | null;
+      approverName?: string | null;
+    }>;
+  } | null;
+  actionAvailability?: {
+    canRelease?: boolean;
+    canRequestReleaseApproval?: boolean;
+    canOpenQuotation?: boolean;
+    canOpenProject?: boolean;
+    blockers?: string[];
+  } | null;
 };
 
 type QuotationRow = {
@@ -166,6 +184,7 @@ export function SalesOrders({
   const [filterStatusGroup, setFilterStatusGroup] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<SalesOrderRow | null>(null);
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [sourceLabel, setSourceLabel] = useState<string | null>(null);
   const [contextActive, setContextActive] = useState(false);
 
@@ -360,6 +379,46 @@ export function SalesOrders({
     setStatus('');
     setSourceLabel(null);
     setContextActive(false);
+  };
+
+  const releaseSalesOrder = async (order: SalesOrderRow) => {
+    setBusyOrderId(order.id);
+    setError(null);
+    try {
+      const res = await fetchWithAuth(token, `${API}/sales-orders/${order.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'released' }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Không thể release sales order');
+      }
+      await load();
+    } catch (error: any) {
+      setError(error?.message || 'Không thể release sales order');
+    } finally {
+      setBusyOrderId(null);
+    }
+  };
+
+  const requestReleaseApproval = async (order: SalesOrderRow) => {
+    setBusyOrderId(order.id);
+    setError(null);
+    try {
+      const res = await fetchWithAuth(token, `${API}/sales-orders/${order.id}/release-approval`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Không thể tạo release approval');
+      }
+      await load();
+    } catch (error: any) {
+      setError(error?.message || 'Không thể tạo release approval');
+    } finally {
+      setBusyOrderId(null);
+    }
   };
 
   return (
@@ -575,19 +634,31 @@ export function SalesOrders({
                     </div>
                   </td>
                   <td style={{ padding: '12px 10px' }}>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '6px 10px',
-                      borderRadius: tokens.radius.lg,
-                      border: `1px solid ${tokens.colors.border}`,
-                      background: tokens.colors.surface,
-                      color: tokens.colors.textPrimary,
-                      fontSize: '12px',
-                      fontWeight: 900,
-                    }}>
-                      {row.status || 'draft'}
-                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '6px 10px',
+                        borderRadius: tokens.radius.lg,
+                        border: `1px solid ${tokens.colors.border}`,
+                        background: tokens.colors.surface,
+                        color: tokens.colors.textPrimary,
+                        fontSize: '12px',
+                        fontWeight: 900,
+                      }}>
+                        {row.status || 'draft'}
+                      </span>
+                      {row.approvalGateState?.status && row.approvalGateState.status !== 'not_requested' && (
+                        <span style={row.approvalGateState.status === 'pending' ? ui.badge.warning : row.approvalGateState.status === 'approved' ? ui.badge.success : ui.badge.info}>
+                          Approval: {String(row.approvalGateState.status).toUpperCase()}
+                        </span>
+                      )}
+                      {(row.approvalGateState?.pendingApprovers || []).map((approver) => (
+                        <span key={`${row.id}-${approver.approvalId || approver.approverRole || 'approver'}`} style={ui.badge.info}>
+                          {approver.approverRole || approver.approverName || 'Pending approver'}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td style={{ padding: '12px 10px', fontWeight: 900, color: tokens.colors.textPrimary }}>
                     {formatMoney(row.grandTotal)} {row.currency || 'VND'}
@@ -597,6 +668,26 @@ export function SalesOrders({
                   </td>
                   <td style={{ padding: '12px 10px' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
+                      {row.actionAvailability?.canRequestReleaseApproval && (
+                        <button
+                          type="button"
+                          style={{ ...ui.btn.outline, padding: '8px 10px', fontSize: '12px' }}
+                          disabled={busyOrderId === row.id}
+                          onClick={() => void requestReleaseApproval(row)}
+                        >
+                          {busyOrderId === row.id ? 'Đang gửi...' : 'Request approval'}
+                        </button>
+                      )}
+                      {row.actionAvailability?.canRelease && (
+                        <button
+                          type="button"
+                          style={{ ...ui.btn.primary, padding: '8px 10px', fontSize: '12px' }}
+                          disabled={busyOrderId === row.id}
+                          onClick={() => void releaseSalesOrder(row)}
+                        >
+                          {busyOrderId === row.id ? 'Đang release...' : 'Release'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         style={{ ...ui.btn.outline, padding: '8px 10px', fontSize: '12px' }}
@@ -607,7 +698,7 @@ export function SalesOrders({
                       <button
                         type="button"
                         style={{ ...ui.btn.outline, padding: '8px 10px', fontSize: '12px' }}
-                        disabled={!row.quotationId}
+                        disabled={!row.actionAvailability?.canOpenQuotation}
                         onClick={() => {
                           if (!row.quotationId) return;
                           setNavContext({

@@ -88,6 +88,13 @@ cd .
 .\scripts\start-ux-audit-stack.ps1
 ```
 
+Kiểm tra stack sau khi bật:
+
+```powershell
+cd .
+.\scripts\check-ux-audit-stack.ps1
+```
+
 3. Cài Playwright package nếu máy chưa có:
 
 ```bash
@@ -140,6 +147,13 @@ Artifacts sẽ nằm ở:
 Khi local runner bị chặn bởi browser launch trong Codex, dùng runbook riêng:
 
 - [ux-regression-codex-runbook.md](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/docs/qa/ux-regression-codex-runbook.md)
+
+Nếu có terminal audit bị treo hoặc cần dọn phiên cũ:
+
+```powershell
+cd .
+.\scripts\cleanup-ux-audit-stack.ps1
+```
 
 ## Expected Invariants
 

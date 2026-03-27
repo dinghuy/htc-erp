@@ -229,38 +229,20 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       await markWinningQuotation(db, id, projectId, true);
     }
 
-    try {
-      await enqueueErpEvent(db, {
-        eventType: 'quotation.upsert',
-        entityType: 'Quotation',
-        entityId: id,
-        payload: {
-          quotation: created,
-          pdfUrl: `/api/quotations/${id}/pdf`,
-        },
-      });
-      if (isApprovalSubmissionStatus(finalStatus) || isWinningQuotationStatus(finalStatus)) {
-        await enqueueErpEvent(db, {
-          eventType: 'quotation.status_changed',
-          entityType: 'Quotation',
-          entityId: id,
-          payload: { quotationId: id, fromStatus: null, toStatus: finalStatus },
-        });
-        if (isWinningQuotationStatus(finalStatus)) {
-          await enqueueErpEvent(db, {
-            eventType: 'sales_order.request',
-            entityType: 'Quotation',
-            entityId: id,
-            payload: { quotationId: id, quoteNumber: created?.quoteNumber || null },
-          });
-        }
-      }
-    } catch {
-      // Never block CRM write-path if ERP is temporarily down or misconfigured.
-    }
-
     if (isApprovalSubmissionStatus(finalStatus) || isWinningQuotationStatus(finalStatus)) {
       await triggerQuotationAutomation(db, created, isWinningQuotationStatus(finalStatus) ? 'won' : 'submitted_for_approval', input.actorUserId, { projectId });
+    }
+    if (isWinningQuotationStatus(finalStatus)) {
+      try {
+        await enqueueErpEvent(db, {
+          eventType: 'sales_order.request',
+          entityType: 'Quotation',
+          entityId: id,
+          payload: { quotationId: id, quoteNumber: created?.quoteNumber || null },
+        });
+      } catch {
+        // Never block CRM write-path if ERP is temporarily down or misconfigured.
+      }
     }
     if (projectId && isWinningQuotationStatus(finalStatus)) {
       await createProjectTasksFromTemplate(db, {
@@ -329,37 +311,19 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
 
     const updated = await quotationRepository.findById(input.quotationId);
 
-    try {
-      await enqueueErpEvent(db, {
-        eventType: 'quotation.upsert',
-        entityType: 'Quotation',
-        entityId: input.quotationId,
-        payload: {
-          quotation: updated,
-          pdfUrl: `/api/quotations/${input.quotationId}/pdf`,
-        },
-      });
-      if (input.hasStatusField && input.nextStatus && input.nextStatus !== input.current.status) {
+    const normalizedNextStatus = normalizeQuotationInputStatus(String(input.nextStatus));
+    if (input.hasStatusField && isWinningQuotationStatus(normalizedNextStatus) && input.nextStatus !== input.current.status) {
+      try {
         await enqueueErpEvent(db, {
-          eventType: 'quotation.status_changed',
+          eventType: 'sales_order.request',
           entityType: 'Quotation',
           entityId: input.quotationId,
-          payload: { quotationId: input.quotationId, fromStatus: input.current.status, toStatus: input.nextStatus },
+          payload: { quotationId: input.quotationId, quoteNumber: updated?.quoteNumber || null },
         });
-        if (isWinningQuotationStatus(String(input.nextStatus))) {
-          await enqueueErpEvent(db, {
-            eventType: 'sales_order.request',
-            entityType: 'Quotation',
-            entityId: input.quotationId,
-            payload: { quotationId: input.quotationId, quoteNumber: updated?.quoteNumber || null },
-          });
-        }
+      } catch {
+        // Ignore ERP sync errors on CRM write-path.
       }
-    } catch {
-      // Ignore ERP sync errors on CRM write-path.
     }
-
-    const normalizedNextStatus = normalizeQuotationInputStatus(String(input.nextStatus));
     if (input.hasStatusField && (isApprovalSubmissionStatus(normalizedNextStatus) || isWinningQuotationStatus(normalizedNextStatus)) && input.nextStatus !== input.current.status) {
       await triggerQuotationAutomation(
         db,

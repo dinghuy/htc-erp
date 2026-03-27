@@ -16,6 +16,10 @@ const { app } = require('../server.ts');
 let server;
 let baseUrl;
 let authHeaders;
+let salesAuthHeaders;
+let procurementAuthHeaders;
+let financeAuthHeaders;
+let legalAuthHeaders;
 let quotationId;
 let projectId;
 let projectQuotationId;
@@ -42,6 +46,12 @@ async function seedUser({ username, password, systemRole, fullName }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
   const id = uuidv4();
+  const departmentByRole = {
+    procurement: 'Procurement',
+    accounting: 'Finance',
+    legal: 'Legal',
+    viewer: 'Sales',
+  };
   await db.run(
     `INSERT INTO User (
       id, fullName, gender, email, phone, role, department, status,
@@ -54,7 +64,7 @@ async function seedUser({ username, password, systemRole, fullName }) {
       `${username}@example.com`,
       '',
       systemRole,
-      'Sales',
+      departmentByRole[systemRole] || 'Sales',
       'Active',
       username,
       passwordHash,
@@ -86,21 +96,85 @@ async function setup() {
     systemRole: 'viewer',
     fullName: 'Pricing Viewer',
   });
+  await seedUser({
+    username: 'pricing.sales',
+    password: 'Sales@123',
+    systemRole: 'sales',
+    fullName: 'Pricing Sales',
+  });
+  await seedUser({
+    username: 'pricing.procurement',
+    password: 'Procurement@123',
+    systemRole: 'procurement',
+    fullName: 'Pricing Procurement',
+  });
+  await seedUser({
+    username: 'pricing.finance',
+    password: 'Finance@123',
+    systemRole: 'accounting',
+    fullName: 'Pricing Finance',
+  });
+  await seedUser({
+    username: 'pricing.legal',
+    password: 'Legal@123',
+    systemRole: 'legal',
+    fullName: 'Pricing Legal',
+  });
   server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   const { port } = server.address();
   baseUrl = `http://127.0.0.1:${port}`;
 
-  const login = await api('/api/auth/login', {
+  const adminLogin = await api('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: 'admin', password: 'admin123' }),
   });
 
-  assert.equal(login.response.status, 200);
+  assert.equal(adminLogin.response.status, 200);
   authHeaders = {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${login.body.token}`,
+    Authorization: `Bearer ${adminLogin.body.token}`,
+  };
+
+  const salesLogin = await login('pricing.sales', 'Sales@123');
+  assert.equal(salesLogin.response.status, 200);
+  salesAuthHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${salesLogin.body.token}`,
+  };
+
+  const procurementLogin = await api('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'pricing.procurement', password: 'Procurement@123' }),
+  });
+  assert.equal(procurementLogin.response.status, 200);
+  procurementAuthHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${procurementLogin.body.token}`,
+  };
+
+  const financeLogin = await api('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'pricing.finance', password: 'Finance@123' }),
+  });
+  assert.equal(financeLogin.response.status, 200);
+  financeAuthHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${financeLogin.body.token}`,
+  };
+
+  const legalLogin = await api('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'pricing.legal', password: 'Legal@123' }),
+  });
+  assert.equal(legalLogin.response.status, 200);
+  legalAuthHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${legalLogin.body.token}`,
   };
 }
 
@@ -311,7 +385,7 @@ async function main() {
 
     const procurementDecision = await api(`/api/approval-requests/${procurementApproval.id}/decision`, {
       method: 'POST',
-      headers: authHeaders,
+      headers: procurementAuthHeaders,
       body: JSON.stringify({ decision: 'approved' }),
     });
 
@@ -323,7 +397,7 @@ async function main() {
 
     const financeDecision = await api(`/api/approval-requests/${financeApproval.id}/decision`, {
       method: 'POST',
-      headers: authHeaders,
+      headers: financeAuthHeaders,
       body: JSON.stringify({ decision: 'approved' }),
     });
 
@@ -506,6 +580,8 @@ async function main() {
       body: JSON.stringify({ status: 'released' }),
     });
     assert.equal(releaseSalesOrder.response.status, 200);
+    const workspaceAfterRelease = await api(`/api/projects/${projectId}`, { headers: authHeaders });
+    assert.equal(workspaceAfterRelease.body.project?.projectStage || workspaceAfterRelease.body.projectStage, 'order_released');
 
     const createInbound = await api(`/api/projects/${projectId}/inbound-lines`, {
       method: 'POST',
@@ -545,6 +621,7 @@ async function main() {
     assert.equal(procurementAfterInbound.shortageQty, 9);
     assert.equal(procurementAfterInbound.shortageStatus, 'partial');
     assert.equal(procurementAfterInbound.actualReceivedDate, '2026-04-16');
+    assert.equal(workspaceAfterInbound.body.project?.projectStage || workspaceAfterInbound.body.projectStage, 'procurement_active');
     assert.ok(workspaceAfterInbound.body.timeline.some((event) => event.eventType === 'inbound.updated' && event.entityId === inboundLineId));
 
     const createDelivery = await api(`/api/projects/${projectId}/delivery-lines`, {
@@ -563,6 +640,33 @@ async function main() {
     assert.equal(createDelivery.response.status, 201);
     const deliveryLineId = createDelivery.body.id;
     assert.ok(deliveryLineId);
+
+    const createDeliveryCompletionApproval = await api(`/api/projects/${projectId}/approval-requests`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        requestType: 'delivery_completion',
+        title: 'Delivery completion confirmation',
+        department: 'Operations',
+        approverRole: 'sales',
+      }),
+    });
+    assert.equal(createDeliveryCompletionApproval.response.status, 201);
+
+    const finalizeWithoutApprovedRequest = await api(`/api/projects/${projectId}/delivery-completion`, {
+      method: 'POST',
+      headers: authHeaders,
+    });
+    assert.equal(finalizeWithoutApprovedRequest.response.status, 409);
+    assert.equal(finalizeWithoutApprovedRequest.body.code, 'DELIVERY_COMPLETION_APPROVAL_REQUIRED');
+
+    const approveDeliveryCompletionTooEarly = await api(`/api/approval-requests/${createDeliveryCompletionApproval.body.id}/decision`, {
+      method: 'POST',
+      headers: salesAuthHeaders,
+      body: JSON.stringify({ decision: 'approved' }),
+    });
+    assert.equal(approveDeliveryCompletionTooEarly.response.status, 409);
+    assert.equal(approveDeliveryCompletionTooEarly.body.code, 'DELIVERY_NOT_COMPLETE');
 
     const updateDelivery = await api(`/api/project-delivery-lines/${deliveryLineId}`, {
       method: 'PATCH',
@@ -585,6 +689,7 @@ async function main() {
     assert.equal(procurementAfterDelivery.shortageQty, 8);
     assert.equal(procurementAfterDelivery.shortageStatus, 'partial');
     assert.equal(procurementAfterDelivery.actualDeliveryDate, '2026-04-27');
+    assert.equal(workspaceAfterDelivery.body.project?.projectStage || workspaceAfterDelivery.body.projectStage, 'delivery_active');
     assert.ok(workspaceAfterDelivery.body.timeline.some((event) => event.eventType === 'delivery.updated' && event.entityId === deliveryLineId));
 
     const createMilestone = await api(`/api/projects/${projectId}/milestones`, {
@@ -619,6 +724,40 @@ async function main() {
     assert.ok(updatedMilestone);
     assert.equal(updatedMilestone.status, 'completed');
     assert.ok(workspaceAfterMilestone.body.timeline.some((event) => event.eventType === 'milestone.updated' && event.entityId === milestoneId));
+
+    const closeDeliveryLine = await api(`/api/project-delivery-lines/${deliveryLineId}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({
+        deliveredQty: 15,
+        actualDeliveryDate: '2026-05-02',
+        status: 'closed',
+        deliveryRef: 'DLV-001-FINAL',
+      }),
+    });
+    assert.equal(closeDeliveryLine.response.status, 200);
+
+    const approveDeliveryCompletion = await api(`/api/approval-requests/${createDeliveryCompletionApproval.body.id}/decision`, {
+      method: 'POST',
+      headers: salesAuthHeaders,
+      body: JSON.stringify({ decision: 'approved', note: 'Delivery fully completed' }),
+    });
+    assert.equal(approveDeliveryCompletion.response.status, 200);
+    assert.equal(approveDeliveryCompletion.body.status, 'approved');
+
+    const finalizeDelivery = await api(`/api/projects/${projectId}/delivery-completion`, {
+      method: 'POST',
+      headers: authHeaders,
+    });
+    assert.equal(finalizeDelivery.response.status, 200);
+    assert.equal(finalizeDelivery.body.projectStage, 'delivery_completed');
+
+    const db = getDb();
+    const deliveryEvents = await db.all(
+      `SELECT * FROM ErpOutbox WHERE entityId = ? AND eventType = 'project.delivery_completed'`,
+      [projectId],
+    );
+    assert.equal(deliveryEvents.length, 1);
   });
 
   await run('governance and workflow routes support approval, document, dedupe, and handoff flows', async () => {
@@ -661,6 +800,18 @@ async function main() {
     const approvalId = createApproval.body.id;
     assert.ok(approvalId);
 
+    const createApprovalWithTerminalStatus = await api(`/api/projects/${projectId}/approval-requests`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quotationId: projectQuotationId,
+        requestType: 'legal-review',
+        title: 'Should fail',
+        status: 'approved',
+      }),
+    });
+    assert.equal(createApprovalWithTerminalStatus.response.status, 400);
+
     const updateApproval = await api(`/api/approval-requests/${approvalId}`, {
       method: 'PUT',
       headers: authHeaders,
@@ -675,9 +826,18 @@ async function main() {
     assert.equal(updateApproval.response.status, 200);
     assert.equal(updateApproval.body.title, 'Legal review handoff updated');
 
+    const updateApprovalToTerminalStatus = await api(`/api/approval-requests/${approvalId}`, {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({
+        status: 'approved',
+      }),
+    });
+    assert.equal(updateApprovalToTerminalStatus.response.status, 400);
+
     const decideApproval = await api(`/api/approval-requests/${approvalId}/decision`, {
       method: 'POST',
-      headers: authHeaders,
+      headers: legalAuthHeaders,
       body: JSON.stringify({ decision: 'approved', note: 'Approved for delivery' }),
     });
 
@@ -760,10 +920,35 @@ async function main() {
     });
 
     assert.equal(handoff.response.status, 201);
-    assert.equal(handoff.body.projectStage, 'delivery');
+    assert.notEqual(handoff.body.projectStage, 'delivery');
     assert.equal(handoff.body.quotationId, projectQuotationId);
     assert.ok(handoff.body.salesOrder?.id);
     assert.ok(Array.isArray(handoff.body.tasks));
+
+    const projectSubmissionQuotation = await api(`/api/projects/${projectId}/quotations`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-PROJ-SUBMIT-001',
+        subject: 'Submission quote',
+        salesperson: 'Admin User',
+        currency: 'VND',
+        items: [
+          { sku: 'SKU-003', name: 'Tu dien', qty: 1, unitPrice: 300000 },
+        ],
+        subtotal: 300000,
+        taxTotal: 24000,
+        grandTotal: 324000,
+        status: 'submitted_for_approval',
+      }),
+    });
+    assert.equal(projectSubmissionQuotation.response.status, 201);
+
+    const submissionOutbox = await getDb().all(
+      `SELECT eventType FROM ErpOutbox WHERE entityId = ? AND entityType = 'Quotation'`,
+      [projectSubmissionQuotation.body.id],
+    );
+    assert.deepEqual(submissionOutbox, []);
 
     const deleteApproval = await api(`/api/approval-requests/${approvalId}`, {
       method: 'DELETE',
@@ -850,7 +1035,9 @@ async function main() {
     assert.equal(create.body.quoteNumber, 'Q-NO-GRAND-001');
     assert.equal(create.body.grandTotal, 0);
 
-    const list = await api('/api/quotations');
+    const list = await api('/api/quotations', {
+      headers: authHeaders,
+    });
     assert.equal(list.response.status, 200);
     assert.equal(list.body.filter((item) => item.quoteNumber === 'Q-NO-GRAND-001').length, 1);
   });

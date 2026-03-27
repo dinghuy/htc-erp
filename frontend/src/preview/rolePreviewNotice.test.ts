@@ -25,8 +25,8 @@ describe('role preview notice', () => {
 
     expect(buildRolePreviewNotice({
       screen: 'my_work',
-      previewLabel: 'Sales + Project Manager',
-      workFocus: 'combined',
+      previewLabel: 'Project Manager',
+      workFocus: 'execution',
     })).toMatchObject({
       tone: 'warning',
     });

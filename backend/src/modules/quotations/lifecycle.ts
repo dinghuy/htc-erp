@@ -33,7 +33,7 @@ export async function updateProjectStageFromQuotation(db: any, projectId: string
   const project = await db.get(`SELECT id, projectStage FROM Project WHERE id = ?`, [projectId]);
   if (!project) return;
   const currentStage = typeof project.projectStage === 'string' ? project.projectStage.trim().toLowerCase() || 'new' : 'new';
-  if (!force && ['delivery', 'closed'].includes(currentStage)) {
+  if (!force && ['order_released', 'procurement_active', 'delivery_active', 'delivery_completed', 'delivery', 'closed'].includes(currentStage)) {
     return;
   }
   if (currentStage === targetStage) return;

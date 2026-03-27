@@ -55,7 +55,6 @@ export type ProjectWorkspaceTabKey =
 export type RolePersonaMode =
   | 'sales'
   | 'project_manager'
-  | 'sales_pm_combined'
   | 'procurement'
   | 'accounting'
   | 'legal'
@@ -166,6 +165,7 @@ export type ApprovalRequestLike = {
   approverRole?: string | null;
   approverUserId?: string | null;
   status?: string | null;
+  requestedBy?: string | null;
 };
 
 const BUSINESS_ROLE_LABELS: Partial<Record<SystemRole, string>> = {
@@ -186,8 +186,8 @@ const LEGACY_ROLE_ALIASES: Partial<Record<SystemRole, SystemRole>> = {
 
 const ROLE_PRIORITY: SystemRole[] = [
   'admin',
-  'sales',
   'project_manager',
+  'sales',
   'procurement',
   'accounting',
   'legal',
@@ -197,20 +197,20 @@ const ROLE_PRIORITY: SystemRole[] = [
 
 export const ROLE_MODULE_ACCESS: Record<SystemRole, AppModule[]> = {
   admin: [...APP_MODULES],
-  sales: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'Leads', 'Accounts', 'Contacts', 'Equipment', 'Partners', 'Sales', 'Pricing', 'Support'],
-  project_manager: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'ERP Orders', 'Ops Overview', 'Gantt', 'Ops Staff', 'Ops Chat', 'Support'],
-  procurement: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'ERP Orders', 'Suppliers', 'Equipment', 'Reports', 'Support'],
-  accounting: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'ERP Orders', 'Reports', 'Support'],
-  legal: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Reports', 'Support'],
-  director: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Reports', 'EventLog', 'Support'],
-  manager: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'Reports', 'Support'],
-  viewer: ['Home', 'My Work', 'Inbox', 'Projects', 'Reports', 'Support'],
+  sales: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'Leads', 'Accounts', 'Contacts', 'Equipment', 'Partners', 'Sales', 'Pricing', 'Users', 'Support'],
+  project_manager: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'ERP Orders', 'Reports', 'Leads', 'Accounts', 'Contacts', 'Equipment', 'Partners', 'Sales', 'Pricing', 'Ops Overview', 'Gantt', 'Ops Staff', 'Ops Chat', 'Users', 'Support'],
+  procurement: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'ERP Orders', 'Suppliers', 'Equipment', 'Reports', 'Users', 'Support'],
+  accounting: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'ERP Orders', 'Reports', 'Users', 'Support'],
+  legal: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Reports', 'Users', 'Support'],
+  director: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Reports', 'EventLog', 'Users', 'Support'],
+  manager: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'Reports', 'Users', 'Support'],
+  viewer: ['Home', 'My Work', 'Inbox', 'Projects', 'Reports', 'Users', 'Support'],
 };
 
 export const ROLE_ACTION_PERMISSIONS: Record<SystemRole, ActionPermissionKey[]> = {
   admin: ['manage_users', 'manage_settings', 'view_all_projects', 'edit_project_shell', 'edit_commercial', 'edit_execution', 'edit_procurement', 'review_documents'],
   sales: ['edit_commercial', 'review_documents'],
-  project_manager: ['edit_project_shell', 'edit_execution', 'review_documents'],
+  project_manager: ['edit_project_shell', 'edit_commercial', 'edit_execution', 'review_documents'],
   procurement: ['edit_procurement', 'review_documents'],
   accounting: ['approve_finance', 'review_documents'],
   legal: ['approve_legal', 'review_documents'],
@@ -284,10 +284,19 @@ export function normalizeRoleCodes(roleCodes: unknown, legacyRole?: unknown): Sy
     normalized.push('viewer');
   }
 
-  return Array.from(new Set(normalized));
+  const deduped = Array.from(new Set(normalized));
+  if (deduped.includes('project_manager') && deduped.includes('sales')) {
+    return deduped.filter((roleCode) => roleCode !== 'sales');
+  }
+
+  return deduped;
 }
 
 export function resolvePrimaryRole(roleCodes: SystemRole[], legacyRole?: unknown): SystemRole {
+  if (roleCodes.includes('project_manager') && roleCodes.includes('sales')) {
+    return 'project_manager';
+  }
+
   if (typeof legacyRole === 'string') {
     const candidate = (LEGACY_ROLE_ALIASES[legacyRole as SystemRole] || legacyRole) as SystemRole;
     if (roleCodes.includes(candidate)) {
@@ -316,9 +325,7 @@ export function buildRoleProfile(roleCodes: unknown, legacyRole?: unknown): Role
   );
 
   let personaMode: RolePersonaMode = primaryRole as RolePersonaMode;
-  if (normalizedRoles.includes('sales') && normalizedRoles.includes('project_manager')) {
-    personaMode = 'sales_pm_combined';
-  } else if (primaryRole === 'admin') {
+  if (primaryRole === 'admin') {
     personaMode = 'admin';
   } else if (primaryRole === 'viewer') {
     personaMode = 'viewer';
@@ -383,11 +390,11 @@ export function resolveApprovalLane(approval: ApprovalRequestLike): ApprovalLane
   const approverRole = String(approval.approverRole || '').trim().toLowerCase();
 
   if (
-    department === 'finance' ||
-    includesAny(requestType, ['finance', 'payment', 'invoice', 'receivable', 'qbu']) ||
-    ['finance', 'accounting', 'cfo'].includes(approverRole)
+    ['procurement', 'purchase'].includes(department) ||
+    includesAny(requestType, ['procurement', 'supplier', 'purchase', 'po-approval']) ||
+    approverRole === 'procurement'
   ) {
-    return 'finance';
+    return 'procurement';
   }
 
   if (
@@ -399,14 +406,6 @@ export function resolveApprovalLane(approval: ApprovalRequestLike): ApprovalLane
   }
 
   if (
-    ['procurement', 'purchase'].includes(department) ||
-    includesAny(requestType, ['procurement', 'supplier', 'purchase', 'po-approval']) ||
-    approverRole === 'procurement'
-  ) {
-    return 'procurement';
-  }
-
-  if (
     ['bod', 'executive'].includes(department) ||
     includesAny(requestType, ['executive', 'margin-exception', 'profit-risk']) ||
     ['director', 'ceo', 'executive'].includes(approverRole)
@@ -414,11 +413,29 @@ export function resolveApprovalLane(approval: ApprovalRequestLike): ApprovalLane
     return 'executive';
   }
 
+  if (
+    department === 'finance' ||
+    includesAny(requestType, ['finance', 'payment', 'invoice', 'receivable']) ||
+    ['finance', 'accounting', 'cfo'].includes(approverRole)
+  ) {
+    return 'finance';
+  }
+
   return 'commercial';
 }
 
-export function canApproveRequest(roleCodes: unknown, approval: ApprovalRequestLike, legacyRole?: unknown) {
+export function canApproveRequest(roleCodes: unknown, approval: ApprovalRequestLike, legacyRole?: unknown, currentUserId?: string | null) {
   const normalizedRoles = normalizeRoleCodes(roleCodes, legacyRole);
+  if (String(approval.status || '').trim().toLowerCase() !== 'pending') {
+    return false;
+  }
+  if (currentUserId && String(approval.requestedBy || '').trim() === currentUserId) {
+    return false;
+  }
+  const assignedUserId = String(approval.approverUserId || '').trim();
+  if (assignedUserId && currentUserId && assignedUserId !== currentUserId) {
+    return false;
+  }
   const lane = resolveApprovalLane(approval);
   return normalizedRoles.some((roleCode) => APPROVAL_PERMISSION_MAP[lane].includes(roleCode));
 }

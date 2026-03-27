@@ -9,12 +9,14 @@ const ChatPanelScreen = lazy(async () => {
 
 export function OpsChatRoute({
   currentUser,
+  isMobile,
 }: {
   currentUser: CurrentUser;
+  isMobile?: boolean;
 }) {
   return (
     <FeatureRouteShell fallbackMessage="Dang tai trao doi van hanh...">
-      <ChatPanelScreen currentUser={currentUser} />
+      <ChatPanelScreen currentUser={currentUser} isMobile={isMobile} />
     </FeatureRouteShell>
   );
 }

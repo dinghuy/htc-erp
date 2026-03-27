@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { ROLE_LABELS, type CurrentUser } from '../auth';
+import { buildRoleProfile, ROLE_LABELS, type CurrentUser } from '../auth';
 import { requestJsonWithAuth, API_BASE } from '../shared/api/client';
 import { getProjectWorkspaceTabsForRoles, type ProjectWorkspaceTabKey } from '../shared/domain/contracts';
 import { showNotify } from '../Notification';
@@ -30,6 +30,7 @@ import {
   ProcurementEditorModal,
 } from './ProjectWorkspaceModals';
 import { buildWorkspaceActionAccess, buildWorkspacePreviewNotice } from './workspacePermissions';
+import { buildWorkspaceHeroPlan } from './workspaceHeroActions';
 
 const API = API_BASE;
 
@@ -144,6 +145,161 @@ function KpiCard({ label, value, accent }: { label: string; value: number; accen
   );
 }
 
+function WorkspaceHeroActionBar({
+  plan,
+  onRunAction,
+}: {
+  plan: ReturnType<typeof buildWorkspaceHeroPlan>;
+  onRunAction: (action: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        ...ui.card.base,
+        padding: '20px',
+        display: 'grid',
+        gap: '16px',
+        border: `1px solid ${tokens.colors.border}`,
+        background: 'linear-gradient(135deg, rgba(0, 151, 110, 0.10) 0%, rgba(0, 77, 53, 0.04) 56%, rgba(255,255,255,1) 100%)',
+      }}
+    >
+      <div style={{ display: 'grid', gap: '8px' }}>
+        <div style={{ ...ui.badge.info, display: 'inline-flex', width: 'fit-content' }}>{plan.eyebrow}</div>
+        <div style={{ fontSize: '22px', fontWeight: 900, color: tokens.colors.textPrimary }}>{plan.title}</div>
+        <div style={{ fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.7, maxWidth: '72ch' }}>{plan.description}</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+        {plan.actions.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onRunAction(item.action)}
+            style={{
+              ...ui.card.base,
+              padding: '16px',
+              display: 'grid',
+              gap: '8px',
+              textAlign: 'left',
+              cursor: 'pointer',
+              border: `1px solid ${tokens.colors.border}`,
+              background: tokens.colors.surface,
+            }}
+          >
+            <div>
+              <span style={item.tone === 'primary' ? ui.badge.info : item.tone === 'secondary' ? ui.badge.warning : ui.badge.neutral}>
+                {item.tone === 'primary' ? 'Primary action' : item.tone === 'secondary' ? 'Next step' : 'Review'}
+              </span>
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary }}>{item.label}</div>
+            <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>{item.hint}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GateStatusBadge({ status }: { status?: string | null }) {
+  const normalized = String(status || 'not_requested').toLowerCase();
+  if (normalized === 'pending') return <span style={ui.badge.warning}>pending</span>;
+  if (normalized === 'approved') return <span style={ui.badge.success}>approved</span>;
+  if (normalized === 'changes_requested') return <span style={ui.badge.info}>changes_requested</span>;
+  if (normalized === 'rejected') return <span style={ui.badge.error}>rejected</span>;
+  return <span style={ui.badge.neutral}>not_requested</span>;
+}
+
+function WorkflowGatesSection({
+  gateStates,
+  actionAvailability,
+  busy,
+  onRequestCommercialApproval,
+  onCreateSalesOrder,
+  onReleaseSalesOrder,
+  onRequestDeliveryCompletionApproval,
+  onFinalizeDeliveryCompletion,
+  onOpenApprovals,
+}: any) {
+  const gates = Array.isArray(gateStates) ? gateStates : [];
+  if (!gates.length) return null;
+
+  return (
+    <div style={{ ...ui.card.base, padding: '18px', display: 'grid', gap: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Workflow Gates</div>
+          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, marginTop: '4px' }}>Hiển thị pending approvers và những action hiện tại backend cho phép thực hiện.</div>
+        </div>
+        <button type="button" onClick={onOpenApprovals} style={S.btnOutline}>Mở Approvals</button>
+      </div>
+      <div style={{ display: 'grid', gap: '10px' }}>
+        {gates.map((gate: any) => {
+          const pendingApprovers = Array.isArray(gate.pendingApprovers) ? gate.pendingApprovers : [];
+          const blockers = Array.isArray(gate.actionAvailability?.blockers) ? gate.actionAvailability.blockers : [];
+
+          return (
+            <div key={gate.gateType} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '14px', display: 'grid', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{gate.title}</div>
+                  <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, marginTop: '4px' }}>
+                    {gate.pendingCount ? `${gate.pendingCount} pending approver(s)` : 'Không có approver nào đang pending'}
+                  </div>
+                </div>
+                <GateStatusBadge status={gate.status} />
+              </div>
+              {pendingApprovers.length ? (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {pendingApprovers.map((approver: any) => (
+                    <span key={`${gate.gateType}-${approver.approvalId}`} style={approver.actionAvailability?.canDecide ? ui.badge.success : ui.badge.info}>
+                      {approver.approverName || approver.approverRole || 'Pending approver'}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {blockers.length ? (
+                <div style={{ display: 'grid', gap: '4px' }}>
+                  {blockers.map((blocker: string, index: number) => (
+                    <div key={`${gate.gateType}-blocker-${index}`} style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>
+                      {blocker}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {gate.gateType === 'quotation_commercial' && actionAvailability?.quotation?.canRequestCommercialApproval ? (
+                  <button type="button" onClick={onRequestCommercialApproval} style={S.btnPrimary} disabled={busy === 'request-commercial-approval'}>
+                    {busy === 'request-commercial-approval' ? 'Đang tạo...' : 'Tạo commercial approval'}
+                  </button>
+                ) : null}
+                {gate.gateType === 'sales_order_release' && actionAvailability?.quotation?.canCreateSalesOrder ? (
+                  <button type="button" onClick={onCreateSalesOrder} style={S.btnOutline} disabled={busy === 'create-sales-order'}>
+                    {busy === 'create-sales-order' ? 'Đang tạo...' : 'Tạo sales order'}
+                  </button>
+                ) : null}
+                {gate.gateType === 'sales_order_release' && actionAvailability?.salesOrder?.canReleaseLatest ? (
+                  <button type="button" onClick={onReleaseSalesOrder} style={S.btnPrimary} disabled={busy === 'release-sales-order'}>
+                    {busy === 'release-sales-order' ? 'Đang release...' : 'Release sales order'}
+                  </button>
+                ) : null}
+                {gate.gateType === 'delivery_completion' && actionAvailability?.project?.canRequestDeliveryCompletionApproval ? (
+                  <button type="button" onClick={onRequestDeliveryCompletionApproval} style={S.btnOutline} disabled={busy === 'request-delivery-completion'}>
+                    {busy === 'request-delivery-completion' ? 'Đang tạo...' : 'Tạo completion approval'}
+                  </button>
+                ) : null}
+                {gate.gateType === 'delivery_completion' && actionAvailability?.project?.canFinalizeDeliveryCompletion ? (
+                  <button type="button" onClick={onFinalizeDeliveryCompletion} style={S.btnPrimary} disabled={busy === 'finalize-delivery-completion'}>
+                    {busy === 'finalize-delivery-completion' ? 'Đang hoàn tất...' : 'Finalize delivery'}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 
 export function ProjectWorkspaceHubModal({
   projectId,
@@ -212,6 +368,13 @@ export function ProjectWorkspaceHubModal({
   const workspaceActionAccess = buildWorkspaceActionAccess(currentUser.roleCodes, currentUser.systemRole);
   const previewLabel = currentUser.previewRoleCodes?.map((roleCode) => ROLE_LABELS[roleCode]).join(' + ') || ROLE_LABELS[currentUser.systemRole];
   const previewNotice = buildWorkspacePreviewNotice(tab, workspaceActionAccess, Boolean(currentUser.isRolePreviewActive), previewLabel);
+  const roleProfile = buildRoleProfile(currentUser.roleCodes, currentUser.systemRole);
+  const workspaceHeroPlan = buildWorkspaceHeroPlan(
+    roleProfile.personaMode,
+    workspace?.projectStage,
+    workspace?.actionAvailability,
+    workspaceActionAccess,
+  );
 
   useEffect(() => {
     if (visibleTabs.some((item) => item.key === tab)) return;
@@ -288,6 +451,89 @@ export function ProjectWorkspaceHubModal({
     showNotify(message, 'error');
   };
 
+  const createApprovalRequest = async (key: string, payload: any, successMessage: string) => {
+    setBusy(key);
+    try {
+      await requestJsonWithAuth(token, `${API}/projects/${projectId}/approval-requests`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }, 'Không thể tạo approval request');
+      showNotify(successMessage, 'success');
+      await loadWorkspace();
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể tạo approval request', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const createCommercialApproval = async () => {
+    const quotationId = workspace?.actionAvailability?.quotation?.latestQuotationId;
+    if (!quotationId) return showNotify('Không có quotation phù hợp để trình commercial approval', 'error');
+    await createApprovalRequest('request-commercial-approval', {
+      quotationId,
+      requestType: 'quotation_commercial',
+      title: 'Quotation commercial approval',
+      department: 'Commercial',
+      approverRole: 'director',
+    }, 'Đã tạo commercial approval');
+  };
+
+  const createSalesOrder = async () => {
+    const quotationId = workspace?.actionAvailability?.quotation?.latestQuotationId;
+    if (!quotationId) return showNotify('Không có quotation phù hợp để tạo sales order', 'error');
+    setBusy('create-sales-order');
+    try {
+      await requestJsonWithAuth(token, `${API}/sales-orders/from-quotation/${quotationId}`, { method: 'POST' }, 'Không thể tạo sales order');
+      showNotify('Đã tạo sales order', 'success');
+      await loadWorkspace();
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể tạo sales order', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const releaseSalesOrder = async () => {
+    const salesOrderId = workspace?.actionAvailability?.salesOrder?.latestSalesOrderId;
+    if (!salesOrderId) return showNotify('Không có sales order để release', 'error');
+    setBusy('release-sales-order');
+    try {
+      await requestJsonWithAuth(token, `${API}/sales-orders/${salesOrderId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'released' }),
+      }, 'Không thể release sales order');
+      showNotify('Đã release sales order', 'success');
+      await loadWorkspace();
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể release sales order', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const requestDeliveryCompletionApproval = async () => {
+    await createApprovalRequest('request-delivery-completion', {
+      requestType: 'delivery_completion',
+      title: 'Delivery completion approval',
+      department: 'Operations',
+      approverRole: 'sales',
+    }, 'Đã tạo delivery completion approval');
+  };
+
+  const finalizeDeliveryCompletion = async () => {
+    setBusy('finalize-delivery-completion');
+    try {
+      await requestJsonWithAuth(token, `${API}/projects/${projectId}/delivery-completion`, { method: 'POST' }, 'Không thể hoàn tất giao hàng');
+      showNotify('Đã hoàn tất giao hàng', 'success');
+      await loadWorkspace();
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể hoàn tất giao hàng', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const openContractEditor = (value: any) => {
     if (!workspaceActionAccess.canEditCommercial) return denyWorkspaceAction('Vai trò hiện tại chỉ được xem commercial workspace');
     setContractEditor(value);
@@ -316,6 +562,23 @@ export function ProjectWorkspaceHubModal({
   const openMilestoneEditor = (value: any) => {
     if (!workspaceActionAccess.canEditTimeline) return denyWorkspaceAction('Vai trò hiện tại không được cập nhật timeline workspace');
     setMilestoneEditor(value);
+  };
+
+  const runHeroAction = (action: string) => {
+    if (action === 'requestCommercialApproval') return void createCommercialApproval();
+    if (action === 'createSalesOrder') return void createSalesOrder();
+    if (action === 'releaseSalesOrder') return void releaseSalesOrder();
+    if (action === 'requestDeliveryCompletionApproval') return void requestDeliveryCompletionApproval();
+    if (action === 'finalizeDeliveryCompletion') return void finalizeDeliveryCompletion();
+    if (action === 'openApprovals') return goToRoute('Approvals', { projectId }, 'Project', projectId);
+    if (action === 'openTasks') return setTab('tasks');
+    if (action === 'openCommercial') return setTab('commercial');
+    if (action === 'openProcurement') return setTab('procurement');
+    if (action === 'openDelivery') return setTab('delivery');
+    if (action === 'openFinance') return setTab('finance');
+    if (action === 'openLegal') return setTab('legal');
+    if (action === 'openTimeline') return setTab('timeline');
+    if (action === 'openDocuments') return setTab('documents');
   };
 
   const openInboundFromProcurement = (line: any) => {
@@ -472,9 +735,23 @@ export function ProjectWorkspaceHubModal({
             </div>
           </div>
 
+          <WorkspaceHeroActionBar plan={workspaceHeroPlan} onRunAction={runHeroAction} />
+
           <div style={{ ...ui.card.base, padding: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {visibleTabs.map((item) => <button key={item.key} data-testid={workspaceTabTestId(item.key)} type="button" style={S.tabBtn(tab === item.key)} onClick={() => setTab(item.key)}>{item.label}</button>)}
           </div>
+
+          <WorkflowGatesSection
+            gateStates={workspace.approvalGateStates}
+            actionAvailability={workspace.actionAvailability}
+            busy={busy}
+            onRequestCommercialApproval={createCommercialApproval}
+            onCreateSalesOrder={createSalesOrder}
+            onReleaseSalesOrder={releaseSalesOrder}
+            onRequestDeliveryCompletionApproval={requestDeliveryCompletionApproval}
+            onFinalizeDeliveryCompletion={finalizeDeliveryCompletion}
+            onOpenApprovals={() => goToRoute('Approvals', { projectId }, 'Project', projectId)}
+          />
 
           {previewNotice ? (
             <div

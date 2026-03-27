@@ -1,4 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
+import type { AuthenticatedUser, ApprovalGateType } from '../../shared/contracts/domain';
+import { canUserApproveRequest, resolveApprovalLane } from '../../shared/auth/permissions';
+import { normalizeRoleCodes } from '../../shared/auth/roles';
+import { canCompleteDelivery, canCreateSalesOrderFromQuotation, canStartLogisticsExecution, canTransitionSalesOrderStatus } from '../../shared/workflow/revenueFlow';
 import { createProjectRepository } from './repository';
 
 type CreateProjectWorkspaceServicesDeps = {
@@ -92,6 +96,161 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
       ...row,
       procurementIsActive: Number(row.procurementIsActive ?? 1) === 1,
       deliveredQty: projectHubNumber(row.deliveredQty, 0),
+    };
+  }
+
+  const GATE_TITLES: Record<ApprovalGateType, string> = {
+    quotation_commercial: 'Quotation Commercial Approval',
+    sales_order_release: 'Sales Order Release',
+    procurement_commitment: 'Procurement Commitment',
+    delivery_release: 'Delivery Release',
+    delivery_completion: 'Delivery Completion',
+  };
+
+  function isBusinessRole(user: Pick<AuthenticatedUser, 'roleCodes' | 'systemRole'> | null | undefined, roles: string[]) {
+    const normalized = normalizeRoleCodes(user?.roleCodes, user?.systemRole);
+    return normalized.some((role) => roles.includes(role));
+  }
+
+  function decorateApprovalForCurrentUser(approval: any, currentUser?: Pick<AuthenticatedUser, 'id' | 'roleCodes' | 'systemRole'> | null) {
+    const canDecide = canUserApproveRequest(currentUser, approval);
+    return {
+      ...approval,
+      actionAvailability: {
+        lane: resolveApprovalLane(approval),
+        canDecide,
+        canEdit: ['pending', 'cancelled'].includes(String(approval?.status || '').toLowerCase()),
+        canDelete: ['pending', 'cancelled'].includes(String(approval?.status || '').toLowerCase()),
+        isRequester: Boolean(currentUser?.id) && String(approval?.requestedBy || '') === currentUser?.id,
+        isAssignedApprover: !approval?.approverUserId || String(approval.approverUserId) === currentUser?.id,
+        availableDecisions: canDecide ? ['approved', 'rejected', 'changes_requested'] : [],
+      },
+    };
+  }
+
+  function buildApprovalGateStates(input: {
+    approvals: any[];
+    currentUser?: Pick<AuthenticatedUser, 'id' | 'roleCodes' | 'systemRole'> | null;
+    latestQuotation?: any;
+    latestSalesOrder?: any;
+    deliveryLines?: any[];
+  }) {
+    const approvals = Array.isArray(input.approvals) ? input.approvals : [];
+    const currentUser = input.currentUser;
+    const gateTypes: ApprovalGateType[] = [
+      'quotation_commercial',
+      'sales_order_release',
+      'procurement_commitment',
+      'delivery_release',
+      'delivery_completion',
+    ];
+
+    return gateTypes.map((gateType) => {
+      const gateApprovals = approvals.filter((approval) => approval?.requestType === gateType);
+      const pendingApprovals = gateApprovals.filter((approval) => String(approval?.status || '').toLowerCase() === 'pending');
+      const latestApproval = gateApprovals[0] || null;
+      const pendingApprovers = pendingApprovals.map((approval) => ({
+        approvalId: approval.id,
+        approverRole: approval.approverRole || null,
+        approverUserId: approval.approverUserId || null,
+        approverName: approval.approverName || null,
+        requestedBy: approval.requestedBy || null,
+        requestedByName: approval.requestedByName || null,
+        dueDate: approval.dueDate || null,
+        actionAvailability: approval.actionAvailability,
+      }));
+      const currentUserCanDecide = pendingApprovals.some((approval) => canUserApproveRequest(currentUser, approval));
+      let canRequest = false;
+      let canExecute = false;
+      const blockers: string[] = [];
+
+      if (gateType === 'quotation_commercial') {
+        const quotationStatus = String(input.latestQuotation?.status || '').toLowerCase();
+        canRequest = isBusinessRole(currentUser, ['sales', 'admin', 'director']) && ['draft', 'revision_required'].includes(quotationStatus) && pendingApprovals.length === 0;
+        if (!input.latestQuotation?.id) blockers.push('Latest quotation is required.');
+      }
+
+      if (gateType === 'sales_order_release') {
+        canRequest = isBusinessRole(currentUser, ['project_manager', 'director', 'admin']) && String(input.latestQuotation?.status || '').toLowerCase() === 'won' && String(input.latestSalesOrder?.status || '').toLowerCase() === 'draft' && pendingApprovals.length === 0;
+        if (String(input.latestQuotation?.status || '').toLowerCase() !== 'won') blockers.push('Quotation must be won before requesting sales order release.');
+        if (!input.latestSalesOrder?.id) blockers.push('Sales order is required.');
+      }
+
+      if (gateType === 'procurement_commitment') {
+        canRequest = isBusinessRole(currentUser, ['project_manager', 'director', 'admin']) && canStartLogisticsExecution(input.latestSalesOrder?.status) && pendingApprovals.length === 0;
+        if (!canStartLogisticsExecution(input.latestSalesOrder?.status)) blockers.push('Released sales order is required before procurement commitment.');
+      }
+
+      if (gateType === 'delivery_release') {
+        canRequest = isBusinessRole(currentUser, ['project_manager', 'director', 'admin']) && canStartLogisticsExecution(input.latestSalesOrder?.status) && pendingApprovals.length === 0;
+        if (!canStartLogisticsExecution(input.latestSalesOrder?.status)) blockers.push('Released sales order is required before delivery release.');
+      }
+
+      if (gateType === 'delivery_completion') {
+        const completion = canCompleteDelivery((input.deliveryLines || []).map((line: any) => line.status));
+        canRequest = isBusinessRole(currentUser, ['project_manager', 'director', 'admin']) && canStartLogisticsExecution(input.latestSalesOrder?.status) && pendingApprovals.length === 0;
+        canExecute = isBusinessRole(currentUser, ['sales', 'director', 'admin']) && Boolean(gateApprovals.find((approval) => String(approval?.status || '').toLowerCase() === 'approved')) && completion.ok;
+        if (!canStartLogisticsExecution(input.latestSalesOrder?.status)) blockers.push('Released sales order is required before delivery completion.');
+        if (completion.ok === false) blockers.push(completion.failure.message);
+      }
+
+      return {
+        gateType,
+        title: GATE_TITLES[gateType],
+        status: pendingApprovals.length > 0 ? 'pending' : latestApproval?.status || 'not_requested',
+        latestApprovalId: latestApproval?.id || null,
+        pendingCount: pendingApprovals.length,
+        pendingApprovers,
+        currentUserCanDecide,
+        actionAvailability: {
+          canRequest,
+          canExecute,
+          blockers,
+        },
+      };
+    });
+  }
+
+  function buildWorkspaceActionAvailability(input: {
+    currentUser?: Pick<AuthenticatedUser, 'id' | 'roleCodes' | 'systemRole'> | null;
+    quotations?: any[];
+    salesOrders?: any[];
+    gateStates?: any[];
+    deliveryLines?: any[];
+  }) {
+    const latestQuotation = Array.isArray(input.quotations) ? input.quotations[0] : null;
+    const latestSalesOrder = Array.isArray(input.salesOrders) ? input.salesOrders[0] : null;
+    const gateStates = Array.isArray(input.gateStates) ? input.gateStates : [];
+    const releasedSalesOrder = canStartLogisticsExecution(latestSalesOrder?.status);
+    const deliveryCompletionGate = gateStates.find((gate) => gate.gateType === 'delivery_completion');
+    const releaseTransition = latestSalesOrder
+      ? canTransitionSalesOrderStatus({
+          currentStatus: latestSalesOrder.status,
+          nextStatus: 'released',
+          quotationStatus: latestQuotation?.status,
+        })
+      : { ok: false, failure: { code: 'SALES_ORDER_REQUIRED', message: 'Sales order is required.' } };
+
+    return {
+      quotation: {
+        latestQuotationId: latestQuotation?.id || null,
+        latestQuotationStatus: latestQuotation?.status || null,
+        canCreateSalesOrder: isBusinessRole(input.currentUser, ['sales', 'project_manager', 'director', 'admin']) && Boolean(latestQuotation?.id) && canCreateSalesOrderFromQuotation(latestQuotation?.status),
+        canRequestCommercialApproval: Boolean(gateStates.find((gate) => gate.gateType === 'quotation_commercial')?.actionAvailability?.canRequest),
+      },
+      salesOrder: {
+        latestSalesOrderId: latestSalesOrder?.id || null,
+        latestSalesOrderStatus: latestSalesOrder?.status || null,
+        canReleaseLatest: Boolean(latestSalesOrder?.id) && isBusinessRole(input.currentUser, ['director', 'admin']) && releaseTransition.ok,
+        blockers: releaseTransition.ok === false ? [releaseTransition.failure.message] : [],
+      },
+      project: {
+        canRecordLogistics: releasedSalesOrder && isBusinessRole(input.currentUser, ['project_manager', 'procurement', 'sales', 'director', 'admin']),
+        canRequestDeliveryCompletionApproval: Boolean(deliveryCompletionGate?.actionAvailability?.canRequest),
+        canFinalizeDeliveryCompletion: Boolean(deliveryCompletionGate?.actionAvailability?.canExecute),
+        deliveryCompletionApprovalId: deliveryCompletionGate?.latestApprovalId || null,
+        blockers: Array.isArray(deliveryCompletionGate?.actionAvailability?.blockers) ? deliveryCompletionGate.actionAvailability.blockers : [],
+      },
     };
   }
 
@@ -286,7 +445,7 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
     return mapProjectBaselineRow(await projectRepository.findExecutionBaselineById(id));
   }
 
-  async function getProjectWorkspaceById(db: any, projectId: string) {
+  async function getProjectWorkspaceById(db: any, projectId: string, currentUser?: Pick<AuthenticatedUser, 'id' | 'roleCodes' | 'systemRole'> | null) {
     const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return null;
 
@@ -330,6 +489,21 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
     const contractAppendices = appendixRows.map(mapProjectAppendixRow);
     const executionBaselines = baselineRows.map(mapProjectBaselineRow);
     const currentBaseline = executionBaselines.find((item: any) => item.isCurrent) || executionBaselines[executionBaselines.length - 1] || null;
+    const decoratedApprovals = approvals.map((approval: any) => decorateApprovalForCurrentUser(approval, currentUser));
+    const approvalGateStates = buildApprovalGateStates({
+      approvals: decoratedApprovals,
+      currentUser,
+      latestQuotation: quotations[0] || null,
+      latestSalesOrder: salesOrders[0] || null,
+      deliveryLines: deliveryRows,
+    });
+    const actionAvailability = buildWorkspaceActionAvailability({
+      currentUser,
+      quotations,
+      salesOrders,
+      gateStates: approvalGateStates,
+      deliveryLines: deliveryRows,
+    });
 
     return {
       ...project,
@@ -337,7 +511,16 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
       supplierQuotes,
       tasks,
       activities,
-      approvals,
+      approvals: decoratedApprovals,
+      approvalGateStates,
+      pendingApproverState: approvalGateStates.map((gate) => ({
+        gateType: gate.gateType,
+        title: gate.title,
+        status: gate.status,
+        pendingCount: gate.pendingCount,
+        pendingApprovers: gate.pendingApprovers,
+      })),
+      actionAvailability,
       documents,
       salesOrders,
       qbuRounds,

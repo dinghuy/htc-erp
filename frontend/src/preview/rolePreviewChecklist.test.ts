@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { buildRolePreviewChecklist } from './rolePreviewChecklist';
 
 describe('role preview checklist', () => {
-  it('returns a combined checklist for sales + project manager preview', () => {
+  it('returns the PM checklist when preview includes sales + project manager', () => {
     const checklist = buildRolePreviewChecklist(['sales', 'project_manager']);
-    expect(checklist.title).toBe('Sales + PM QA checklist');
+    expect(checklist.title).toBe('Project Manager QA checklist');
     expect(checklist.items.length).toBeGreaterThanOrEqual(4);
   });
 

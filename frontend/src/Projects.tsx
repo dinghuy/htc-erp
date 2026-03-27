@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'preact/compat';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { API_BASE } from './config';
-import { type CurrentUser, fetchWithAuth } from './auth';
+import { buildRoleProfile, type CurrentUser, fetchWithAuth } from './auth';
 import { showNotify } from './Notification';
 import { consumeNavContext, setNavContext } from './navContext';
 import { projectStageLabel, projectStageValueOptions } from './ops/workflowOptions';
@@ -10,7 +10,9 @@ import { QA_TEST_IDS, projectCardTestId, projectDetailsButtonTestId, projectWork
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
 import { DetailField, DetailGrid, DetailModal, DetailSection } from './ui/details';
-import { CompassIcon, EditIcon, EyeIcon, FolderIcon, PlusIcon, TrashIcon } from './ui/icons';
+import { EntitySummaryCard, FilterToolbar, PageHero, PageSectionHeader, StatusChipRow } from './ui/patterns';
+import { CompassIcon, EditIcon, EyeIcon, TrashIcon } from './ui/icons';
+import { buildProjectRoleView } from './projects/projectRoleViews';
 const ProjectWorkspaceHubModal = lazy(async () => {
   const module = await import('./projects/ProjectWorkspaceHub');
   return { default: module.ProjectWorkspaceHubModal };
@@ -27,6 +29,15 @@ const S = {
 };
 
 type ProjectStatus = 'pending' | 'active' | 'completed' | 'paused' | 'cancelled';
+type WorkflowAvailabilityTone = 'good' | 'warn' | 'bad' | 'info';
+
+type ResolvedProjectActionAvailability = {
+  nextActionLabel: string;
+  nextActionHint: string;
+  workspaceTab: ProjectWorkspaceTabKey;
+  tone: WorkflowAvailabilityTone;
+  blockers: string[];
+};
 
 type ProjectFormValue = {
   id?: string;
@@ -121,6 +132,11 @@ function formatDate(value?: string | null) {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString('vi-VN');
 }
 
+function toSafeCount(value: unknown) {
+  const normalized = Number(value || 0);
+  return Number.isFinite(normalized) ? normalized : 0;
+}
+
 function statusBadgeStyle(status?: string): any {
   const base = {
     padding: `${tokens.spacing.xs} ${tokens.spacing.md}`,
@@ -161,6 +177,225 @@ function projectStageBadgeStyle(stage?: string): any {
     default:
       return { ...base, ...ui.badge.info };
   }
+}
+
+function workflowGateLabel(gateType?: string) {
+  switch (String(gateType || '').trim().toLowerCase()) {
+    case 'quotation_commercial':
+      return 'Thương mại';
+    case 'sales_order_release':
+      return 'Release SO';
+    case 'procurement_commitment':
+      return 'Mua hàng';
+    case 'delivery_release':
+      return 'Release giao hàng';
+    case 'delivery_completion':
+      return 'Hoàn tất giao hàng';
+    default:
+      return 'Workflow';
+  }
+}
+
+function resolveProjectWorkspaceTab(project: any): ProjectWorkspaceTabKey {
+  if (toSafeCount(project?.missingDocumentCount) > 0) return 'documents';
+  if (toSafeCount(project?.overdueTaskCount) > 0) return 'timeline';
+
+  const stage = String(project?.projectStage || '').trim().toLowerCase();
+  const latestQuotationStatus = String(project?.latestQuotationStatus || '').trim().toLowerCase();
+
+  if (['draft', 'submitted_for_approval', 'revision_required', 'approved', 'won', 'rejected', 'lost'].includes(latestQuotationStatus)) {
+    return 'commercial';
+  }
+  if (['order_released', 'procurement_active'].includes(stage)) return 'procurement';
+  if (['delivery_active', 'delivery', 'delivery_completed', 'closed'].includes(stage)) return 'delivery';
+  if (['new', 'quoting', 'negotiating', 'internal-review', 'commercial_approved', 'won', 'lost'].includes(stage)) return 'commercial';
+  return 'overview';
+}
+
+function resolveProjectActionAvailability(project: any): ResolvedProjectActionAvailability {
+  const workspaceTab = resolveProjectWorkspaceTab(project);
+  const quotationAvailability = project?.actionAvailability?.quotation;
+  const salesOrderAvailability = project?.actionAvailability?.salesOrder;
+  const projectAvailability = project?.actionAvailability?.project;
+  const blockers = [
+    ...(Array.isArray(salesOrderAvailability?.blockers) ? salesOrderAvailability.blockers : []),
+    ...(Array.isArray(projectAvailability?.blockers) ? projectAvailability.blockers : []),
+  ].filter(Boolean);
+
+  if (quotationAvailability?.canRequestCommercialApproval) {
+    return {
+      nextActionLabel: 'Gửi approval thương mại',
+      nextActionHint: 'Báo giá đã sẵn sàng để vào lane approval thương mại.',
+      workspaceTab: 'commercial',
+      tone: 'warn',
+      blockers,
+    };
+  }
+  if (quotationAvailability?.canCreateSalesOrder) {
+    return {
+      nextActionLabel: 'Tạo sales order',
+      nextActionHint: 'Báo giá đã approved/won và đủ điều kiện handoff sang sales order.',
+      workspaceTab: 'commercial',
+      tone: 'good',
+      blockers,
+    };
+  }
+  if (salesOrderAvailability?.canReleaseLatest) {
+    return {
+      nextActionLabel: 'Release sales order',
+      nextActionHint: 'Sales order mới nhất đã sẵn sàng để release cho execution.',
+      workspaceTab: 'commercial',
+      tone: 'warn',
+      blockers,
+    };
+  }
+  if (projectAvailability?.canRecordLogistics) {
+    return {
+      nextActionLabel: 'Ghi nhận logistics',
+      nextActionHint: 'Sales order đã release, có thể bắt đầu inbound và chuẩn bị giao hàng.',
+      workspaceTab: 'delivery',
+      tone: 'info',
+      blockers,
+    };
+  }
+  if (projectAvailability?.canRequestDeliveryCompletionApproval) {
+    return {
+      nextActionLabel: 'Yêu cầu duyệt hoàn tất giao hàng',
+      nextActionHint: 'Giao hàng đang gần xong; bước tiếp theo là approval hoàn tất giao hàng.',
+      workspaceTab: 'delivery',
+      tone: 'warn',
+      blockers,
+    };
+  }
+  if (projectAvailability?.canFinalizeDeliveryCompletion) {
+    return {
+      nextActionLabel: 'Chốt hoàn tất giao hàng',
+      nextActionHint: 'Approval hoàn tất giao hàng đã sẵn sàng để finalize.',
+      workspaceTab: 'delivery',
+      tone: 'good',
+      blockers,
+    };
+  }
+  if (blockers.length > 0) {
+    return {
+      nextActionLabel: 'Gỡ workflow blockers',
+      nextActionHint: blockers[0],
+      workspaceTab,
+      tone: 'bad',
+      blockers,
+    };
+  }
+
+  const pendingApprovals = toSafeCount(project?.pendingApprovalCount);
+  const missingDocuments = toSafeCount(project?.missingDocumentCount);
+  const overdueTasks = toSafeCount(project?.overdueTaskCount);
+  const openTasks = toSafeCount(project?.openTaskCount);
+  const latestQuotationStatus = String(project?.latestQuotationStatus || '').trim().toLowerCase();
+  const projectStage = String(project?.projectStage || '').trim().toLowerCase();
+  const derivedBlockers = [
+    pendingApprovals > 0 ? `${pendingApprovals} approval đang chờ` : '',
+    missingDocuments > 0 ? `${missingDocuments} hồ sơ còn thiếu` : '',
+    overdueTasks > 0 ? `${overdueTasks} task bị trễ` : '',
+  ].filter(Boolean);
+
+  if (pendingApprovals > 0) {
+    return {
+      nextActionLabel: 'Dọn hàng đợi approval',
+      nextActionHint: `${pendingApprovals} approval đang chặn bước workflow kế tiếp của dự án.`,
+      workspaceTab,
+      tone: 'warn',
+      blockers: derivedBlockers,
+    };
+  }
+  if (missingDocuments > 0) {
+    return {
+      nextActionLabel: 'Bổ sung hồ sơ',
+      nextActionHint: `${missingDocuments} tài liệu còn thiếu trước khi tiếp tục handoff hoặc execution.`,
+      workspaceTab: 'documents',
+      tone: 'bad',
+      blockers: derivedBlockers,
+    };
+  }
+  if (overdueTasks > 0) {
+    return {
+      nextActionLabel: 'Kéo lại timeline',
+      nextActionHint: `${overdueTasks} task quá hạn đang kéo chậm readiness hoặc delivery.`,
+      workspaceTab: 'timeline',
+      tone: 'bad',
+      blockers: derivedBlockers,
+    };
+  }
+  if (latestQuotationStatus === 'draft' || latestQuotationStatus === 'revision_required') {
+    return {
+      nextActionLabel: 'Hoàn thiện quotation',
+      nextActionHint: 'Báo giá mới nhất vẫn còn ở draft/revision state.',
+      workspaceTab: 'commercial',
+      tone: latestQuotationStatus === 'revision_required' ? 'warn' : 'info',
+      blockers: derivedBlockers,
+    };
+  }
+  if (latestQuotationStatus === 'submitted_for_approval') {
+    return {
+      nextActionLabel: 'Theo dõi approval thương mại',
+      nextActionHint: 'Báo giá mới nhất đang nằm trong approval lane.',
+      workspaceTab: 'commercial',
+      tone: 'warn',
+      blockers: derivedBlockers,
+    };
+  }
+  if (latestQuotationStatus === 'approved' || latestQuotationStatus === 'won') {
+    return {
+      nextActionLabel: 'Tiếp tục sales order handoff',
+      nextActionHint: 'Báo giá đã approved/won; bước kế tiếp là sales order và release readiness.',
+      workspaceTab: 'commercial',
+      tone: 'good',
+      blockers: derivedBlockers,
+    };
+  }
+  if (['order_released', 'procurement_active'].includes(projectStage)) {
+    return {
+      nextActionLabel: 'Đẩy procurement',
+      nextActionHint: 'Dự án đã rời cổng thương mại và cần follow-through từ mua hàng hoặc inbound.',
+      workspaceTab: 'procurement',
+      tone: 'info',
+      blockers: derivedBlockers,
+    };
+  }
+  if (['delivery_active', 'delivery'].includes(projectStage)) {
+    return {
+      nextActionLabel: 'Theo dõi giao hàng',
+      nextActionHint: 'Dự án đang ở pha giao hàng; logistics và completion readiness là trọng tâm.',
+      workspaceTab: 'delivery',
+      tone: 'info',
+      blockers: derivedBlockers,
+    };
+  }
+  if (['delivery_completed', 'closed'].includes(projectStage) || String(project?.status || '').trim().toLowerCase() === 'completed') {
+    return {
+      nextActionLabel: 'Rà completion state',
+      nextActionHint: 'Dự án đã ở giai đoạn cuối, cần kiểm tra hoàn tất và đóng vòng.',
+      workspaceTab: 'overview',
+      tone: 'good',
+      blockers: derivedBlockers,
+    };
+  }
+  if (openTasks > 0) {
+    return {
+      nextActionLabel: 'Xử lý task mở',
+      nextActionHint: `${openTasks} task còn mở trong workspace hiện tại.`,
+      workspaceTab: 'tasks',
+      tone: 'info',
+      blockers: derivedBlockers,
+    };
+  }
+
+  return {
+    nextActionLabel: 'Mở workspace',
+      nextActionHint: 'Dự án chưa có blocker nổi bật; rà bước kế tiếp theo workspace.',
+    workspaceTab,
+    tone: 'info',
+    blockers: derivedBlockers,
+  };
 }
 
 function resolveAccountLabel(account: any) {
@@ -296,7 +531,7 @@ function ProjectEditorModal({
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
           <div>
-            <label style={S.label}>Stage</label>
+            <label style={S.label}>Giai đoạn</label>
             <select style={S.input} value={form.projectStage} onChange={(e: any) => setForm((prev) => ({ ...prev, projectStage: e.target.value }))}>
               {projectStageValueOptions().map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -394,7 +629,7 @@ function ProjectDetailsModal({
         <DetailSection title="Tổng quan" tone="soft">
           <DetailGrid>
             <DetailField label="Trạng thái" value={<span style={statusBadgeStyle(project.status)}>{STATUS_LABELS[(project.status || 'pending') as ProjectStatus] || project.status || '—'}</span>} />
-            <DetailField label="Stage" value={<span style={projectStageBadgeStyle(project.projectStage)}>{projectStageLabel(project.projectStage) || '—'}</span>} />
+            <DetailField label="Giai đoạn" value={<span style={projectStageBadgeStyle(project.projectStage)}>{projectStageLabel(project.projectStage) || '—'}</span>} />
             <DetailField label="Khách hàng" value={project.accountName || '—'} />
             <DetailField label="Owner" value={project.managerName || '—'} />
             <DetailField label="Ngày bắt đầu" value={formatDate(project.startDate)} />
@@ -410,7 +645,7 @@ function ProjectDetailsModal({
             <DetailField label="Task đang mở" value={Number(project.openTaskCount || 0).toLocaleString('vi-VN')} />
             <DetailField label="Task quá hạn" value={Number(project.overdueTaskCount || 0).toLocaleString('vi-VN')} />
             <DetailField label="Số báo giá" value={Number(project.quotationCount || 0).toLocaleString('vi-VN')} />
-            <DetailField label="Supplier quotes" value={Number(project.supplierQuoteCount || 0).toLocaleString('vi-VN')} />
+            <DetailField label="Báo giá NCC" value={Number(project.supplierQuoteCount || 0).toLocaleString('vi-VN')} />
             <DetailField label="Báo giá gần nhất" value={project.latestQuotationNumber || project.latestQuotationId || '—'} />
             <DetailField label="Trạng thái báo giá gần nhất" value={project.latestQuotationStatus || '—'} />
           </DetailGrid>
@@ -445,9 +680,15 @@ export function Projects({
   const [detailProject, setDetailProject] = useState<any | null>(null);
   const [workspaceProjectId, setWorkspaceProjectId] = useState<string | null>(null);
   const [workspaceInitialTab, setWorkspaceInitialTab] = useState<ProjectWorkspaceTabKey | undefined>(undefined);
+  const roleProfile = useMemo(() => buildRoleProfile(currentUser.roleCodes, currentUser.systemRole), [currentUser.roleCodes, currentUser.systemRole]);
   const canManageProjectShell = canPerformAction(currentUser.roleCodes, 'edit_project_shell', currentUser.systemRole);
   const canDeleteProject = canPerformAction(currentUser.roleCodes, 'edit_project_shell', currentUser.systemRole)
     && currentUser.roleCodes?.includes('admin');
+
+  const openProjectWorkspace = (project: any, fallbackTab?: ProjectWorkspaceTabKey) => {
+    setWorkspaceProjectId(project.id);
+    setWorkspaceInitialTab(fallbackTab || resolveProjectActionAvailability(project).workspaceTab);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -481,7 +722,7 @@ export function Projects({
               if (navCtx.autoOpenEdit && !canManageProjectShell) {
                 showNotify('Bạn không có quyền mở editor dự án, đang chuyển sang workspace read-only.', 'info');
               }
-              setWorkspaceProjectId(matched.id);
+              openProjectWorkspace(matched, navCtx.filters?.workspaceTab as ProjectWorkspaceTabKey | undefined);
             }
           }
         } else if (navCtx.filters?.openRepresentative) {
@@ -492,7 +733,7 @@ export function Projects({
             return true;
           });
           if (matchingProject?.id) {
-            setWorkspaceProjectId(matchingProject.id);
+            openProjectWorkspace(matchingProject, navCtx.filters?.workspaceTab as ProjectWorkspaceTabKey | undefined);
           } else {
             setWorkspaceInitialTab(undefined);
             showNotify('Không tìm thấy workspace mẫu phù hợp với role đang preview', 'error');
@@ -532,15 +773,19 @@ export function Projects({
     });
   }, [accountFilter, managerFilter, overdueOnly, projects, searchTerm, stageFilter, statusFilter]);
 
-  const stats = useMemo(() => {
-    const countByStatus = (status: ProjectStatus) => projects.filter((project) => project.status === status).length;
-    return {
-      total: projects.length,
-      active: countByStatus('active'),
-      completed: countByStatus('completed'),
-      paused: countByStatus('paused'),
-    };
-  }, [projects]);
+  const projectRoleView = useMemo(() => buildProjectRoleView(roleProfile.personaMode, projects), [projects, roleProfile.personaMode]);
+
+  const applyFocusPreset = (presetId: string) => {
+    const preset = projectRoleView.focusPresets.find((item) => item.id === presetId);
+    if (!preset) return;
+    const next = preset.apply();
+    setStatusFilter(next.statusFilter ?? 'all');
+    setStageFilter(next.stageFilter ?? '');
+    setOverdueOnly(Boolean(next.overdueOnly));
+    setSearchTerm('');
+    setAccountFilter('');
+    setManagerFilter('');
+  };
 
   const handleDelete = async (project: any) => {
     if (!canDeleteProject) return;
@@ -560,32 +805,83 @@ export function Projects({
     }
   };
 
+  const resetFilters = () => {
+    setSearchTerm('');
+    setStageFilter('');
+    setAccountFilter('');
+    setManagerFilter('');
+    setOverdueOnly(false);
+    setStatusFilter('all');
+  };
+
   return (
     <div style={{ display: 'grid', gap: '20px', padding: isMobile ? '16px' : '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <FolderIcon size={22} color={tokens.colors.textPrimary} />
-            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 900, color: tokens.colors.textPrimary }}>Dự án</h2>
-          </div>
-          <div style={{ marginTop: '6px', fontSize: '14px', color: tokens.colors.textSecondary }}>Quản lý toàn bộ dự án và đi sâu vào workspace hợp đồng cho từng dự án.</div>
+      <PageHero
+        eyebrow="Project cockpit"
+        title={projectRoleView.title}
+        description={`${projectRoleView.subtitle} ${projectRoleView.note}`}
+        actions={[
+          ...(canManageProjectShell
+            ? [{
+                key: 'add-project',
+                label: projectRoleView.createLabel,
+                onClick: () => setShowAdd(true),
+                variant: 'primary' as const,
+              }]
+            : []),
+          {
+            key: 'open-approvals',
+            label: 'Mở Approvals',
+            onClick: () => onNavigate?.('Approvals'),
+            variant: 'outline' as const,
+          },
+          {
+            key: 'open-reports',
+            label: 'Xem Reports',
+            onClick: () => onNavigate?.('Reports'),
+            variant: 'ghost' as const,
+          },
+        ]}
+      />
+
+      <section style={{ ...S.card, padding: '18px', display: 'grid', gap: '16px', borderColor: tokens.colors.border }}>
+        <PageSectionHeader
+          title="Preset ưu tiên"
+          description="Chọn nhanh một góc nhìn phù hợp vai trò để gom KPI và danh sách dự án vào đúng queue cần xử lý."
+        />
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {projectRoleView.focusPresets.map((preset) => (
+            <button key={preset.id} type="button" onClick={() => applyFocusPreset(preset.id)} style={S.btnOutline}>
+              {preset.label}
+            </button>
+          ))}
         </div>
-        {canManageProjectShell ? (
-          <button type="button" onClick={() => setShowAdd(true)} style={S.btnPrimary}>
-            <PlusIcon size={16} />
-            Tạo Dự Án Thủ Công
-          </button>
-        ) : null}
-      </div>
+      </section>
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '16px' }}>
-        <KpiCard label="Tổng dự án" value={stats.total} />
-        <KpiCard label="Đang thực hiện" value={stats.active} accent={tokens.colors.primary} />
-        <KpiCard label="Hoàn thành" value={stats.completed} accent={tokens.colors.success} />
-        <KpiCard label="Tạm dừng" value={stats.paused} accent={tokens.colors.warning} />
+        {projectRoleView.cards.map((card) => (
+          <KpiCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            accent={
+              card.tone === 'good'
+                ? tokens.colors.success
+                : card.tone === 'warn'
+                  ? tokens.colors.warning
+                  : card.tone === 'bad'
+                    ? tokens.colors.error
+                    : tokens.colors.primary
+            }
+          />
+        ))}
       </div>
 
-      <div style={{ ...S.card, padding: '18px', display: 'grid', gap: '16px' }}>
+      <section style={{ display: 'grid', gap: '12px' }}>
+        <PageSectionHeader
+          title="Thanh lọc dự án"
+          description="Giữ một bộ lọc gọn để xác định status, stage, owner và queue ưu tiên trước khi đi vào từng project."
+        />
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           {STATUS_TABS.map((tab) => {
             const active = statusFilter === tab.key;
@@ -611,61 +907,81 @@ export function Projects({
             );
           })}
         </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(220px, 1.4fr) repeat(3, minmax(180px, 1fr)) auto auto', gap: '12px', alignItems: 'center' }}>
-          <input
-            style={S.input}
-            value={searchTerm}
-            onInput={(e: any) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo tên, mã, account, owner..."
-          />
-          <select style={S.input} value={stageFilter} onChange={(e: any) => setStageFilter(e.target.value)}>
-            <option value="">Tất cả stage dự án</option>
-            {projectStageValueOptions().map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-          <select style={S.input} value={accountFilter} onChange={(e: any) => setAccountFilter(e.target.value)}>
-            <option value="">Tất cả account</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>{resolveAccountLabel(account)}</option>
-            ))}
-          </select>
-          <select style={S.input} value={managerFilter} onChange={(e: any) => setManagerFilter(e.target.value)}>
-            <option value="">Tất cả owner</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>{resolveUserLabel(user)}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => setOverdueOnly((prev) => !prev)}
-            style={{
-              ...(overdueOnly ? S.btnPrimary : S.btnOutline),
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Chỉ dự án có task trễ
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchTerm('');
-              setStageFilter('');
-              setAccountFilter('');
-              setManagerFilter('');
-              setOverdueOnly(false);
-              setStatusFilter('all');
-            }}
-            style={S.btnOutline}
-          >
-            Reset
-          </button>
-        </div>
-        <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, fontWeight: 700 }}>
-          Hiển thị {filteredProjects.length}/{projects.length} dự án
-        </div>
-      </div>
+        <FilterToolbar
+          controls={[
+            {
+              key: 'search',
+              grow: true,
+              node: (
+                <input
+                  style={S.input}
+                  value={searchTerm}
+                  onInput={(e: any) => setSearchTerm(e.target.value)}
+                  placeholder="Tìm theo tên, mã, account, owner..."
+                />
+              ),
+            },
+            {
+              key: 'stage',
+              node: (
+                <select style={S.input} value={stageFilter} onChange={(e: any) => setStageFilter(e.target.value)}>
+                  <option value="">Tất cả stage dự án</option>
+                  {projectStageValueOptions().map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              ),
+            },
+            {
+              key: 'account',
+              node: (
+                <select style={S.input} value={accountFilter} onChange={(e: any) => setAccountFilter(e.target.value)}>
+                  <option value="">Tất cả account</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.id}>{resolveAccountLabel(account)}</option>
+                  ))}
+                </select>
+              ),
+            },
+            {
+              key: 'manager',
+              node: (
+                <select style={S.input} value={managerFilter} onChange={(e: any) => setManagerFilter(e.target.value)}>
+                  <option value="">Tất cả owner</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>{resolveUserLabel(user)}</option>
+                  ))}
+                </select>
+              ),
+            },
+            {
+              key: 'overdue',
+              node: (
+                <button
+                  type="button"
+                  onClick={() => setOverdueOnly((prev) => !prev)}
+                  style={{
+                    ...(overdueOnly ? S.btnPrimary : S.btnOutline),
+                    width: '100%',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Chỉ dự án có task trễ
+                </button>
+              ),
+            },
+            {
+              key: 'reset',
+              node: (
+                <button type="button" onClick={resetFilters} style={{ ...S.btnOutline, width: '100%' }}>
+                  Reset
+                </button>
+              ),
+            },
+          ]}
+          summary={`Hiển thị ${filteredProjects.length}/${projects.length} dự án`}
+        />
+      </section>
 
       {loading ? (
         <div style={{ ...S.card, padding: '48px', textAlign: 'center', color: tokens.colors.textSecondary }}>Đang tải danh sách dự án...</div>
@@ -682,76 +998,108 @@ export function Projects({
         <div data-testid={QA_TEST_IDS.projects.list} style={{ display: 'grid', gap: '16px' }}>
           {filteredProjects.map((project) => {
             const progress = computeProgress(project);
+            const workflowAction = resolveProjectActionAvailability(project);
+            const pendingGates = ensureArray(project.approvalGateStates).filter((gate: any) => String(gate?.status || '').toLowerCase() === 'pending');
+            const pendingApprovers = ensureArray(project.pendingApproverState);
+            const statusItems = [
+              {
+                key: `${project.id}-status`,
+                label: STATUS_LABELS[(project.status || 'pending') as ProjectStatus] || project.status || '—',
+                tone: project.status === 'completed' ? 'good' as const : project.status === 'paused' ? 'warn' as const : project.status === 'cancelled' ? 'bad' as const : 'info' as const,
+              },
+              {
+                key: `${project.id}-stage`,
+                label: projectStageLabel(project.projectStage) || '—',
+                tone: project.projectStage === 'won' ? 'good' as const : project.projectStage === 'lost' ? 'bad' as const : 'neutral' as const,
+              },
+            ];
+            const supportItems = [
+              {
+                key: `${project.id}-approvals`,
+                label: `${Number(project.pendingApprovalCount || 0)} approval`,
+                tone: Number(project.pendingApprovalCount || 0) > 0 ? 'warn' as const : 'good' as const,
+              },
+              {
+                key: `${project.id}-docs`,
+                label: `${Number(project.missingDocumentCount || 0)} hồ sơ thiếu`,
+                tone: Number(project.missingDocumentCount || 0) > 0 ? 'bad' as const : 'good' as const,
+              },
+              {
+                key: `${project.id}-overdue`,
+                label: `${Number(project.overdueTaskCount || 0)} task trễ`,
+                tone: Number(project.overdueTaskCount || 0) > 0 ? 'bad' as const : 'info' as const,
+              },
+              ...pendingGates.slice(0, 1).map((gate: any, index: number) => ({
+                key: `${project.id}-gate-${gate.gateType || 'pending'}-${index}`,
+                label: `Gate ${workflowGateLabel(gate.gateType)}`,
+                tone: String(gate.status || '').toLowerCase() === 'pending' ? 'warn' as const : 'neutral' as const,
+              })),
+              ...pendingApprovers.slice(0, 1).map((approver: any, index: number) => ({
+                key: `${project.id}-approver-${approver.approvalId || approver.approverRole || 'pending'}-${index}`,
+                label: `Chờ ${approver.approverName || approver.approverRole || 'approver'}`,
+                tone: 'neutral' as const,
+              })),
+            ].slice(0, 4);
             return (
-              <div key={project.id} data-testid={projectCardTestId(project.id)} style={{ ...S.card, padding: '18px', display: 'grid', gap: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div key={project.id} data-testid={projectCardTestId(project.id)}>
+                <EntitySummaryCard
+                  title={project.name}
+                  subtitle={`${project.accountName || 'Chưa có account'} · ${project.code ? `#${project.code} · ` : ''}${project.managerName || 'Chưa gán owner'}`}
+                  description={project.description || 'Chưa có mô tả dự án.'}
+                  statusItems={statusItems}
+                  meta={[
+                    { key: 'account', label: 'Account', value: project.accountName || '—' },
+                    { key: 'owner', label: 'Owner', value: project.managerName || '—' },
+                    { key: 'timeline', label: 'Timeline', value: `${formatDate(project.startDate)} - ${formatDate(project.endDate)}` },
+                    { key: 'volume', label: 'Task / Quote', value: `${Number(project.taskCount || 0).toLocaleString('vi-VN')} task / ${Number(project.quotationCount || 0).toLocaleString('vi-VN')} báo giá` },
+                  ]}
+                  primaryLabel={workflowAction.nextActionLabel}
+                  primaryHint={workflowAction.nextActionHint}
+                  footer={(
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      <StatusChipRow items={supportItems} />
+                      {workflowAction.blockers.length > 0 && workflowAction.blockers[0] !== workflowAction.nextActionHint ? (
+                        <StatusChipRow
+                          items={workflowAction.blockers.slice(0, 1).map((blocker, index) => ({
+                            key: `${project.id}-blocker-${index}`,
+                            label: blocker,
+                            tone: 'neutral' as const,
+                          }))}
+                        />
+                      ) : null}
+                      <ProgressBar value={progress} />
+                    </div>
+                  )}
+                  actions={(
+                    <>
                       <button
                         type="button"
-                        onClick={() => setWorkspaceProjectId(project.id)}
-                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: tokens.colors.textPrimary, fontSize: '18px', fontWeight: 900, textAlign: 'left' }}
+                        data-testid={projectWorkspaceButtonTestId(project.id)}
+                        onClick={() => openProjectWorkspace(project)}
+                        style={S.btnPrimary}
                       >
-                        {project.name}
+                        <CompassIcon size={16} />
+                        Workspace
                       </button>
-                      {project.code ? <span style={{ fontSize: '12px', fontWeight: 700, color: tokens.colors.textMuted }}>#{project.code}</span> : null}
-                    </div>
-                    <div style={{ marginTop: '6px', fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.5 }}>
-                      {project.description || 'Chưa có mô tả dự án.'}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <span style={statusBadgeStyle(project.status)}>{STATUS_LABELS[(project.status || 'pending') as ProjectStatus] || project.status}</span>
-                    <span style={projectStageBadgeStyle(project.projectStage)}>{projectStageLabel(project.projectStage) || '—'}</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '12px' }}>
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Account</div>
-                    <div style={{ marginTop: '6px', fontSize: '13px', fontWeight: 700, color: tokens.colors.textPrimary }}>{project.accountName || '—'}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Owner</div>
-                    <div style={{ marginTop: '6px', fontSize: '13px', fontWeight: 700, color: tokens.colors.textPrimary }}>{project.managerName || '—'}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Timeline</div>
-                    <div style={{ marginTop: '6px', fontSize: '13px', fontWeight: 700, color: tokens.colors.textPrimary }}>{formatDate(project.startDate)} - {formatDate(project.endDate)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Task / Quote</div>
-                    <div style={{ marginTop: '6px', fontSize: '13px', fontWeight: 700, color: tokens.colors.textPrimary }}>
-                      {Number(project.taskCount || 0).toLocaleString('vi-VN')} task / {Number(project.quotationCount || 0).toLocaleString('vi-VN')} báo giá
-                    </div>
-                  </div>
-                </div>
-
-                <ProgressBar value={progress} />
-
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <button type="button" data-testid={projectWorkspaceButtonTestId(project.id)} onClick={() => setWorkspaceProjectId(project.id)} style={S.btnPrimary}>
-                    <CompassIcon size={16} />
-                    Workspace
-                  </button>
-                  <button type="button" data-testid={projectDetailsButtonTestId(project.id)} onClick={() => setDetailProject(project)} style={S.btnOutline}>
-                    <EyeIcon size={16} />
-                    Chi tiết
-                  </button>
-                  {canManageProjectShell ? (
-                    <button type="button" onClick={() => setEditProject(project)} style={S.btnOutline}>
-                      <EditIcon size={16} />
-                      Sửa
-                    </button>
-                  ) : null}
-                  {canDeleteProject ? (
-                    <button type="button" onClick={() => handleDelete(project)} style={{ ...S.btnOutline, color: tokens.colors.error, borderColor: tokens.colors.error }}>
-                      <TrashIcon size={16} />
-                      Xóa
-                    </button>
-                  ) : null}
-                </div>
+                      <button type="button" data-testid={projectDetailsButtonTestId(project.id)} onClick={() => setDetailProject(project)} style={S.btnOutline}>
+                        <EyeIcon size={16} />
+                        Chi tiết
+                      </button>
+                      {canManageProjectShell ? (
+                        <button type="button" onClick={() => setEditProject(project)} style={S.btnOutline}>
+                          <EditIcon size={16} />
+                          Sửa
+                        </button>
+                      ) : null}
+                      {canDeleteProject ? (
+                        <button type="button" onClick={() => handleDelete(project)} style={{ ...S.btnOutline, color: tokens.colors.error, borderColor: tokens.colors.error }}>
+                          <TrashIcon size={16} />
+                          Xóa
+                        </button>
+                      ) : null}
+                    </>
+                  )}
+                />
               </div>
             );
           })}
@@ -796,7 +1144,7 @@ export function Projects({
         }}
         onOpenWorkspace={() => {
           if (!detailProject?.id) return;
-          setWorkspaceProjectId(detailProject.id);
+          openProjectWorkspace(detailProject);
           setDetailProject(null);
         }}
         onNavigate={onNavigate}

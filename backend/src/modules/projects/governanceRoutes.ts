@@ -5,6 +5,8 @@ import { getDb } from '../../../sqlite-db';
 import type { AuthenticatedRequest } from '../../shared/auth/httpAuth';
 import { canUserApproveRequest, resolveApprovalActingCapability } from '../../shared/auth/permissions';
 import { normalizeRoleCodes } from '../../shared/auth/roles';
+import { ensureDeliveryCompletionReady, finalizeDeliveryCompletion } from './deliveryCompletion';
+import { createProjectRepository } from './repository';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
 
@@ -14,6 +16,7 @@ type RegisterProjectGovernanceRoutesDeps = {
   requireRole: (...roles: string[]) => any;
   getCurrentUserId: (req: Request) => string;
   handleQbuApprovalDecision: (db: any, approvalRequest: any) => Promise<unknown>;
+  createProjectTimelineEvent: (db: any, event: any) => Promise<any>;
   logAct: (
     title: string,
     description: string,
@@ -45,14 +48,18 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     requireRole,
     getCurrentUserId,
     handleQbuApprovalDecision,
+    createProjectTimelineEvent,
     logAct,
     resolveProjectHandoffQuotation,
     markWinningQuotation,
     createSalesOrderFromQuotation,
     createProjectTasksFromTemplate,
   } = deps;
+  const projectRepository = createProjectRepository();
 
-  app.post('/api/projects/:id/approval-requests', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+  const EDITABLE_APPROVAL_STATUSES = new Set(['pending', 'cancelled']);
+
+  app.post('/api/projects/:id/approval-requests', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(async (req: Request, res: Response) => {
     const db = getDb();
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const project = await db.get('SELECT id FROM Project WHERE id = ?', [projectId]);
@@ -74,9 +81,10 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     const department = typeof req.body?.department === 'string' ? req.body.department.trim() : null;
     const dueDate = typeof req.body?.dueDate === 'string' && req.body.dueDate.trim() ? req.body.dueDate.trim() : null;
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : null;
-    const status = typeof req.body?.status === 'string' && ['pending', 'approved', 'rejected', 'changes_requested'].includes(req.body.status.trim())
-      ? req.body.status.trim()
-      : 'pending';
+    const requestedStatus = typeof req.body?.status === 'string' ? req.body.status.trim().toLowerCase() : '';
+    if (requestedStatus && requestedStatus !== 'pending') {
+      return res.status(400).json({ error: 'Approval requests must be created in pending status' });
+    }
 
     await db.run(
       `INSERT INTO ApprovalRequest (
@@ -92,7 +100,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
         getCurrentUserId(req) || null,
         approverRole,
         approverUserId,
-        status,
+        'pending',
         dueDate,
         note,
       ]
@@ -102,7 +110,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     res.status(201).json(row);
   }));
 
-  app.put('/api/approval-requests/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+  app.put('/api/approval-requests/:id', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(async (req: Request, res: Response) => {
     const db = getDb();
     const approvalId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const approval = await db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [approvalId]);
@@ -115,15 +123,20 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     const approverUserId = typeof req.body?.approverUserId === 'string' ? (req.body.approverUserId.trim() || null) : approval.approverUserId;
     const dueDate = typeof req.body?.dueDate === 'string' ? (req.body.dueDate.trim() || null) : approval.dueDate;
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : approval.note;
-    const status = typeof req.body?.status === 'string' && ['pending', 'approved', 'rejected', 'changes_requested'].includes(req.body.status.trim())
-      ? req.body.status.trim()
-      : approval.status;
+    const requestedStatus = typeof req.body?.status === 'string' ? req.body.status.trim().toLowerCase() : '';
+    if (requestedStatus && !EDITABLE_APPROVAL_STATUSES.has(requestedStatus)) {
+      return res.status(400).json({ error: 'Approval request status can only be updated to pending or cancelled outside the decision flow' });
+    }
+    const status = requestedStatus || approval.status;
 
     await db.run(
       `UPDATE ApprovalRequest
-       SET requestType = ?, title = ?, department = ?, approverRole = ?, approverUserId = ?, status = ?, dueDate = ?, note = ?, updatedAt = datetime('now')
+       SET requestType = ?, title = ?, department = ?, approverRole = ?, approverUserId = ?, status = ?, dueDate = ?, note = ?,
+           decidedAt = CASE WHEN ? = 'pending' THEN NULL ELSE decidedAt END,
+           decidedBy = CASE WHEN ? = 'pending' THEN NULL ELSE decidedBy END,
+           updatedAt = datetime('now')
        WHERE id = ?`,
-      [requestType, title, department || null, approverRole || null, approverUserId, status, dueDate, note || null, approvalId]
+      [requestType, title, department || null, approverRole || null, approverUserId, status, dueDate, note || null, status, status, approvalId]
     );
     const updated = await db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [approvalId]);
     if (approval.projectId) {
@@ -144,6 +157,15 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     if (!['approved', 'rejected', 'changes_requested'].includes(decision)) {
       return res.status(400).json({ error: 'decision must be approved, rejected or changes_requested' });
     }
+    if (approval?.projectId && approval?.requestType === 'delivery_completion' && decision === 'approved') {
+      const readiness = await ensureDeliveryCompletionReady(projectRepository, approval.projectId);
+      if (readiness.ok === false) {
+        return res.status(readiness.httpStatus).json({ error: readiness.error, code: readiness.code });
+      }
+    }
+    const quotationBefore = approval?.quotationId
+      ? await db.get('SELECT id, status, projectId FROM Quotation WHERE id = ?', [approval.quotationId])
+      : null;
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
     await db.run(
       `UPDATE ApprovalRequest
@@ -169,15 +191,32 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
             : 'lost';
         await db.run(`UPDATE Project SET projectStage = ?, updatedAt = datetime('now') WHERE id = ?`, [nextProjectStage, updated.projectId]);
       }
+      if (decision === 'approved' && quotationBefore && quotationBefore.status !== 'approved') {
+        await enqueueErpEvent(db, {
+          eventType: 'quotation.status_changed',
+          entityType: 'Quotation',
+          entityId: updated.quotationId,
+          payload: {
+            quotationId: updated.quotationId,
+            fromStatus: quotationBefore.status,
+            toStatus: 'approved',
+            sourceApprovalId: updated.id,
+          },
+        });
+      }
     }
     if (updated?.projectId && updated?.requestType === 'delivery_completion' && decision === 'approved') {
-      await db.run(`UPDATE Project SET projectStage = ?, updatedAt = datetime('now') WHERE id = ?`, ['delivery_completed', updated.projectId]);
-      await enqueueErpEvent(db, {
-        eventType: 'project.delivery_completed',
-        entityType: 'Project',
-        entityId: updated.projectId,
-        payload: { projectId: updated.projectId, sourceApprovalId: updated.id },
+      const completion = await finalizeDeliveryCompletion({
+        db,
+        projectRepository,
+        projectId: updated.projectId,
+        actorUserId: getCurrentUserId(req) || null,
+        sourceApprovalId: updated.id,
+        createProjectTimelineEvent,
       });
+      if (completion.ok === false) {
+        return res.status(completion.httpStatus).json({ error: completion.error, code: completion.code });
+      }
     }
     if (updated?.projectId) {
       const actorRoles = normalizeRoleCodes(req.user?.roleCodes, req.user?.systemRole);
@@ -204,7 +243,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     res.json(updated);
   }));
 
-  app.delete('/api/approval-requests/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+  app.delete('/api/approval-requests/:id', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(async (req: Request, res: Response) => {
     const db = getDb();
     const approvalId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const approval = await db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [approvalId]);
@@ -319,7 +358,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
       actorUserId,
       requestedAssigneeId: req.body?.assigneeId,
     });
-    await db.run(`UPDATE Project SET projectStage = ?, updatedAt = datetime('now') WHERE id = ?`, ['delivery', projectId]);
+    const handoffProject = await db.get('SELECT projectStage FROM Project WHERE id = ?', [projectId]);
     await logAct(
       'Project handoff to delivery',
       `${project.name || project.code || projectId} -> ${salesOrderResult.salesOrder?.orderNumber || 'sales order'}`,
@@ -332,7 +371,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     );
     res.status(201).json({
       projectId,
-      projectStage: 'delivery',
+      projectStage: handoffProject?.projectStage || 'won',
       quotationId: quotation.id,
       salesOrder: salesOrderResult.salesOrder,
       salesOrderCreated: salesOrderResult.created,

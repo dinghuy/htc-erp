@@ -107,7 +107,21 @@ function mapGenderRecords<T extends Array<{ gender?: unknown }>>(rows: T): T {
 }
 
 const SUPPORT_TICKET_STATUSES = ['open', 'in_progress', 'resolved', 'closed'] as const;
-const PROJECT_STAGE_VALUES = ['new', 'quoting', 'negotiating', 'internal-review', 'won', 'lost', 'delivery', 'closed'] as const;
+const PROJECT_STAGE_VALUES = [
+  'new',
+  'quoting',
+  'negotiating',
+  'internal-review',
+  'commercial_approved',
+  'won',
+  'lost',
+  'order_released',
+  'procurement_active',
+  'delivery_active',
+  'delivery',
+  'delivery_completed',
+  'closed',
+] as const;
 const TASK_TEMPLATE_LIBRARY: Record<string, Array<{ name: string; taskType: string; department: string; priority: string; dueInDays: number; description: string }>> = {
   'quotation-sent': [
     {
@@ -271,7 +285,7 @@ registerAuthRoutes(app, { mapGenderRecord });
 registerPlatformCalculatorRoutes(app, { ah });
 registerPlatformQaRoutes(app, { ah, requireAuth });
 registerPlatformReportingRoutes(app, { ah });
-registerPlatformWorkspaceRoutes(app, { ah, requireAuth });
+registerPlatformWorkspaceRoutes(app, { ah, requireAuth, getProjectWorkspaceById });
 registerPlatformSystemRoutes(app, { ah, requireAuth, requireRole });
 registerCrmRoutes(app, { ah, requireAuth, requireRole, upload, mapGenderRecord, mapGenderRecords, logAct });
 registerProductRoutes(app, {
@@ -565,8 +579,8 @@ function createExecutionBaselineFromSource(
   return getProjectWorkspaceServices().createExecutionBaselineFromSource(db, params);
 }
 
-function getProjectWorkspaceById(db: any, projectId: string) {
-  return getProjectWorkspaceServices().getProjectWorkspaceById(db, projectId);
+function getProjectWorkspaceById(db: any, projectId: string, currentUser?: any) {
+  return getProjectWorkspaceServices().getProjectWorkspaceById(db, projectId, currentUser);
 }
 
 let notificationServicesCache: ReturnType<typeof createNotificationServices> | null = null;
@@ -686,6 +700,7 @@ registerProjectGovernanceRoutes(app, {
   requireRole,
   getCurrentUserId,
   handleQbuApprovalDecision,
+  createProjectTimelineEvent,
   logAct,
   resolveProjectHandoffQuotation,
   markWinningQuotation,

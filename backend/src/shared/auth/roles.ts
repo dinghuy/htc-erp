@@ -25,8 +25,8 @@ const LEGACY_ROLE_MAP: Record<string, NormalizedRoleCode> = {
 
 const PRIMARY_ROLE_PRIORITY: NormalizedRoleCode[] = [
   'admin',
-  'sales',
   'project_manager',
+  'sales',
   'procurement',
   'accounting',
   'legal',
@@ -78,10 +78,19 @@ export function normalizeRoleCodes(roleCodes: unknown, systemRole?: unknown): No
     normalized.push('viewer');
   }
 
-  return Array.from(new Set(normalized));
+  const deduped = Array.from(new Set(normalized));
+  if (deduped.includes('project_manager') && deduped.includes('sales')) {
+    return deduped.filter((roleCode) => roleCode !== 'sales');
+  }
+
+  return deduped;
 }
 
 export function resolvePrimaryRole(roleCodes: NormalizedRoleCode[], systemRole?: unknown): NormalizedRoleCode {
+  if (roleCodes.includes('project_manager') && roleCodes.includes('sales')) {
+    return 'project_manager';
+  }
+
   const normalizedSystemRole = normalizeRoleCode(systemRole);
   if (normalizedSystemRole && roleCodes.includes(normalizedSystemRole)) {
     return normalizedSystemRole;

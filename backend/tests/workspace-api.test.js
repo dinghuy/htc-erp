@@ -186,8 +186,13 @@ async function main() {
     assert.equal(myWork.body.summary.taskCount, 1);
     assert.equal(myWork.body.summary.pendingApprovalCount, 1);
     assert.equal(myWork.body.cards[0].label, 'Deals cần chốt');
-    assert.ok(myWork.body.tasks.some((item) => item.id === taskId));
-    assert.ok(myWork.body.approvals.some((item) => item.id === approvalId));
+    const taskRow = myWork.body.tasks.find((item) => item.id === taskId);
+    assert.ok(taskRow);
+    assert.equal(taskRow.actionAvailability.workspaceTab, 'commercial');
+    assert.equal(taskRow.actionAvailability.canOpenProject, true);
+    const myWorkApprovalRow = myWork.body.approvals.find((item) => item.id === approvalId);
+    assert.ok(myWorkApprovalRow);
+    assert.equal(myWorkApprovalRow.actionAvailability.lane, 'legal');
 
     const inbox = await api('/api/workspace/inbox', {
       headers: { Authorization: `Bearer ${auth.body.token}` },
@@ -198,7 +203,10 @@ async function main() {
     assert.equal(inbox.body.summary.documentCount, 1);
     assert.equal(inbox.body.summary.blockedTaskCount, 0);
     assert.ok(inbox.body.cards.some((item) => item.label === 'Missing documents' && item.value === 1));
-    assert.ok(inbox.body.items.some((item) => item.entityId === documentId));
+    const inboxDocumentRow = inbox.body.items.find((item) => item.entityId === documentId);
+    assert.ok(inboxDocumentRow);
+    assert.equal(inboxDocumentRow.actionAvailability.workspaceTab, 'documents');
+    assert.equal(inboxDocumentRow.actionAvailability.canOpenProject, true);
 
     const approvals = await api('/api/workspace/approvals', {
       headers: { Authorization: `Bearer ${auth.body.token}` },
@@ -208,7 +216,229 @@ async function main() {
     assert.equal(approvals.body.view.title, 'Unified Approvals');
     assert.equal(approvals.body.summary.pendingCount, 1);
     assert.ok(approvals.body.cards.some((item) => item.label === 'Pending approvals' && item.value === 1));
-    assert.ok(approvals.body.approvals.some((item) => item.id === approvalId));
+    const approvalRow = approvals.body.approvals.find((item) => item.id === approvalId);
+    assert.ok(approvalRow);
+    assert.equal(approvalRow.actionAvailability.lane, 'legal');
+    assert.equal(approvalRow.actionAvailability.canDecide, false);
+  });
+
+  await run('project workspace exposes action availability and gate state from backend', async () => {
+    const db = getDb();
+    const directorUserId = await seedUser({
+      username: 'workspace_director',
+      password: 'Director@123',
+      systemRole: 'director',
+      roleCodes: ['director'],
+      fullName: 'Workspace Director',
+    });
+    const salesUserId = await seedUser({
+      username: 'workspace_sales',
+      password: 'Sales@123',
+      systemRole: 'sales',
+      roleCodes: ['sales'],
+      fullName: 'Workspace Sales',
+    });
+
+    const accountId = uuidv4();
+    const projectId = uuidv4();
+    const quotationId = uuidv4();
+    const salesOrderId = uuidv4();
+    const deliveryApprovalId = uuidv4();
+
+    await db.run(
+      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
+      [accountId, 'Workspace Action Customer']
+    );
+    await db.run(
+      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'WS-001', 'Workspace Action Project', directorUserId, accountId, 'won', 'active']
+    );
+    await db.run(
+      `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [quotationId, 'WS-Q-001', 'Workspace Action Quote', accountId, projectId, 'won', 99000000, 1]
+    );
+    await db.run(
+      `INSERT INTO SalesOrder (id, quotationId, orderNumber, accountId, status)
+       VALUES (?, ?, ?, ?, ?)`,
+      [salesOrderId, quotationId, 'SO-WS-001', accountId, 'draft']
+    );
+    await db.run(
+      `INSERT INTO ApprovalRequest (id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
+      [deliveryApprovalId, projectId, quotationId, 'delivery_completion', 'Delivery completion approval', 'Operations', directorUserId, 'sales', salesUserId, 'pending']
+    );
+
+    const directorAuth = await login('workspace_director', 'Director@123');
+    assert.equal(directorAuth.response.status, 200);
+
+    const workspace = await api(`/api/projects/${projectId}`, {
+      headers: { Authorization: `Bearer ${directorAuth.body.token}` },
+    });
+    assert.equal(workspace.response.status, 200);
+    assert.equal(workspace.body.actionAvailability.quotation.canCreateSalesOrder, true);
+    assert.equal(workspace.body.actionAvailability.salesOrder.canReleaseLatest, true);
+    assert.equal(workspace.body.actionAvailability.project.canFinalizeDeliveryCompletion, false);
+    assert.ok(Array.isArray(workspace.body.pendingApproverState));
+
+    const deliveryGate = workspace.body.approvalGateStates.find((gate) => gate.gateType === 'delivery_completion');
+    assert.ok(deliveryGate);
+    assert.equal(deliveryGate.pendingCount, 1);
+    assert.equal(deliveryGate.pendingApprovers[0].approverRole, 'sales');
+  });
+
+  await run('quotation and sales-order list APIs expose workflow actions for list screens', async () => {
+    const db = getDb();
+    const salesUserId = await seedUser({
+      username: 'list_sales_user',
+      password: 'ListSales@123',
+      systemRole: 'sales',
+      roleCodes: ['sales'],
+      fullName: 'List Sales User',
+    });
+    await seedUser({
+      username: 'list_director_user',
+      password: 'ListDirector@123',
+      systemRole: 'director',
+      roleCodes: ['director'],
+      fullName: 'List Director User',
+    });
+
+    const accountId = uuidv4();
+    const projectId = uuidv4();
+    const quotationId = uuidv4();
+    const approvalId = uuidv4();
+    const salesOrderId = uuidv4();
+
+    await db.run(
+      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
+      [accountId, 'List Screen Customer']
+    );
+    await db.run(
+      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'LIST-001', 'List Screen Project', salesUserId, accountId, 'won', 'active']
+    );
+    await db.run(
+      `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [quotationId, 'LIST-Q-001', 'List Screen Quote', accountId, projectId, 'won', 88000000, 1]
+    );
+    await db.run(
+      `INSERT INTO ApprovalRequest (id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, status, dueDate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
+      [approvalId, projectId, quotationId, 'sales_order_release', 'Release sales order', 'Operations', salesUserId, 'director', 'pending']
+    );
+    await db.run(
+      `INSERT INTO SalesOrder (id, quotationId, orderNumber, accountId, status)
+       VALUES (?, ?, ?, ?, ?)`,
+      [salesOrderId, quotationId, 'SO-LIST-001', accountId, 'draft']
+    );
+
+    const salesAuth = await login('list_sales_user', 'ListSales@123');
+    const quotationList = await api('/api/quotations', {
+      headers: { Authorization: `Bearer ${salesAuth.body.token}` },
+    });
+    assert.equal(quotationList.response.status, 200);
+    const quotationRow = quotationList.body.find((item) => item.id === quotationId);
+    assert.ok(quotationRow);
+    assert.equal(quotationRow.actionAvailability.canCreateSalesOrder, true);
+    assert.equal(quotationRow.approvalGateState.gateType, 'quotation_commercial');
+
+    const salesHome = await api('/api/workspace/home', {
+      headers: { Authorization: `Bearer ${salesAuth.body.token}` },
+    });
+    assert.equal(salesHome.response.status, 200);
+    const highlightedProject = salesHome.body.highlights.find((item) => item.projectId === projectId);
+    assert.ok(highlightedProject);
+    assert.ok(Array.isArray(highlightedProject.approvalGateStates));
+    assert.ok(highlightedProject.approvalGateStates.some((gate) => gate.gateType === 'sales_order_release'));
+
+    const directorAuth = await login('list_director_user', 'ListDirector@123');
+    const salesOrderList = await api('/api/sales-orders?limit=20', {
+      headers: { Authorization: `Bearer ${directorAuth.body.token}` },
+    });
+    assert.equal(salesOrderList.response.status, 200);
+    const salesOrderRow = salesOrderList.body.find((item) => item.id === salesOrderId);
+    assert.ok(salesOrderRow);
+    assert.equal(salesOrderRow.actionAvailability.canRelease, true);
+    assert.equal(salesOrderRow.approvalGateState.gateType, 'sales_order_release');
+    assert.equal(salesOrderRow.approvalGateState.pendingCount, 1);
+
+    const projectList = await api('/api/projects', {
+      headers: { Authorization: `Bearer ${directorAuth.body.token}` },
+    });
+    assert.equal(projectList.response.status, 200);
+    const projectRow = projectList.body.find((item) => item.id === projectId);
+    assert.ok(projectRow);
+    assert.ok(Array.isArray(projectRow.approvalGateStates));
+    assert.equal(projectRow.actionAvailability.salesOrder.canReleaseLatest, true);
+    assert.ok(Array.isArray(projectRow.pendingApproverState));
+  });
+
+  await run('sales-order release approval endpoint creates and reuses pending approval requests', async () => {
+    const db = getDb();
+    const directorUserId = await seedUser({
+      username: 'release_director_user',
+      password: 'ReleaseDirector@123',
+      systemRole: 'director',
+      roleCodes: ['director'],
+      fullName: 'Release Director User',
+    });
+    const pmUserId = await seedUser({
+      username: 'release_pm_user',
+      password: 'ReleasePm@123',
+      systemRole: 'project_manager',
+      roleCodes: ['project_manager'],
+      fullName: 'Release PM User',
+    });
+
+    const accountId = uuidv4();
+    const projectId = uuidv4();
+    const quotationId = uuidv4();
+    const salesOrderId = uuidv4();
+
+    await db.run(
+      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
+      [accountId, 'Release Approval Customer']
+    );
+    await db.run(
+      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'REL-001', 'Release Approval Project', pmUserId, accountId, 'won', 'active']
+    );
+    await db.run(
+      `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [quotationId, 'REL-Q-001', 'Release Approval Quote', accountId, projectId, 'won', 76000000, 1]
+    );
+    await db.run(
+      `INSERT INTO SalesOrder (id, quotationId, orderNumber, accountId, status)
+       VALUES (?, ?, ?, ?, ?)`,
+      [salesOrderId, quotationId, 'SO-REL-001', accountId, 'draft']
+    );
+
+    const pmAuth = await login('release_pm_user', 'ReleasePm@123');
+    assert.equal(pmAuth.response.status, 200);
+
+    const createApproval = await api(`/api/sales-orders/${salesOrderId}/release-approval`, {
+      method: 'POST',
+      headers: bearer(pmAuth.body.token),
+      body: JSON.stringify({ note: 'Xin phe duyet release' }),
+    });
+    assert.equal(createApproval.response.status, 201);
+    assert.equal(createApproval.body.requestType, 'sales_order_release');
+    assert.equal(createApproval.body.projectId, projectId);
+    assert.equal(createApproval.body.quotationId, quotationId);
+    assert.equal(createApproval.body.approverRole, 'director');
+    assert.equal(createApproval.body.approverUserId, directorUserId);
+    assert.equal(createApproval.body.status, 'pending');
+
+    const secondAttempt = await api(`/api/sales-orders/${salesOrderId}/release-approval`, {
+      method: 'POST',
+      headers: bearer(pmAuth.body.token),
+      body: JSON.stringify({ note: 'Thu lai' }),
+    });
+    assert.equal(secondAttempt.response.status, 200);
+    assert.equal(secondAttempt.body.id, createApproval.body.id);
   });
 
   await run('admin home uses admin persona and admin-only users cannot approve business requests', async () => {

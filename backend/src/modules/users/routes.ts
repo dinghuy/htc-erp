@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import { parse } from 'csv-parse/sync';
 import { getDb } from '../../../sqlite-db';
 import { normalizeGender } from '../../../gender';
-import { roleCodesToJson } from '../../shared/auth/roles';
+import { normalizeRoleCodes, resolvePrimaryRole, roleCodesToJson } from '../../shared/auth/roles';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
 
@@ -58,16 +58,18 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
     const normalizedLanguage = typeof language === 'string' && ['vi', 'en'].includes(language.trim().toLowerCase())
       ? language.trim().toLowerCase()
       : 'vi';
+    const normalizedRoles = normalizeRoleCodes(roleCodes, systemRole);
+    const persistedSystemRole = resolvePrimaryRole(normalizedRoles, systemRole);
     let passwordHash: string | null = null;
     if (password) {
       passwordHash = await bcrypt.hash(password, 10);
     }
     await db.run(
-      `INSERT INTO User (id, fullName, gender, email, phone, role, department, status, username, passwordHash, systemRole, employeeCode, dateOfBirth, avatar, address, startDate, accountStatus, mustChangePassword, language)
+      `INSERT INTO User (id, fullName, gender, email, phone, role, department, status, username, passwordHash, systemRole, roleCodes, employeeCode, dateOfBirth, avatar, address, startDate, accountStatus, mustChangePassword, language)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, fullName, normalizedGender, email, phone, role, department, status || 'Active',
-        username || null, passwordHash, systemRole || 'viewer', roleCodesToJson(roleCodes, systemRole),
+        username || null, passwordHash, persistedSystemRole, JSON.stringify(normalizedRoles),
         employeeCode || null, dateOfBirth || null, null, address || null, startDate || null,
         accountStatus || 'active', 1, normalizedLanguage,
       ]
@@ -88,6 +90,8 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
     const normalizedLanguage = typeof language === 'string' && ['vi', 'en'].includes(language.trim().toLowerCase())
       ? language.trim().toLowerCase()
       : undefined;
+    const normalizedRoles = normalizeRoleCodes(roleCodes, systemRole);
+    const persistedSystemRole = resolvePrimaryRole(normalizedRoles, systemRole);
     const existing = await db.get('SELECT passwordHash FROM User WHERE id = ?', req.params.id);
     if (!existing) return res.status(404).json({ error: 'Not found' });
     let passwordHash = existing?.passwordHash ?? null;
@@ -98,7 +102,7 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
       `UPDATE User SET fullName=?, gender=?, email=?, phone=?, role=?, department=?, status=?, username=?, passwordHash=?, systemRole=?, roleCodes=?,
         employeeCode=?, dateOfBirth=?, address=?, startDate=?, accountStatus=?, mustChangePassword=?, language=COALESCE(?, language) WHERE id=?`,
       [
-        fullName, normalizedGender, email, phone, role, department, status, username || null, passwordHash, systemRole || 'viewer', roleCodesToJson(roleCodes, systemRole),
+        fullName, normalizedGender, email, phone, role, department, status, username || null, passwordHash, persistedSystemRole, JSON.stringify(normalizedRoles),
         employeeCode ?? null, dateOfBirth ?? null, address ?? null, startDate ?? null,
         accountStatus ?? 'active', mustChangePassword != null ? (mustChangePassword ? 1 : 0) : undefined,
         normalizedLanguage ?? null,
@@ -182,5 +186,34 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
       }
     }
     res.json({ inserted, skipped, total: records.length });
+  }));
+
+  app.post('/api/users/normalize-project-managers', requireAuth, requireRole('admin'), ah(async (_req: Request, res: Response) => {
+    const db = getDb();
+    const rows = await db.all<{ id: string; systemRole: string; roleCodes: string | null }[]>(
+      'SELECT id, systemRole, roleCodes FROM User ORDER BY fullName',
+    );
+
+    let updated = 0;
+    for (const row of rows as any[]) {
+      const normalizedJson = roleCodesToJson(row.roleCodes, row.systemRole);
+      const normalizedRoles = JSON.parse(normalizedJson) as string[];
+      const hasProjectManager = normalizedRoles.includes('project_manager');
+      const rawRoleCodes = typeof row.roleCodes === 'string' ? row.roleCodes : '';
+      const hasLegacySalesProjectManager =
+        rawRoleCodes.includes('"sales"') &&
+        rawRoleCodes.includes('"project_manager"');
+
+      if (!hasProjectManager || !hasLegacySalesProjectManager) continue;
+
+      await db.run('UPDATE User SET roleCodes = ?, systemRole = ? WHERE id = ?', [
+        normalizedJson,
+        row.systemRole === 'sales' ? 'project_manager' : row.systemRole,
+        row.id,
+      ]);
+      updated += 1;
+    }
+
+    res.json({ updated });
   }));
 }

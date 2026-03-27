@@ -20,14 +20,29 @@ function stringifySnapshot(payload: unknown) {
 }
 
 async function selectApproverUser(db: any, department: string) {
+  const normalizedDepartment = String(department || '').trim().toLowerCase();
+  const roleCandidates =
+    normalizedDepartment === 'procurement'
+      ? ['procurement', 'manager', 'admin']
+      : normalizedDepartment === 'finance'
+        ? ['accounting', 'manager', 'admin']
+        : normalizedDepartment === 'legal'
+          ? ['legal', 'manager', 'admin']
+          : ['manager', 'admin'];
   return db.get(
     `SELECT id
      FROM User
      WHERE LOWER(COALESCE(department, '')) = LOWER(?)
-        OR LOWER(COALESCE(systemRole, '')) IN ('manager', 'admin')
-     ORDER BY CASE WHEN LOWER(COALESCE(department, '')) = LOWER(?) THEN 0 ELSE 1 END, createdAt ASC
+        OR LOWER(COALESCE(systemRole, '')) IN (${roleCandidates.map(() => '?').join(', ')})
+     ORDER BY
+       CASE
+         WHEN LOWER(COALESCE(department, '')) = LOWER(?) THEN 0
+         WHEN LOWER(COALESCE(systemRole, '')) = ? THEN 1
+         ELSE 2
+       END,
+       createdAt ASC
      LIMIT 1`,
-    [department, department]
+    [department, ...roleCandidates, department, roleCandidates[0]]
   );
 }
 

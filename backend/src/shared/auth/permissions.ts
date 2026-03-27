@@ -31,11 +31,11 @@ export function resolveApprovalLane(approval: ApprovalRequestLike): ApprovalLane
   const approverRole = String(approval.approverRole || '').trim().toLowerCase();
 
   if (
-    department === 'finance' ||
-    includesAny(requestType, ['finance', 'payment', 'invoice', 'receivable', 'qbu']) ||
-    ['finance', 'accounting', 'cfo'].includes(approverRole)
+    ['procurement', 'purchase'].includes(department) ||
+    includesAny(requestType, ['procurement', 'supplier', 'purchase', 'po-approval']) ||
+    approverRole === 'procurement'
   ) {
-    return 'finance';
+    return 'procurement';
   }
 
   if (
@@ -47,19 +47,19 @@ export function resolveApprovalLane(approval: ApprovalRequestLike): ApprovalLane
   }
 
   if (
-    ['procurement', 'purchase'].includes(department) ||
-    includesAny(requestType, ['procurement', 'supplier', 'purchase', 'po-approval']) ||
-    approverRole === 'procurement'
-  ) {
-    return 'procurement';
-  }
-
-  if (
     ['bod', 'executive'].includes(department) ||
     includesAny(requestType, ['executive', 'margin-exception', 'profit-risk']) ||
     ['director', 'ceo', 'executive'].includes(approverRole)
   ) {
     return 'executive';
+  }
+
+  if (
+    department === 'finance' ||
+    includesAny(requestType, ['finance', 'payment', 'invoice', 'receivable']) ||
+    ['finance', 'accounting', 'cfo'].includes(approverRole)
+  ) {
+    return 'finance';
   }
 
   return 'commercial';
@@ -73,10 +73,6 @@ export function canUserApproveRequest(user: Pick<AuthenticatedUser, 'id' | 'syst
 
   if (String(approval.status || '').trim().toLowerCase() !== 'pending') {
     return false;
-  }
-
-  if (userRoles.includes('admin')) {
-    return true;
   }
 
   if (String(approval.requestedBy || '').trim() === user.id) {

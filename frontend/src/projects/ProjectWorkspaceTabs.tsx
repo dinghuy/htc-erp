@@ -120,6 +120,12 @@ function emptyContractLine() {
   };
 }
 
+type DepartmentCoverageMetrics = {
+  total: number;
+  missing: number;
+  approved: number;
+};
+
 function WorkspaceSection({ title, children, action }: any) {
   return (
     <div style={{ ...ui.card.base, padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -635,7 +641,7 @@ export function ProjectTasksTab({ workspace, milestones, goToRoute, projectId }:
 
 export function DocumentsTab({ workspace }: any) {
   const summary = buildDocumentWorkspaceSummary({ workspace });
-  const departments = Object.entries(summary.groupedByDepartment);
+  const departments = Object.entries(summary.groupedByDepartment as Record<string, DepartmentCoverageMetrics>);
 
   return (
     <div style={{ display: 'grid', gap: '18px' }}>

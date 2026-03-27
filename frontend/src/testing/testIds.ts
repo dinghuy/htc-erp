@@ -39,7 +39,7 @@ export function approvalCardTestId(approvalId: string) {
   return `approval-card-${slugify(approvalId)}`;
 }
 
-export function approvalActionButtonTestId(approvalId: string, action: 'approve' | 'reject') {
+export function approvalActionButtonTestId(approvalId: string, action: 'approve' | 'reject' | 'changes_requested') {
   return `approval-${action}-${slugify(approvalId)}`;
 }
 

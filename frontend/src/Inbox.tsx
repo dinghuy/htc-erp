@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { buildRoleProfile, ROLE_LABELS, type CurrentUser } from './auth';
 import { API_BASE } from './config';
-import { consumeNavContext } from './navContext';
+import { consumeNavContext, setNavContext } from './navContext';
 import { buildRolePreviewNotice } from './preview/rolePreviewNotice';
 import { requestJsonWithAuth } from './shared/api/client';
 import { QA_TEST_IDS } from './testing/testIds';
@@ -36,15 +36,23 @@ type InboxPayload = {
     description?: string;
     source?: string;
     projectName?: string;
+    projectId?: string;
     department?: string;
     status?: string;
     createdAt?: string;
+    actionAvailability?: {
+      workspaceTab?: string;
+      canOpenProject?: boolean;
+      canOpenEntity?: boolean;
+      primaryActionLabel?: string;
+      blockers?: string[];
+    } | null;
   }>;
 };
 
 const API = API_BASE;
 
-export function Inbox({ currentUser }: { currentUser: CurrentUser }) {
+export function Inbox({ currentUser, onNavigate }: { currentUser: CurrentUser; onNavigate?: (route: string) => void }) {
   const profile = buildRoleProfile(currentUser.roleCodes, currentUser.systemRole);
   const [payload, setPayload] = useState<InboxPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,11 +65,7 @@ export function Inbox({ currentUser }: { currentUser: CurrentUser }) {
       description: 'Tập trung hồ sơ thiếu, blocked task và notifications ảnh hưởng tới commercial follow-up hoặc handoff.',
     },
     project_manager: {
-      title: 'Project Inbox',
-      description: 'Tập trung blocker, missing docs và exception items đang chặn execution.',
-    },
-    sales_pm_combined: {
-      title: 'Unified Inbox',
+      title: 'Commercial + Delivery Inbox',
       description: 'Một inbox xuyên commercial tới delivery để gom hồ sơ thiếu, blockers và notifications quan trọng.',
     },
     procurement: {
@@ -191,7 +195,27 @@ export function Inbox({ currentUser }: { currentUser: CurrentUser }) {
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {item.projectName ? <span style={ui.badge.info}>{item.projectName}</span> : null}
                 {item.department ? <span style={ui.badge.warning}>{item.department}</span> : null}
+                {item.actionAvailability?.workspaceTab ? <span style={ui.badge.neutral}>Tab {item.actionAvailability.workspaceTab}</span> : null}
               </div>
+              {item.actionAvailability?.canOpenProject ? (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    style={ui.btn.outline as any}
+                    onClick={() => {
+                      setNavContext({
+                        route: 'Projects',
+                        entityType: 'Project',
+                        entityId: item.projectId,
+                        filters: item.actionAvailability?.workspaceTab ? { workspaceTab: item.actionAvailability.workspaceTab } : undefined,
+                      });
+                      onNavigate?.('Projects');
+                    }}
+                  >
+                    {item.actionAvailability?.primaryActionLabel || 'Mở workspace'}
+                  </button>
+                </div>
+              ) : null}
             </div>
           ))
         ) : <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Inbox đang trống hoặc không có item phù hợp filter hiện tại.</div>}

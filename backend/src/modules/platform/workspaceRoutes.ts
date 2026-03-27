@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { getDb } from '../../../sqlite-db';
 import type { AuthenticatedRequest } from '../../shared/auth/httpAuth';
-import { hasGlobalWorkspaceAccess } from '../../shared/auth/permissions';
+import { canUserApproveRequest, hasGlobalWorkspaceAccess, resolveApprovalLane as resolveApprovalLaneForUser } from '../../shared/auth/permissions';
 import { normalizeRoleCodes, resolvePrimaryRole } from '../../shared/auth/roles';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
@@ -9,12 +9,10 @@ type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unkn
 type RegisterPlatformWorkspaceRoutesDeps = {
   ah: AsyncRouteFactory;
   requireAuth: any;
+  getProjectWorkspaceById: (db: any, projectId: string, currentUser?: any) => Promise<any>;
 };
 
 function getPersonaMode(roleCodes: string[]) {
-  if (roleCodes.includes('sales') && roleCodes.includes('project_manager')) {
-    return 'sales_pm_combined';
-  }
   if (roleCodes.includes('admin')) return 'admin';
   if (roleCodes.includes('procurement')) return 'procurement';
   if (roleCodes.includes('accounting')) return 'accounting';
@@ -26,15 +24,6 @@ function getPersonaMode(roleCodes: string[]) {
 }
 
 function buildPriorityItems(mode: string, summary: any) {
-  if (mode === 'sales_pm_combined') {
-    return [
-      { metricKey: 'handoff_pending', label: 'Handoff chưa sạch', value: Number(summary.handoffPending ?? 0), tone: 'warn' },
-      { metricKey: 'projects_push', label: 'Projects cần đẩy', value: Number(summary.activeProjects ?? 0), tone: 'good' },
-      { metricKey: 'blockers_margin_schedule', label: 'Blockers ảnh hưởng margin/tiến độ', value: Number(summary.blockers ?? 0), tone: 'bad' },
-      { metricKey: 'pending_approvals', label: 'Approvals đang chờ', value: Number(summary.pendingApprovals ?? 0), tone: 'warn' },
-    ];
-  }
-
   if (mode === 'procurement') {
     return [
       { metricKey: 'po_needed', label: 'PO cần tạo', value: Number(summary.procurementPending ?? 0), tone: 'warn' },
@@ -112,24 +101,11 @@ function buildMyWorkView(mode: string, input: { tasks?: any[]; approvals?: any[]
     },
     project_manager: {
       title: 'My Work',
-      description: 'Queue execution để xử lý milestone, blocker và readiness trên các project đang chạy.',
-      taskTitle: 'Execution Queue',
-      taskDescription: 'Các đầu việc operational đang gắn trực tiếp cho bạn.',
-      approvalTitle: 'Execution Dependencies',
-      approvalDescription: 'Các approval đang ảnh hưởng tới delivery hoặc project readiness.',
-      cards: [
-        { label: 'Projects cần đẩy', value: summary.taskCount, tone: 'info' },
-        { label: 'Execution approvals', value: summary.approvalCount, tone: 'warn' },
-        { label: 'Workspaces active', value: summary.projectCount, tone: 'good' },
-      ],
-    },
-    sales_pm_combined: {
-      title: 'My Work',
-      description: 'Queue hợp nhất từ quotation sang execution, không cần tách deal và project thành hai nơi.',
-      taskTitle: 'Deals + Projects',
-      taskDescription: 'Các đầu việc cần chốt, handoff chưa sạch và execution follow-up trên cùng một queue.',
+      description: 'Queue hợp nhất để PM vừa đẩy commercial handoff vừa điều phối execution trên cùng project.',
+      taskTitle: 'Commercial + Execution Queue',
+      taskDescription: 'Các đầu việc từ quotation, handoff tới delivery đang gắn trực tiếp cho bạn.',
       approvalTitle: 'Cross-functional Approvals',
-      approvalDescription: 'Approvals ảnh hưởng trực tiếp tới margin, handoff và tiến độ delivery.',
+      approvalDescription: 'Các approval ảnh hưởng trực tiếp tới margin, handoff và tiến độ delivery.',
       cards: [
         { label: 'Deals cần chốt', value: summary.taskCount, tone: 'info' },
         { label: 'Handoff / approvals', value: summary.approvalCount, tone: 'warn' },
@@ -235,10 +211,6 @@ function buildInboxView(mode: string, items: any[]) {
     },
     project_manager: {
       title: 'Project Inbox',
-      description: 'Tập trung blocker, missing docs và exception items đang chặn execution.',
-    },
-    sales_pm_combined: {
-      title: 'Unified Inbox',
       description: 'Một inbox xuyên commercial tới delivery để gom hồ sơ thiếu, blockers và notifications quan trọng.',
     },
     procurement: {
@@ -298,10 +270,6 @@ function buildApprovalsView(mode: string, approvals: any[]) {
     },
     project_manager: {
       title: 'Execution Approvals',
-      description: 'Nhìn một queue approvals gắn trực tiếp với readiness của dự án và các dependency liên phòng ban.',
-    },
-    sales_pm_combined: {
-      title: 'Unified Approvals',
       description: 'Một queue duy nhất để theo dõi commercial handoff, project blockers và các phê duyệt ảnh hưởng tới margin hoặc tiến độ.',
     },
     procurement: {
@@ -346,6 +314,14 @@ function resolveApprovalLane(approval: any) {
   const department = String(approval?.department || '').trim().toLowerCase();
   const approverRole = String(approval?.approverRole || '').trim().toLowerCase();
 
+  if (approverRole === 'procurement' || requestType.includes('po') || requestType.includes('procurement') || department === 'procurement') {
+    return 'procurement';
+  }
+
+  if (approverRole === 'legal' || requestType.includes('contract') || requestType.includes('legal') || department === 'legal') {
+    return 'legal';
+  }
+
   if (
     approverRole === 'director'
     || requestType.includes('margin')
@@ -356,19 +332,91 @@ function resolveApprovalLane(approval: any) {
     return 'executive';
   }
 
-  if (approverRole === 'procurement' || requestType.includes('po') || requestType.includes('procurement') || department === 'procurement') {
-    return 'procurement';
-  }
-
   if (approverRole === 'accounting' || requestType.includes('payment') || requestType.includes('finance') || department === 'finance') {
     return 'finance';
   }
 
-  if (approverRole === 'legal' || requestType.includes('contract') || requestType.includes('legal') || department === 'legal') {
-    return 'legal';
-  }
-
   return 'commercial';
+}
+
+function decorateApprovalForCurrentUser(approval: any, currentUser?: any) {
+  const canDecide = canUserApproveRequest(currentUser, approval);
+  return {
+    ...approval,
+    actionAvailability: {
+      lane: resolveApprovalLaneForUser(approval),
+      canDecide,
+      isRequester: Boolean(currentUser?.id) && String(approval?.requestedBy || '') === currentUser?.id,
+      isAssignedApprover: !approval?.approverUserId || String(approval.approverUserId) === currentUser?.id,
+      availableDecisions: canDecide ? ['approved', 'rejected', 'changes_requested'] : [],
+    },
+  };
+}
+
+function resolveWorkspaceTabForTask(task: any) {
+  const taskType = String(task?.taskType || '').trim().toLowerCase();
+  const stage = String(task?.projectStage || '').trim().toLowerCase();
+  if (taskType.includes('handoff') || taskType.includes('quotation') || taskType.includes('commercial')) return 'commercial';
+  if (taskType.includes('procurement') || taskType.includes('supplier') || ['order_released', 'procurement_active'].includes(stage)) return 'procurement';
+  if (taskType.includes('delivery') || taskType.includes('inbound') || ['delivery_active', 'delivery', 'delivery_completed', 'closed'].includes(stage)) return 'delivery';
+  if (taskType.includes('document') || taskType.includes('contract')) return 'documents';
+  return 'timeline';
+}
+
+function decorateTaskForCurrentUser(task: any) {
+  const workspaceTab = resolveWorkspaceTabForTask(task);
+  const blockers = String(task?.blockedReason || '').trim() ? [String(task.blockedReason).trim()] : [];
+  return {
+    ...task,
+    actionAvailability: {
+      workspaceTab,
+      canOpenTask: true,
+      canOpenProject: Boolean(task?.projectId),
+      canOpenQuotation: Boolean(task?.quotationId),
+      primaryActionLabel: blockers.length > 0 ? 'Gỡ blocker' : 'Mở workspace',
+      blockers,
+    },
+  };
+}
+
+function resolveWorkspaceTabForInboxItem(item: any) {
+  const source = String(item?.source || '').trim().toLowerCase();
+  const department = String(item?.department || '').trim().toLowerCase();
+  const entityType = String(item?.entityType || '').trim().toLowerCase();
+  if (source === 'documents' || entityType === 'projectdocument') return 'documents';
+  if (source === 'blocked_tasks' || entityType === 'task') return 'timeline';
+  if (department.includes('legal')) return 'legal';
+  if (department.includes('finance') || department.includes('account')) return 'finance';
+  if (department.includes('procurement') || department.includes('purchase')) return 'procurement';
+  return 'overview';
+}
+
+function decorateInboxItem(item: any) {
+  const workspaceTab = resolveWorkspaceTabForInboxItem(item);
+  const blockers: string[] = [];
+  if (String(item?.status || '').trim().toLowerCase() === 'missing') {
+    blockers.push('Thiếu hồ sơ hoặc điều kiện đầu vào');
+  }
+  if (String(item?.description || '').trim()) {
+    blockers.push(String(item.description).trim());
+  }
+  return {
+    ...item,
+    actionAvailability: {
+      workspaceTab,
+      canOpenProject: Boolean(item?.projectId),
+      canOpenEntity: Boolean(item?.entityId),
+      primaryActionLabel: sourceLabelForInboxItem(item),
+      blockers,
+    },
+  };
+}
+
+function sourceLabelForInboxItem(item: any) {
+  const source = String(item?.source || '').trim().toLowerCase();
+  if (source === 'documents') return 'Mở documents';
+  if (source === 'blocked_tasks') return 'Mở timeline';
+  return 'Mở workspace';
 }
 
 function buildExecutiveCockpitSummary(input: { highlights?: any[]; approvals?: any[] }) {
@@ -490,7 +538,22 @@ async function queryApprovalsForUser(userId: string, globalAccess = false) {
 }
 
 export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlatformWorkspaceRoutesDeps) {
-  const { ah, requireAuth } = deps;
+  const { ah, requireAuth, getProjectWorkspaceById } = deps;
+
+  async function enrichProjectHighlights(highlights: any[], currentUser?: any) {
+    const db = getDb();
+    return Promise.all((Array.isArray(highlights) ? highlights : []).map(async (highlight) => {
+      const projectId = String(highlight?.projectId || '').trim();
+      if (!projectId) return highlight;
+      const workspace = await getProjectWorkspaceById(db, projectId, currentUser).catch(() => null);
+      return {
+        ...highlight,
+        approvalGateStates: Array.isArray(workspace?.approvalGateStates) ? workspace.approvalGateStates : [],
+        actionAvailability: workspace?.actionAvailability || null,
+        pendingApproverState: Array.isArray(workspace?.pendingApproverState) ? workspace.pendingApproverState : [],
+      };
+    }));
+  }
 
   app.get('/api/workspace/home', requireAuth, ah(async (req: AuthenticatedRequest, res: Response) => {
     const db = getDb();
@@ -501,7 +564,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const globalAccess = hasGlobalWorkspaceAccess(roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
     const userId = authUser?.id || '';
 
-    const [summary, highlights] = await Promise.all([
+    const [summary, rawHighlights] = await Promise.all([
       db.get(
         `
           SELECT
@@ -517,7 +580,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
             SUM(CASE WHEN eo.status = 'failed' THEN 1 ELSE 0 END) AS erpFailed,
             SUM(CASE WHEN ar.department = 'Finance' AND ar.status = 'pending' THEN 1 ELSE 0 END) AS receivableRisk,
             SUM(CASE WHEN ar.department = 'Legal' AND ar.status = 'pending' THEN 1 ELSE 0 END) AS legalPending,
-            SUM(CASE WHEN p.projectStage IN ('won', 'delivery') AND ((SELECT COUNT(*) FROM ApprovalRequest ap WHERE ap.projectId = p.id AND ap.status = 'pending') > 0 OR (SELECT COUNT(*) FROM ProjectDocument doc WHERE doc.projectId = p.id AND doc.status IN ('missing', 'requested')) > 0) THEN 1 ELSE 0 END) AS executiveRiskProjects
+            SUM(CASE WHEN p.projectStage IN ('won', 'order_released', 'procurement_active', 'delivery_active', 'delivery', 'delivery_completed') AND ((SELECT COUNT(*) FROM ApprovalRequest ap WHERE ap.projectId = p.id AND ap.status = 'pending') > 0 OR (SELECT COUNT(*) FROM ProjectDocument doc WHERE doc.projectId = p.id AND doc.status IN ('missing', 'requested')) > 0) THEN 1 ELSE 0 END) AS executiveRiskProjects
           FROM Project p
           LEFT JOIN Task t ON t.projectId = p.id
           LEFT JOIN ApprovalRequest ar ON ar.projectId = p.id
@@ -547,6 +610,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
       })),
       queryHighlightsForUser(userId, globalAccess),
     ]);
+    const highlights = await enrichProjectHighlights(rawHighlights, authUser);
 
     res.json({
       persona: {
@@ -609,7 +673,10 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
       queryHighlightsForUser(userId, globalAccess),
     ]);
 
-    const myWorkView = buildMyWorkView(personaMode, { tasks, approvals, projects });
+    const decoratedTasks = (Array.isArray(tasks) ? tasks : []).map((task: any) => decorateTaskForCurrentUser(task));
+    const decoratedApprovals = (Array.isArray(approvals) ? approvals : []).map((approval: any) => decorateApprovalForCurrentUser(approval, authUser));
+
+    const myWorkView = buildMyWorkView(personaMode, { tasks: decoratedTasks, approvals: decoratedApprovals, projects });
 
     res.json({
       persona: {
@@ -620,8 +687,8 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
       summary: myWorkView.summary,
       view: myWorkView.view,
       cards: myWorkView.cards,
-      tasks,
-      approvals,
+      tasks: decoratedTasks,
+      approvals: decoratedApprovals,
       projects,
     });
   }));
@@ -702,7 +769,8 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
       ...documentItems.map((item: any) => ({ ...item, source: 'documents' })),
       ...notificationItems.map((item: any) => ({ ...item, source: 'notifications' })),
       ...blockedTasks.map((item: any) => ({ ...item, source: 'blocked_tasks' })),
-    ].sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
+    ].sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')))
+      .map((item) => decorateInboxItem(item));
 
     const inboxView = buildInboxView(personaMode, items);
 
@@ -726,7 +794,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const personaMode = getPersonaMode(roleCodes);
     const userId = authUser?.id || '';
     const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
-    const approvals = await queryApprovalsForUser(userId, globalAccess);
+    const approvals = (await queryApprovalsForUser(userId, globalAccess)).map((approval: any) => decorateApprovalForCurrentUser(approval, authUser));
     const approvalsView = buildApprovalsView(personaMode, approvals);
 
     res.json({
