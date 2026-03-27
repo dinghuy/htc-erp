@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;800&display=swap');
+
+:root {
+  /* Common Brand Colors */
+  --ht-green: #009B6E;
+  --ht-green-dark: #007A56;
+  --ht-amber: #F5A623;
+  --ht-amber-dark: #d98f1a;
+
+  /* Theme Defaults (Light) */
+  --bg-primary: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+  --border-color: #E2E8F0;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  
+  --font-family-sans: 'Roboto', sans-serif;
+  --text-on-primary: var(--text-primary);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  
+  --ht-error-bg: #FEF2F2;
+  --ht-error-text: #991B1B;
+  --ht-error-border: #FEE2E2;
+  --ht-success-bg: #F0FDF4;
+  --ht-success-text: #166534;
+  --ht-success-border: #DCFCE7;
+}
+
+.dark {
+  --bg-primary: #0F172A;
+  --bg-surface: #1E293B;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --border-color: #334155;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
+  
+  --ht-error-bg: rgba(220, 38, 38, 0.1);
+  --ht-error-text: #FCA5A5;
+  --ht-error-border: rgba(220, 38, 38, 0.2);
+  --ht-success-bg: rgba(5, 150, 105, 0.1);
+  --ht-success-text: #6EE7B7;
+  --ht-success-border: rgba(5, 150, 105, 0.2);
+  --text-on-primary: var(--text-primary);
+}
+
+body {
+  font-family: var(--font-family-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  margin: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--ht-green);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-stack { display: flex; flex-direction: column; gap: 12px; }
+  .mobile-actions { display: flex; gap: 8px; overflow-x: auto; }
+  .mobile-actions::-webkit-scrollbar { display: none; }
+}

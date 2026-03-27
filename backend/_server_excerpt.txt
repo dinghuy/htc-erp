@@ -1,0 +1,2 @@
+'+(Get-Content -Path "C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts" -TotalCount 520 | Out-String) +
+(Get-Content -Path "C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts" -TotalCount 200 -Skip 520 | Out-String)

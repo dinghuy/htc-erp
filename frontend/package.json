@@ -1,0 +1,35 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --configLoader native",
+    "dev:qa": "vite --configLoader native --host 127.0.0.1 --port 4173 --strictPort",
+    "build": "tsc -b && vite build --configLoader native",
+    "build:ux:runbook": "node ./scripts/qa/render-codex-runbook.mjs",
+    "preview": "vite preview --configLoader native",
+    "test": "node ./scripts/run-vitest-sandbox.mjs",
+    "test:ux:contracts": "node ./scripts/run-vitest-sandbox.mjs src/qa/uxAuditContracts.test.ts src/qa/uxRegressionExecution.test.ts",
+    "typecheck": "tsc -b",
+    "test:ux:audit": "node ./scripts/qa/run-ux-audit.mjs",
+    "test:ux:audit:headed": "set QA_HEADLESS=0&& node ./scripts/qa/run-ux-audit.mjs"
+  },
+  "dependencies": {
+    "lucide-preact": "^1.0.1",
+    "preact": "^10.29.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.4",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/node": "^24.12.0",
+    "autoprefixer": "^10.4.27",
+    "esbuild": "^0.27.0",
+    "playwright": "^1.58.2",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1",
+    "vitest": "^3.2.4"
+  }
+}

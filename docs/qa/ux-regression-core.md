@@ -1,0 +1,162 @@
+# UX Regression Core
+
+## Purpose
+
+Browser-driven regression suite để khóa các UX trap ở giao điểm giữa:
+
+- role preview
+- route protection
+- navigation shell
+- workspace tab gating
+- approval lane permissions
+- escape hatches quay lại admin
+
+Suite này ưu tiên `risk-based core first`, chưa exhaustive toàn bộ app.
+
+## Deterministic Seed
+
+Local suite không dùng dữ liệu dev ngẫu nhiên. Runner sẽ reset bộ QA seed qua:
+
+- `POST /api/qa/reset-ux-seed`
+- `GET /api/qa/ux-seed-contract`
+
+Seed tạo sẵn:
+
+- admin base user
+- persona `sales`, `project_manager`, `sales + project_manager`, `procurement`, `accounting`, `legal`, `director`, `viewer`
+- project mẫu ở stage `quoting`, `won`, `delivery`
+- approval lane `commercial`, `procurement`, `finance`, `legal`, `executive`
+- task, blocker, missing documents, timeline và support/event-log artifacts để các màn chính đều có dữ liệu thật
+
+Runner sẽ ưu tiên reset bằng admin seeded account. Nếu local DB đang ở trạng thái khác và mật khẩu admin không còn mặc định, runner fallback sang `POST /api/qa/bootstrap-ux-seed` với QA bootstrap header. Route này chỉ tồn tại ngoài production.
+
+## Selector Contract
+
+Stable selectors nằm ở:
+
+- UI contract: [testIds.ts](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/frontend/src/testing/testIds.ts)
+- Browser contract: [selector-contract.mjs](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/frontend/scripts/qa/selector-contract.mjs)
+
+Các điểm bắt buộc phải giữ ổn định khi sửa UI:
+
+- preview banner
+- preview preset buttons
+- preview open settings
+- preview back to admin
+- route shell root
+- approval lane controls
+- project workspace tabs
+- representative workspace modal
+
+## Core Journeys
+
+Manifest hiện tại nằm ở [ux-regression.manifest.mjs](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/frontend/scripts/qa/ux-regression.manifest.mjs)
+
+Coverage vòng đầu:
+
+1. `admin -> viewer preview -> settings -> switch preset -> back to admin`
+2. `sales preview -> commercial focus -> representative workspace -> no finance/legal lane actions`
+3. `pm preview -> execution focus -> commercial stays read-only`
+4. `sales + pm preview -> unified queue/workspace`
+5. `procurement preview -> inbox procurement focus -> procurement workspace`
+6. `accounting preview -> finance lane actions only`
+7. `legal preview -> legal lane actions only`
+8. `director preview -> executive lane + reports drill-down`
+9. Smoke navigation cho `Home`, `My Work`, `Inbox`, `Approvals`, `Projects`, `Tasks`, `Reports`, `Settings`, `Support`, `EventLog`
+
+## How To Run
+
+1. Khởi động backend local.
+2. Khởi động frontend local trên port audit cố định:
+
+```powershell
+cd frontend
+.\scripts\npm-local.ps1 run dev:qa
+```
+
+Nếu `npm` global trên máy đã sạch, có thể dùng:
+
+```powershell
+cd frontend
+npm run dev:qa
+```
+
+Hoặc dùng launcher một lệnh ở root repo:
+
+```powershell
+cd .
+.\scripts\start-ux-audit-stack.ps1
+```
+
+3. Cài Playwright package nếu máy chưa có:
+
+```bash
+cd frontend
+npm install
+```
+
+Trên Windows/Codex nếu `npm.ps1` đang lỗi do trỏ sai sang `%APPDATA%\npm`, dùng wrapper local:
+
+```powershell
+cd frontend
+.\scripts\npm-local.ps1 install
+```
+
+4. Nếu không dùng Chrome/Edge hệ thống, cài browser Playwright:
+
+```bash
+npx playwright install chromium
+```
+
+Trên Windows/Codex có thể dùng:
+
+```powershell
+cd frontend
+.\scripts\playwright-local.ps1 install chromium
+```
+
+5. Chạy suite:
+
+```bash
+cd frontend
+npm run test:ux:audit
+```
+
+Nếu frontend không chạy ở `http://127.0.0.1:4173`, set `QA_FRONTEND_URL` trước khi chạy.
+
+Chạy headed:
+
+```bash
+cd frontend
+npm run test:ux:audit:headed
+```
+
+Artifacts sẽ nằm ở:
+
+- `frontend/artifacts/ux-audit/<timestamp>/ux-regression-report.json`
+- `frontend/artifacts/ux-audit/<timestamp>/ux-regression-report.md`
+- screenshot theo từng journey
+
+Khi local runner bị chặn bởi browser launch trong Codex, dùng runbook riêng:
+
+- [ux-regression-codex-runbook.md](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/docs/qa/ux-regression-codex-runbook.md)
+
+## Expected Invariants
+
+Mọi thay đổi chạm vào `navigation`, `role preview`, `workspace`, `approval`, `persona home`, hoặc `route protection` phải giữ các invariant sau:
+
+- luôn có đường thoát khỏi preview
+- `Mở Settings` từ preview không bị route guard chặn
+- `Back to Admin` luôn khả dụng khi preview active
+- preview chỉ đổi effective view, không tự cấp thêm business permission
+- route bị chặn phải rơi về màn hợp lệ, không kẹt người dùng
+- read-only badge / preview badge phải khớp capability thật
+
+## Definition Of Done
+
+Một thay đổi UI/permission chỉ được coi là xong khi:
+
+- update selector/manifest nếu flow thay đổi
+- backend QA seed vẫn reset thành công
+- `npm run test:ux:audit` pass hoặc có ghi chú rõ journey nào đang fail và vì sao
+- checklist business/UAT liên quan vẫn còn hợp lệ

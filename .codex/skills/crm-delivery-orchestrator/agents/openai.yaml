@@ -1,0 +1,28 @@
+interface:
+  display_name: "CRM Delivery Orchestrator"
+  short_description: "Coordinate CRM delivery work across MCP systems"
+  default_prompt: "Use $crm-delivery-orchestrator to coordinate CRM delivery context across Linear, Notion, Figma, and Playwright."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "linear"
+      description: "Linear MCP server"
+      transport: "streamable_http"
+      url: "https://mcp.linear.app/mcp"
+    - type: "mcp"
+      value: "notion"
+      description: "Notion MCP server"
+      transport: "streamable_http"
+      url: "https://mcp.notion.com/mcp"
+    - type: "mcp"
+      value: "figma"
+      description: "Figma MCP server"
+      transport: "streamable_http"
+      url: "https://mcp.figma.com/mcp"
+    - type: "mcp"
+      value: "playwright"
+      description: "Playwright MCP server"
+
+policy:
+  allow_implicit_invocation: true

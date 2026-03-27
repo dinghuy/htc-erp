@@ -1,0 +1,20 @@
+[features]
+rmcp_client = true
+
+[mcp_servers.linear]
+url = "https://mcp.linear.app/mcp"
+
+[mcp_servers.notion]
+url = "https://mcp.notion.com/mcp"
+
+[mcp_servers.figma]
+url = "https://mcp.figma.com/mcp"
+
+[mcp_servers.playwright]
+command = 'C:\Program Files\PowerShell\7\pwsh.exe'
+args = [
+  "-NoLogo",
+  "-NoProfile",
+  "-File",
+  ".codex\\scripts\\playwright-mcp.ps1",
+]

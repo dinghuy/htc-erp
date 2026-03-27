@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-03-27T04:51:27.633Z",
+  "driver": "node-playwright",
+  "frontendUrl": "http://127.0.0.1:4173",
+  "backendUrl": "http://127.0.0.1:3001",
+  "contractVersion": "ux-regression-v1",
+  "totalJourneys": 1,
+  "passedJourneys": 0,
+  "failedJourneys": 1,
+  "failureType": "startup_unreachable",
+  "results": [
+    {
+      "id": "bootstrap",
+      "persona": "admin",
+      "status": "failed",
+      "durationMs": 0,
+      "failureType": "startup_unreachable",
+      "screenshot": "",
+      "error": "Frontend is not reachable at http://127.0.0.1:4173. Start the local service first. Gốc lỗi: fetch failed"
+    }
+  ]
+}
