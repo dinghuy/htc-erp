@@ -5,8 +5,12 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $backendDir = Join-Path $repoRoot 'backend'
 $frontendDir = Join-Path $repoRoot 'frontend'
 
-Start-Process -FilePath 'cmd.exe' -WorkingDirectory $backendDir -ArgumentList '/k', 'npm run dev'
-Start-Process -FilePath 'powershell.exe' -WorkingDirectory $frontendDir -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $frontendDir 'scripts\npm-local.ps1'), 'run', 'dev:qa'
+$backendCommand = 'title CRM_UX_AUDIT_BACKEND && npm run dev'
+$frontendRunner = Join-Path $frontendDir 'scripts\npm-local.ps1'
+$frontendCommand = "title CRM_UX_AUDIT_FRONTEND && powershell -NoProfile -ExecutionPolicy Bypass -File `"$frontendRunner`" run dev:qa"
+
+Start-Process -FilePath 'cmd.exe' -WorkingDirectory $backendDir -ArgumentList '/k', $backendCommand
+Start-Process -FilePath 'cmd.exe' -WorkingDirectory $frontendDir -ArgumentList '/k', $frontendCommand
 
 Write-Host 'Started backend dev server and frontend QA dev server.'
 Write-Host 'Backend:  http://127.0.0.1:3001'

@@ -45,6 +45,8 @@ import {
   TaskList,
 } from './features/tasks/taskViews';
 import { buildTaskAccess } from './features/tasks/taskPermissions';
+import { buildTaskWorkflowNavigation } from './features/tasks/taskWorkflowNavigation';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 
 const API = API_BASE;
 
@@ -223,6 +225,7 @@ export function Tasks({
   const [contextActive, setContextActive] = useState(false);
 
   const [drawer, setDrawer] = useState<TaskDrawerState>(() => createClosedDrawerState(currentUser, ALL_PROJECT));
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const [draggingTaskId, setDraggingTaskId] = useState('');
   const [hoveredStatus, setHoveredStatus] = useState<UiTaskStatus | ''>('');
@@ -369,26 +372,30 @@ export function Tasks({
     }
   };
 
-  const deleteTask = async () => {
+  const deleteTask = () => {
     if (!taskAccess.canDeleteTask) {
       showNotify('Role hiện tại không thể xóa task execution', 'error');
       return;
     }
-
-    if (!drawer.editingTask || !window.confirm('Xóa công việc này?')) return;
+    if (!drawer.editingTask) return;
     const taskId = drawer.editingTask.id;
-    const previousTasks = tasks;
-    setTasks((prev) => prev.filter((task) => task.id !== taskId));
-
-    try {
-      const response = await fetchWithAuth(token, `${API}/tasks/${taskId}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('delete_failed');
-      showNotify('Đã xóa công việc', 'success');
-      closeDrawer();
-    } catch {
-      setTasks(previousTasks);
-      showNotify('Không xóa được công việc', 'error');
-    }
+    setConfirmState({
+      message: 'Xóa công việc này?',
+      onConfirm: async () => {
+        setConfirmState(null);
+        const previousTasks = tasks;
+        setTasks((prev) => prev.filter((task) => task.id !== taskId));
+        try {
+          const response = await fetchWithAuth(token, `${API}/tasks/${taskId}`, { method: 'DELETE' });
+          if (!response.ok) throw new Error('delete_failed');
+          showNotify('Đã xóa công việc', 'success');
+          closeDrawer();
+        } catch {
+          setTasks(previousTasks);
+          showNotify('Không xóa được công việc', 'error');
+        }
+      },
+    });
   };
 
   const updateTaskStatus = async (taskId: string, nextStatus: UiTaskStatus) => {
@@ -435,9 +442,20 @@ export function Tasks({
     onNavigate?.('Projects');
   };
 
+  const openWorkflowFromTask = (task: TaskRecord) => {
+    const target = buildTaskWorkflowNavigation(task);
+    if (target) {
+      setNavContext(target.navContext);
+      onNavigate?.(target.route);
+      return;
+    }
+    openDrawer(task);
+  };
+
   return (
     <div className="tasks-workspace" style={S.page}>
       <style>{TASKS_POLISH_CSS}</style>
+      {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
 
       <SectionHeader
         icon={TasksIcon}
@@ -555,11 +573,12 @@ export function Tasks({
             onHoverStatus={setHoveredStatus}
             onDropStatus={(status) => draggingTaskId && updateTaskStatus(draggingTaskId, status)}
             onOpenTask={openDrawer}
+            onOpenWorkflow={openWorkflowFromTask}
           />
         ) : null}
 
         {!loading && filteredTasks.length > 0 && surface === 'list' ? (
-          <TaskList tasks={filteredTasks} isMobile={isMobile} onOpenTask={openDrawer} />
+          <TaskList tasks={filteredTasks} isMobile={isMobile} onOpenTask={openDrawer} onOpenWorkflow={openWorkflowFromTask} />
         ) : null}
       </div>
 

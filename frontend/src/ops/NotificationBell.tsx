@@ -30,6 +30,7 @@ export function NotificationBell({
   onMarkAllRead,
   onNavigate,
   compact = false,
+  isMobile = false,
 }: {
   unreadCount: number;
   items: NotificationItem[];
@@ -39,6 +40,7 @@ export function NotificationBell({
   onMarkAllRead?: () => Promise<void> | void;
   onNavigate?: (route: string) => void;
   compact?: boolean;
+  isMobile?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -114,11 +116,12 @@ export function NotificationBell({
       {open && (
         <div
           style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 10px)',
-            width: '320px',
-            maxWidth: 'calc(100vw - 24px)',
+            position: isMobile ? 'fixed' : 'absolute',
+            right: isMobile ? '12px' : 0,
+            left: isMobile ? '12px' : 'auto',
+            top: isMobile ? '96px' : 'calc(100% + 10px)',
+            width: isMobile ? 'auto' : '320px',
+            maxWidth: isMobile ? 'none' : 'calc(100vw - 24px)',
             background: tokens.colors.surface,
             border: `1px solid ${tokens.colors.border}`,
             borderRadius: tokens.radius.xl,
@@ -148,7 +151,7 @@ export function NotificationBell({
             </button>
           </div>
 
-          <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+          <div style={{ maxHeight: isMobile ? 'min(60vh, 420px)' : '320px', overflowY: 'auto' }}>
             {loading && unreadItems.length === 0 && (
               <div style={{ padding: '16px', fontSize: '13px', color: tokens.colors.textSecondary }}>
                 Đang tải thông báo...

@@ -356,6 +356,12 @@ export const Layout = ({
     }
   };
 
+  const tabLabel = (tab: TabName) => {
+    if (tab === 'Workspace') return t('nav.tab.workspace');
+    if (tab === 'Records') return t('nav.tab.master_data');
+    return t('nav.tab.admin_primary');
+  };
+
   const renderTabButton = (tab: TabName, compact = false) => {
     const active = activeTab === tab;
 
@@ -378,7 +384,7 @@ export const Layout = ({
           }}
           aria-current={active ? 'page' : undefined}
         >
-          {tab === 'Workspace' ? 'Workspace' : tab === 'Records' ? 'Master Data' : 'Admin'}
+          {tabLabel(tab)}
         </button>
       );
     }
@@ -406,7 +412,7 @@ export const Layout = ({
         }}
         aria-current={active ? 'page' : undefined}
       >
-        {tab === 'Workspace' ? 'Workspace' : tab === 'Records' ? 'Master Data' : 'Admin'}
+        {tabLabel(tab)}
       </button>
     );
   };
@@ -553,9 +559,7 @@ export const Layout = ({
   };
 
   const roleSummary = roleProfile
-    ? roleProfile.personaMode === 'sales_pm_combined'
-      ? 'Sales + Project Manager'
-      : roleProfile.roleCodes.map((roleCode) => ROLE_LABELS[roleCode]).join(', ')
+    ? Array.from(new Set(roleProfile.roleCodes.map((roleCode) => ROLE_LABELS[roleCode]).filter(Boolean))).join(', ')
     : '';
   const isRolePreviewActive = Boolean(currentUser?.isRolePreviewActive && currentUser?.previewRoleCodes?.length);
   const previewRoleCodes = normalizePreviewRoleCodes(currentUser?.previewRoleCodes);
@@ -740,14 +744,14 @@ export const Layout = ({
           display: 'flex',
           alignItems: isMobile ? 'stretch' : 'center',
           justifyContent: 'space-between',
-          padding: isMobile ? '12px 16px' : '0 32px',
+          padding: isMobile ? '12px 16px' : '0 24px',
           flexShrink: 0,
           borderBottom: `1px solid ${tokens.colors.border}`,
           transition: 'background-color 0.3s ease, border-color 0.3s ease',
           flexDirection: isMobile ? 'column' : 'row',
           gap: isMobile ? '10px' : '0',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '24px' }}>
             {isMobile && (
               <button
                 type="button"
@@ -774,6 +778,8 @@ export const Layout = ({
             {/* Search */}
             <div style={{ position: 'relative', flex: isMobile ? 1 : undefined }}>
               <input
+                id="global-search"
+                name="globalSearch"
                 type="text"
                 value={searchQuery}
                 onInput={(e: any) => setSearchQuery(e.target.value)}
@@ -812,12 +818,12 @@ export const Layout = ({
                 }}>
                   {isSearching && (
                     <div style={{ padding: '12px', fontSize: '13px', color: tokens.colors.textSecondary }}>
-                      Đang tìm kiếm...
+                      {t('common.loading.results')}
                     </div>
                   )}
                   {!isSearching && searchResults && searchSections.length === 0 && (
                     <div style={{ padding: '12px', fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>
-                      <div style={{ fontWeight: 700, color: tokens.colors.textPrimary }}>Không tìm thấy kết quả phù hợp.</div>
+                      <div style={{ fontWeight: 700, color: tokens.colors.textPrimary }}>{t('common.empty.no_results')}</div>
                       <div style={{ marginTop: '4px' }}>Thử từ khóa khác hoặc rút ngắn truy vấn.</div>
                     </div>
                   )}
@@ -833,14 +839,14 @@ export const Layout = ({
 
             {/* Desktop Header Tabs */}
             {!isMobile && (
-              <nav data-testid={QA_TEST_IDS.layout.topTabs} style={{ display: 'flex', gap: '24px', height: '64px', alignItems: 'center' }}>
+              <nav data-testid={QA_TEST_IDS.layout.topTabs} style={{ display: 'flex', gap: '20px', height: '64px', alignItems: 'center' }}>
                 {visibleTabs.map((tab) => renderTabButton(tab))}
               </nav>
             )}
           </div>
 
           {/* Right side: dark mode, notifications, avatar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '20px', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '18px', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
             <div style={{ display: 'flex', gap: isMobile ? '10px' : '16px', alignItems: 'center' }}>
               <button
                 type="button"
@@ -875,6 +881,7 @@ export const Layout = ({
                 onMarkAllRead={notifications.markAllRead}
                 onNavigate={onNavigate}
                 compact
+                isMobile={Boolean(isMobile)}
               />
               {allowedModules.includes('Ops Chat') ? (
                 <button
@@ -901,35 +908,55 @@ export const Layout = ({
               ) : null}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderLeft: isMobile ? 'none' : `1px solid ${tokens.colors.border}`, paddingLeft: isMobile ? '0' : '20px' }}>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: tokens.colors.textPrimary }}>{currentUser?.fullName ?? 'Guest'}</div>
-                <div style={{ fontSize: '11px', color: tokens.colors.textSecondary }}>{roleSummary}</div>
-              </div>
-              <button
-                type="button"
-                title={t('nav.action.logout')}
-                onClick={() => onNavigate && onNavigate('Logout')}
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '10px', borderLeft: isMobile ? 'none' : `1px solid ${tokens.colors.border}`, paddingLeft: isMobile ? '0' : '18px', minWidth: 0 }}>
+              <div
                 style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: tokens.radius.md,
-                  background: tokens.colors.border,
+                  width: isMobile ? '34px' : '38px',
+                  height: isMobile ? '34px' : '38px',
+                  borderRadius: '12px',
+                  background: tokens.colors.background,
+                  border: `1px solid ${tokens.colors.border}`,
                   overflow: 'hidden',
-                  cursor: 'pointer',
-                  border: 'none',
-                  padding: 0,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  flexShrink: 0,
                 }}
-                aria-label={t('nav.action.logout')}
               >
                 <img
                   src={`https://ui-avatars.com/api/?name=${encodeURIComponent((currentUser?.fullName ?? 'U').slice(0, 2))}&background=${isDarkMode ? '1E293B' : '009B6E'}&color=fff`}
                   alt="User"
                 />
-              </button>
+              </div>
+              <div style={{ textAlign: 'right', display: 'grid', gap: '2px', minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: isMobile ? '12px' : '13px',
+                    fontWeight: 700,
+                    color: tokens.colors.textPrimary,
+                    maxWidth: isMobile ? '104px' : '180px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {isMobile ? (roleProfile?.primaryRole ? ROLE_LABELS[roleProfile.primaryRole] : (currentUser?.fullName ?? 'Guest')) : (currentUser?.fullName ?? 'Guest')}
+                </div>
+                {!isMobile ? (
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: tokens.colors.textSecondary,
+                      maxWidth: '180px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {roleSummary}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 

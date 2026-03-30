@@ -19,10 +19,10 @@ describe('role access composition', () => {
     expect(normalizeRoleCodes([], 'manager')).toEqual(['project_manager']);
   });
 
-  it('builds a combined sales-pm persona with shared home modules', () => {
+  it('lets PM inherit the combined commercial + execution surface', () => {
     const profile = buildRoleProfile(['sales', 'project_manager']);
 
-    expect(profile.personaMode).toBe('sales_pm_combined');
+    expect(profile.personaMode).toBe('sales');
     expect(profile.primaryRole).toBe('sales');
     expect(profile.allowedModules).toContain('Home');
     expect(profile.allowedModules).toContain('My Work');
@@ -52,11 +52,13 @@ describe('role access composition', () => {
     expect(ROLE_MODULE_ACCESS.admin).toContain('Users');
     expect(ROLE_MODULE_ACCESS.sales).toContain('Leads');
     expect(ROLE_MODULE_ACCESS.project_manager).toContain('Ops Overview');
+    expect(ROLE_MODULE_ACCESS.project_manager).toContain('Pricing');
     expect(ROLE_WORKSPACE_TABS.accounting).toContain('finance');
     expect(ROLE_WORKSPACE_TABS.legal).toContain('legal');
     expect(ROLE_ACTION_PERMISSIONS.admin).toContain('manage_settings');
     expect(ROLE_ACTION_PERMISSIONS.sales).toContain('edit_commercial');
     expect(ROLE_ACTION_PERMISSIONS.project_manager).toContain('edit_execution');
+    expect(ROLE_ACTION_PERMISSIONS.project_manager).toContain('edit_commercial');
     expect(ROLE_ACTION_PERMISSIONS.procurement).toContain('edit_procurement');
   });
 
@@ -113,5 +115,22 @@ describe('role access composition', () => {
 
     expect(canApproveRequest(['procurement'], procurementApproval)).toBe(true);
     expect(canApproveRequest(['project_manager'], procurementApproval)).toBe(false);
+  });
+
+  it('blocks self-approval and mismatched assignee in the frontend gate helper', () => {
+    const financeApproval = {
+      id: 'fin-2',
+      requestType: 'payment-milestone',
+      department: 'Finance',
+      approverRole: 'accounting',
+      approverUserId: 'user-accounting',
+      requestedBy: 'user-requester',
+      status: 'pending',
+    };
+
+    expect(canApproveRequest(['accounting'], financeApproval, undefined, 'user-accounting')).toBe(true);
+    expect(canApproveRequest(['accounting'], financeApproval, undefined, 'user-requester')).toBe(false);
+    expect(canApproveRequest(['accounting'], financeApproval, undefined, 'another-user')).toBe(false);
+    expect(canApproveRequest(['accounting'], { ...financeApproval, status: 'approved' }, undefined, 'user-accounting')).toBe(false);
   });
 });

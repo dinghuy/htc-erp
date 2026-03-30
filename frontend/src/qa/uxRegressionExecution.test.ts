@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+// @ts-ignore Test-only JS helper without TypeScript declarations.
 import { UX_REGRESSION_MANIFEST, UX_SMOKE_ROUTES } from '../../scripts/qa/ux-regression.manifest.mjs';
+// @ts-ignore Test-only JS helper without TypeScript declarations.
 import { UX_AUDIT_EXECUTION_METADATA, CODEX_RUNBOOK_SECTIONS } from '../../scripts/qa/ux-regression.execution.mjs';
 
 describe('ux regression execution metadata', () => {
@@ -13,7 +15,7 @@ describe('ux regression execution metadata', () => {
   });
 
   it('keeps execution metadata ids aligned with manifest ids', () => {
-    const manifestIds = new Set(UX_REGRESSION_MANIFEST.map((journey) => journey.id));
+    const manifestIds = new Set(UX_REGRESSION_MANIFEST.map((journey: any) => journey.id));
     const metadataIds = new Set(Object.keys(UX_AUDIT_EXECUTION_METADATA));
     expect(metadataIds).toEqual(manifestIds);
   });

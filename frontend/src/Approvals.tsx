@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { buildRoleProfile, ROLE_LABELS, type CurrentUser } from './auth';
 import { API_BASE } from './config';
-import { consumeNavContext } from './navContext';
+import { consumeNavContext, setNavContext } from './navContext';
 import { buildRolePreviewNotice } from './preview/rolePreviewNotice';
 import { requestJsonWithAuth } from './shared/api/client';
 import { canApproveRequest, resolveApprovalLane } from './shared/domain/contracts';
@@ -9,6 +9,7 @@ import { QA_TEST_IDS, approvalActionButtonTestId, approvalCardTestId, approvalLa
 import { showNotify } from './Notification';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
+import { buildApprovalsActions } from './work/phaseDrivenActions';
 
 type ApprovalRecord = {
   id: string;
@@ -20,9 +21,17 @@ type ApprovalRecord = {
   projectCode?: string | null;
   projectName?: string | null;
   requestedByName?: string | null;
+  requestedBy?: string | null;
   department?: string | null;
   approverRole?: string | null;
   approverUserId?: string | null;
+  actionAvailability?: {
+    lane?: string | null;
+    canDecide?: boolean;
+    isRequester?: boolean;
+    isAssignedApprover?: boolean;
+    availableDecisions?: string[];
+  } | null;
 };
 
 type ApprovalsPayload = {
@@ -53,10 +62,50 @@ type ApprovalsPayload = {
 
 const API = API_BASE;
 
+function ActionBar({
+  actions,
+  onRunAction,
+}: {
+  actions: ReturnType<typeof buildApprovalsActions>;
+  onRunAction: (index: number) => void;
+}) {
+  return (
+    <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+      {actions.map((action, index) => (
+        <button
+          key={`${action.route}-${action.label}`}
+          type="button"
+          onClick={() => onRunAction(index)}
+          style={{
+            ...ui.card.base,
+            padding: '18px',
+            display: 'grid',
+            gap: '8px',
+            textAlign: 'left',
+            cursor: 'pointer',
+            border: `1px solid ${tokens.colors.border}`,
+            background: tokens.colors.surface,
+          }}
+        >
+          <div>
+            <span style={action.tone === 'primary' ? ui.badge.info : action.tone === 'secondary' ? ui.badge.warning : ui.badge.neutral}>
+              {action.tone === 'primary' ? 'Primary action' : action.tone === 'secondary' ? 'Next step' : 'Watchlist'}
+            </span>
+          </div>
+          <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary }}>{action.label}</div>
+          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>{action.hint}</div>
+        </button>
+      ))}
+    </section>
+  );
+}
+
 export function Approvals({
   currentUser,
+  onNavigate,
 }: {
   currentUser: CurrentUser;
+  onNavigate?: (route: string) => void;
 }) {
   const profile = buildRoleProfile(currentUser.roleCodes, currentUser.systemRole);
   const [payload, setPayload] = useState<ApprovalsPayload | null>(null);
@@ -72,11 +121,7 @@ export function Approvals({
       description: 'Theo dõi yêu cầu commercial và handoff đang chờ phản hồi từ các phòng ban liên quan.',
     },
     project_manager: {
-      title: 'Execution Approvals',
-      description: 'Nhìn một queue approvals gắn trực tiếp với readiness của dự án và các dependency liên phòng ban.',
-    },
-    sales_pm_combined: {
-      title: 'Unified Approvals',
+      title: 'Commercial + Execution Approvals',
       description: 'Một queue duy nhất để theo dõi commercial handoff, project blockers và các phê duyệt ảnh hưởng tới margin hoặc tiến độ.',
     },
     procurement: {
@@ -142,8 +187,9 @@ export function Approvals({
   const previewNotice = currentUser.isRolePreviewActive
     ? buildRolePreviewNotice({ screen: 'approvals', previewLabel, approvalLane: laneFilter || undefined })
     : null;
+  const phaseActions = buildApprovalsActions(profile.personaMode, laneFilter, payload?.summary);
 
-  const decide = async (approvalId: string, decision: 'approved' | 'rejected') => {
+  const decide = async (approvalId: string, decision: 'approved' | 'rejected' | 'changes_requested') => {
     setBusyId(approvalId);
     try {
       await requestJsonWithAuth(
@@ -155,7 +201,14 @@ export function Approvals({
         },
         'Không thể cập nhật approval',
       );
-      showNotify(decision === 'approved' ? 'Đã duyệt approval' : 'Đã từ chối approval', 'success');
+      showNotify(
+        decision === 'approved'
+          ? 'Đã duyệt approval'
+          : decision === 'changes_requested'
+            ? 'Đã yêu cầu chỉnh sửa approval'
+            : 'Đã từ chối approval',
+        'success',
+      );
       await load();
     } catch (err: any) {
       showNotify(err?.message || 'Không thể cập nhật approval', 'error');
@@ -190,6 +243,22 @@ export function Approvals({
         ) : null}
       </section>
 
+      <ActionBar
+        actions={phaseActions}
+        onRunAction={(index) => {
+          const action = phaseActions[index];
+          if (!action?.route) return;
+          if (action.navContext) {
+            setNavContext(action.navContext);
+          }
+          if (action.route === 'Approvals' && action.navContext?.filters?.approvalLane) {
+            setLaneFilter(action.navContext.filters.approvalLane);
+            return;
+          }
+          onNavigate?.(action.route);
+        }}
+      />
+
       {Array.isArray(payload?.cards) && payload.cards.length ? (
         <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
           {payload.cards.map((card) => (
@@ -214,11 +283,16 @@ export function Approvals({
         </div>
         {loading ? <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Đang tải approvals...</div> : filteredApprovals.length ? (
           <div data-testid={QA_TEST_IDS.approvals.listSection} style={{ display: 'grid', gap: '10px' }}>{filteredApprovals.map((approval) => {
-            const lane = resolveApprovalLane(approval);
+            const lane = approval.actionAvailability?.lane || resolveApprovalLane(approval);
             const isOwner = !approval.approverUserId || approval.approverUserId === currentUser.id;
-            const canApprove = approval.status === 'pending'
+            const canApprove = approval.actionAvailability?.canDecide ?? (
+              approval.status === 'pending'
               && isOwner
-              && canApproveRequest(currentUser.roleCodes, approval, currentUser.systemRole);
+              && canApproveRequest(currentUser.roleCodes, approval, currentUser.systemRole, currentUser.id)
+            );
+            const availableDecisions = Array.isArray(approval.actionAvailability?.availableDecisions)
+              ? approval.actionAvailability?.availableDecisions
+              : (canApprove ? ['rejected', 'changes_requested', 'approved'] : []);
 
             return (
               <div key={approval.id} data-testid={approvalCardTestId(approval.id)} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '14px', display: 'grid', gap: '10px' }}>
@@ -229,7 +303,15 @@ export function Approvals({
                       {approval.projectCode ? `${approval.projectCode} · ` : ''}{approval.projectName || 'No project'} · {approval.requestType}
                     </div>
                   </div>
-                  <span style={approval.status === 'pending' ? ui.badge.warning : approval.status === 'approved' ? ui.badge.success : ui.badge.error}>
+                  <span style={
+                    approval.status === 'pending'
+                      ? ui.badge.warning
+                      : approval.status === 'approved'
+                        ? ui.badge.success
+                        : approval.status === 'changes_requested'
+                          ? ui.badge.info
+                          : ui.badge.error
+                  }>
                     {approval.status}
                   </span>
                 </div>
@@ -244,16 +326,25 @@ export function Approvals({
                   {approval.status === 'pending' ? (
                     canApprove ? (
                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <button type="button" data-testid={approvalActionButtonTestId(approval.id, 'reject')} style={ui.btn.outline as any} disabled={busyId === approval.id} onClick={() => decide(approval.id, 'rejected')}>
-                          Reject
-                        </button>
-                        <button type="button" data-testid={approvalActionButtonTestId(approval.id, 'approve')} style={ui.btn.primary as any} disabled={busyId === approval.id} onClick={() => decide(approval.id, 'approved')}>
-                          Approve
-                        </button>
+                        {availableDecisions.includes('rejected') ? (
+                          <button type="button" data-testid={approvalActionButtonTestId(approval.id, 'reject')} style={ui.btn.outline as any} disabled={busyId === approval.id} onClick={() => decide(approval.id, 'rejected')}>
+                            Reject
+                          </button>
+                        ) : null}
+                        {availableDecisions.includes('changes_requested') ? (
+                          <button type="button" data-testid={approvalActionButtonTestId(approval.id, 'changes_requested')} style={ui.btn.outline as any} disabled={busyId === approval.id} onClick={() => decide(approval.id, 'changes_requested')}>
+                            Request changes
+                          </button>
+                        ) : null}
+                        {availableDecisions.includes('approved') ? (
+                          <button type="button" data-testid={approvalActionButtonTestId(approval.id, 'approve')} style={ui.btn.primary as any} disabled={busyId === approval.id} onClick={() => decide(approval.id, 'approved')}>
+                            Approve
+                          </button>
+                        ) : null}
                       </div>
                     ) : (
                       <span style={ui.badge.neutral}>
-                        {isOwner ? 'Read only' : 'Assigned approver khác'}
+                        {approval.actionAvailability?.isRequester || approval.requestedBy === currentUser.id ? 'Không thể tự duyệt request của chính mình' : isOwner ? 'Read only' : 'Assigned approver khác'}
                       </span>
                     )
                   ) : null}

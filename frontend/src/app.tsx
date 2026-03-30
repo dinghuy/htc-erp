@@ -136,7 +136,7 @@ export function App() {
         {resolvedRoute === 'Home' && <Home currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'My Work' && <MyWork currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Inbox' && <Inbox currentUser={currentUser} />}
-        {resolvedRoute === 'Approvals' && <Approvals currentUser={currentUser} />}
+        {resolvedRoute === 'Approvals' && <Approvals currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Leads' && <Leads isMobile={isMobile} currentUser={currentUser} />}
         {resolvedRoute === 'Accounts' && <CustomersRoute route="Accounts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Contacts' && <CustomersRoute route="Contacts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
@@ -154,7 +154,7 @@ export function App() {
         {resolvedRoute === 'Ops Overview' && <OpsOverviewRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Gantt' && <GanttRoute currentUser={currentUser} />}
         {resolvedRoute === 'Ops Staff' && <OpsStaffRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
-        {resolvedRoute === 'Ops Chat' && <OpsChatRoute currentUser={currentUser} />}
+        {resolvedRoute === 'Ops Chat' && <OpsChatRoute isMobile={isMobile} currentUser={currentUser} />}
         {resolvedRoute === 'Projects' && <ProjectsRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Tasks' && <TasksRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'ERP Orders' && <SalesOrdersRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}

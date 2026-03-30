@@ -83,6 +83,24 @@ type SalesOrderRow = {
   grandTotal?: number | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  approvalGateState?: {
+    gateType?: string;
+    status?: string | null;
+    latestApprovalId?: string | null;
+    pendingCount?: number;
+    pendingApprovers?: Array<{
+      approvalId?: string;
+      approverRole?: string | null;
+      approverName?: string | null;
+    }>;
+  } | null;
+  actionAvailability?: {
+    canRelease?: boolean;
+    canRequestReleaseApproval?: boolean;
+    canOpenQuotation?: boolean;
+    canOpenProject?: boolean;
+    blockers?: string[];
+  } | null;
 };
 
 type Props = {
@@ -170,6 +188,8 @@ const PROJECT_STAGE_LABELS: Record<string, { label: string; color: string; bg: s
 
 const SALES_ORDER_STATUS = {
   draft: { label: 'Bản nháp', color: '#64748b', bg: tokens.colors.surface },
+  released: { label: 'Released', color: '#0369a1', bg: '#e0f2fe' },
+  locked_for_execution: { label: 'Khóa triển khai', color: '#047857', bg: '#d1fae5' },
   processing: { label: 'Đang xử lý', color: '#0369a1', bg: '#e0f2fe' },
   delivered: { label: 'Đã giao', color: '#047857', bg: '#d1fae5' },
   closed: { label: 'Đã đóng', color: '#0f172a', bg: '#e2e8f0' },
@@ -205,6 +225,14 @@ const todayKey = () => new Date().toISOString().split('T')[0];
 const normalizeStatus = (status: string | null | undefined) => String(status || 'pending').toLowerCase();
 const normalizePriority = (priority: string | null | undefined) => String(priority || 'medium').toLowerCase();
 const normalizeProjectStage = (stage: string | null | undefined) => String(stage || 'new').toLowerCase();
+
+const orderGateTone = (status: string | null | undefined) => {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'approved') return 'good' as const;
+  if (normalized === 'pending') return 'warn' as const;
+  if (normalized === 'rejected' || normalized === 'changes_requested') return 'bad' as const;
+  return 'neutral' as const;
+};
 
 const isTaskOverdue = (task: TaskRow) => {
   if (normalizeStatus(task.status) === 'completed') return false;
@@ -738,8 +766,26 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
       })
       .slice(0, 6);
 
-    const activeOrders = normalizedOrders.filter((order) => ['draft', 'processing'].includes(order.status));
+    const activeOrders = normalizedOrders.filter((order) => ['draft', 'released', 'locked_for_execution', 'processing'].includes(order.status));
     const deliveredOrders = normalizedOrders.filter((order) => ['delivered', 'closed'].includes(order.status));
+    const workflowAttentionOrders = [...normalizedOrders]
+      .filter((order) =>
+        order.actionAvailability?.canRelease
+        || String(order.approvalGateState?.status || '').toLowerCase() === 'pending'
+        || (Array.isArray(order.actionAvailability?.blockers) && order.actionAvailability.blockers.length > 0)
+      )
+      .sort((a, b) => {
+        const aScore = (a.actionAvailability?.canRelease ? 100 : 0)
+          + (String(a.approvalGateState?.status || '').toLowerCase() === 'pending' ? 40 : 0)
+          + (Array.isArray(a.actionAvailability?.blockers) ? a.actionAvailability.blockers.length : 0);
+        const bScore = (b.actionAvailability?.canRelease ? 100 : 0)
+          + (String(b.approvalGateState?.status || '').toLowerCase() === 'pending' ? 40 : 0)
+          + (Array.isArray(b.actionAvailability?.blockers) ? b.actionAvailability.blockers.length : 0);
+        return bScore - aScore;
+      })
+      .slice(0, 6);
+    const pendingReleaseApprovals = normalizedOrders.filter((order) => String(order.approvalGateState?.status || '').toLowerCase() === 'pending');
+    const releasableOrders = normalizedOrders.filter((order) => order.actionAvailability?.canRelease);
     const overdueProjects = normalizedProjects.filter((project) => Number(project.overdueTaskCount || 0) > 0);
     const overdueTasks = normalizedTasks.filter((task) => isTaskOverdue(task));
     const completedTasks = normalizedTasks.filter((task) => task.status === 'completed');
@@ -764,6 +810,9 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
       riskyProjects,
       activeOrders,
       deliveredOrders,
+      workflowAttentionOrders,
+      pendingReleaseApprovals,
+      releasableOrders,
       overdueProjects,
       overdueTasks,
       completedTasks,
@@ -786,6 +835,8 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
     salesOrders: salesOrders.length,
     activeOrders: derived.activeOrders.length,
     deliveredOrders: derived.deliveredOrders.length,
+    pendingReleaseApprovals: derived.pendingReleaseApprovals.length,
+    releasableOrders: derived.releasableOrders.length,
     riskyProjects: derived.riskyProjects.length,
     erpPending: stats.erpOutboxPending ?? 0,
     erpFailed: stats.erpOutboxFailed ?? 0,
@@ -799,7 +850,9 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
     { icon: <PendingIcon size={18} />, label: 'Trễ hạn', value: formatNumber(totals.overdueTasks), hint: 'Công việc đã quá ngày hoàn thành', tone: totals.overdueTasks > 0 ? 'bad' as const : 'neutral' as const },
     { icon: <CheckCircle2Icon size={18} />, label: 'Hoàn thành', value: formatNumber(totals.completedTasks), hint: 'Công việc đã kết thúc', tone: 'good' as const },
     { icon: <ReportIcon size={18} />, label: 'Đơn ERP', value: formatNumber(totals.salesOrders), hint: 'Đơn hàng ERP sinh ra từ bàn giao dự án', tone: totals.salesOrders > 0 ? 'neutral' as const : 'warn' as const },
-    { icon: <TruckIcon size={18} />, label: 'Đơn đang xử lý', value: formatNumber(totals.activeOrders), hint: 'Đơn ở trạng thái nháp hoặc đang xử lý', tone: totals.activeOrders > 0 ? 'warn' as const : 'good' as const },
+    { icon: <TruckIcon size={18} />, label: 'Đơn đang xử lý', value: formatNumber(totals.activeOrders), hint: 'Đơn ở draft, released hoặc locked_for_execution', tone: totals.activeOrders > 0 ? 'warn' as const : 'good' as const },
+    { icon: <PendingIcon size={18} />, label: 'Chờ release approval', value: formatNumber(totals.pendingReleaseApprovals), hint: 'Sales order release gates đang pending approver', tone: totals.pendingReleaseApprovals > 0 ? 'warn' as const : 'good' as const },
+    { icon: <CheckCircle2Icon size={18} />, label: 'Có thể release', value: formatNumber(totals.releasableOrders), hint: 'Đơn đã đủ điều kiện release theo workflow contract', tone: totals.releasableOrders > 0 ? 'good' as const : 'neutral' as const },
     { icon: <WarningIcon size={18} />, label: 'Ưu tiên cao', value: formatNumber(totals.highPriorityTasks), hint: 'Công việc mức khẩn hoặc ưu tiên cao', tone: totals.highPriorityTasks > 0 ? 'warn' as const : 'neutral' as const },
     { icon: <RefreshIcon size={18} />, label: 'ERP chờ đồng bộ', value: formatNumber(totals.erpPending), hint: 'Sự kiện đang chờ đẩy sang ERP', tone: totals.erpPending > 0 ? 'warn' as const : 'good' as const },
     { icon: <AlertCircleIcon size={18} />, label: 'ERP lỗi', value: formatNumber(totals.erpFailed), hint: 'Sự kiện đồng bộ ERP cần được kiểm tra', tone: totals.erpFailed > 0 ? 'bad' as const : 'good' as const },
@@ -1014,7 +1067,7 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
             <div style={S.sectionCard}>
               <SectionTitle
                 title="Luồng đơn hàng"
-                subtitle="Đơn hàng bàn giao từ dự án, theo trạng thái ERP"
+                subtitle="Đơn hàng bàn giao từ dự án, đọc trực tiếp workflow contract từ sales-order payload"
                 action={<button type="button" onClick={() => openOrders()} style={ui.btn.ghost}>Xem đơn ERP</button>}
               />
               <DonutChart
@@ -1027,6 +1080,61 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
                 totalLabel="đơn hàng"
                 onItemClick={(item) => openOrders({ status: item.key })}
               />
+              <div style={{ marginTop: '16px', display: 'grid', gap: '10px' }}>
+                {derived.workflowAttentionOrders.length > 0 ? derived.workflowAttentionOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    style={{
+                      border: `1px solid ${tokens.colors.border}`,
+                      borderRadius: tokens.radius.lg,
+                      padding: '14px',
+                      background: tokens.colors.surface,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 900, color: tokens.colors.textPrimary }}>{order.orderNumber || order.id}</div>
+                        <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, marginTop: '4px' }}>
+                          {order.projectName || order.projectId || 'Chưa gắn project'}{order.accountName ? ` • ${order.accountName}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <MiniPill label="Trạng thái" value={SALES_ORDER_STATUS[order.status as keyof typeof SALES_ORDER_STATUS]?.label || order.status || 'draft'} tone="neutral" />
+                        {order.approvalGateState?.status && order.approvalGateState.status !== 'not_requested' && (
+                          <MiniPill label="Gate" value={String(order.approvalGateState.status).toUpperCase()} tone={orderGateTone(order.approvalGateState.status)} />
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {(order.approvalGateState?.pendingApprovers || []).map((approver) => (
+                        <MiniPill
+                          key={`${order.id}-${approver.approvalId || approver.approverRole || 'approver'}`}
+                          label="Pending approver"
+                          value={approver.approverRole || approver.approverName || 'n/a'}
+                          tone="warn"
+                        />
+                      ))}
+                      {order.actionAvailability?.canRelease && (
+                        <MiniPill label="Action" value="Release ready" tone="good" />
+                      )}
+                      {(order.actionAvailability?.blockers || []).slice(0, 2).map((blocker) => (
+                        <MiniPill key={`${order.id}-${blocker}`} label="Blocker" value={blocker} tone="bad" />
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button type="button" onClick={() => openOrders({ status: order.status, projectId: order.projectId })} style={ui.btn.outline}>Mở đơn ERP</button>
+                      {order.projectId && <button type="button" onClick={() => openProject(String(order.projectId))} style={ui.btn.ghost}>Mở dự án</button>}
+                    </div>
+                  </div>
+                )) : (
+                  <div style={{ fontSize: '13px', color: tokens.colors.textMuted }}>
+                    Không có sales order nào đang cần workflow attention.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

@@ -104,7 +104,6 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
       createdBy: actorUserId,
     });
     await logAct('Create project contract', `${contract?.contractNumber || contract?.title || id}`, 'Project', '📑', '#eff6ff', '#1d4ed8', projectId, 'Project');
-    await projectRepository.updateProjectStageById(projectId, 'delivery');
 
     res.status(201).json({ ...contract, baseline });
   }));

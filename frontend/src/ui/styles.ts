@@ -168,6 +168,34 @@ export const ui = {
       fontWeight: 800
     }
   },
+  page: {
+    /** Responsive KPI bar — cards wrap on narrow viewports */
+    kpiRow: {
+      display: 'flex',
+      gap: '12px',
+      flexWrap: 'wrap',
+    } as const,
+    /** Individual KPI card — stretches equally, min 140 px before wrapping */
+    kpiCard: {
+      flex: '1 1 140px',
+      minWidth: 0,
+    } as const,
+    /** Page-level title + action-buttons row — stacks on narrow viewports */
+    titleRow: {
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: '12px',
+    } as const,
+    /** Action buttons cluster inside titleRow */
+    actions: {
+      display: 'flex',
+      gap: '8px',
+      flexWrap: 'wrap',
+      flexShrink: 0,
+    } as const,
+  },
   modal: {
     shell: {
       background: tokens.colors.surface,
@@ -176,6 +204,28 @@ export const ui = {
       border: `1px solid ${tokens.colors.border}`,
       overflow: 'hidden'
     }
+  },
+  overlay: {
+    backdrop: {
+      background: tokens.overlay.backdropGradient,
+      backdropFilter: `blur(${tokens.overlay.backdropBlur})`,
+      WebkitBackdropFilter: `blur(${tokens.overlay.backdropBlur})`,
+    },
+    drawer: {
+      background: tokens.colors.surface,
+      borderLeft: `1px solid ${tokens.colors.border}`,
+      boxShadow: tokens.overlay.drawerShadow,
+    },
+    menu: {
+      border: `1px solid ${tokens.colors.border}`,
+      background: tokens.colors.surface,
+      boxShadow: tokens.shadow.md,
+    },
+    toast: {
+      boxShadow: tokens.shadow.md,
+      backdropFilter: `blur(${tokens.overlay.toastBlur})`,
+      WebkitBackdropFilter: `blur(${tokens.overlay.toastBlur})`,
+    },
   },
   form: {
     label: {

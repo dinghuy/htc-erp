@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../../sqlite-db';
 import { enqueueErpEvent } from '../../../erp-sync';
 import { canCompleteDelivery, canStartLogisticsExecution } from '../../shared/workflow/revenueFlow';
+import { finalizeDeliveryCompletion } from './deliveryCompletion';
 import { createProjectRepository } from './repository';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
@@ -34,6 +35,20 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     createProjectTimelineEvent,
   } = deps;
   const projectRepository = createProjectRepository();
+  const STAGE_PRIORITY: Record<string, number> = {
+    new: 0,
+    quoting: 1,
+    negotiating: 2,
+    'internal-review': 3,
+    commercial_approved: 4,
+    won: 5,
+    order_released: 6,
+    procurement_active: 7,
+    delivery_active: 8,
+    delivery_completed: 9,
+    closed: 10,
+    lost: -1,
+  };
 
   async function ensureReleasedExecutionOrder(projectId: string) {
     const salesOrders = await projectRepository.listProjectSalesOrders(projectId);
@@ -45,6 +60,18 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
       return { ok: false as const, httpStatus: 409, error: 'Sales order must be released before logistics execution' };
     }
     return { ok: true as const, salesOrder: latestSalesOrder };
+  }
+
+  async function promoteProjectStage(projectId: string, targetStage: string) {
+    const project = await projectRepository.findProjectSummaryById(projectId);
+    if (!project) return;
+    const currentStage = String(project.projectStage || 'new').trim().toLowerCase();
+    if (['delivery_completed', 'closed', 'lost'].includes(currentStage)) return;
+    const currentPriority = STAGE_PRIORITY[currentStage] ?? 0;
+    const targetPriority = STAGE_PRIORITY[targetStage] ?? currentPriority;
+    if (targetPriority > currentPriority) {
+      await projectRepository.updateProjectStageById(projectId, targetStage);
+    }
   }
 
   app.patch('/api/project-procurement-lines/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
@@ -64,6 +91,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     });
 
     const updated = await recalculateProjectProcurementRollup(null, lineId);
+    await promoteProjectStage(existing.projectId, 'procurement_active');
     await createProjectTimelineEvent(null, {
       projectId: existing.projectId,
       eventType: 'procurement.updated',
@@ -106,6 +134,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
 
     const line = mapProjectInboundLineRow(await projectRepository.findInboundLineById(id));
     const procurement = await recalculateProjectProcurementRollup(null, procurementLineId);
+    await promoteProjectStage(projectId, 'procurement_active');
     await createProjectTimelineEvent(null, {
       projectId,
       eventType: 'inbound.created',
@@ -147,6 +176,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
 
     const line = mapProjectInboundLineRow(await projectRepository.findInboundLineById(inboundLineId));
     const procurement = await recalculateProjectProcurementRollup(null, procurementLineId);
+    await promoteProjectStage(existing.projectId, 'procurement_active');
     await createProjectTimelineEvent(null, {
       projectId: existing.projectId,
       eventType: 'inbound.updated',
@@ -189,6 +219,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
 
     const line = mapProjectDeliveryLineRow(await projectRepository.findDeliveryLineById(id));
     const procurement = await recalculateProjectProcurementRollup(null, procurementLineId);
+    await promoteProjectStage(projectId, 'delivery_active');
     await createProjectTimelineEvent(null, {
       projectId,
       eventType: 'delivery.created',
@@ -230,6 +261,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
 
     const line = mapProjectDeliveryLineRow(await projectRepository.findDeliveryLineById(deliveryLineId));
     const procurement = await recalculateProjectProcurementRollup(null, procurementLineId);
+    await promoteProjectStage(existing.projectId, 'delivery_active');
     await createProjectTimelineEvent(null, {
       projectId: existing.projectId,
       eventType: 'delivery.updated',
@@ -253,34 +285,30 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
 
     const releaseCheck = await ensureReleasedExecutionOrder(projectId);
     if (!releaseCheck.ok) return res.status(releaseCheck.httpStatus).json({ error: releaseCheck.error });
-
-    const deliveryLines = await projectRepository.listDeliveryLines(projectId);
-    const completion = canCompleteDelivery((deliveryLines || []).map((line: any) => line.status));
-    if (!completion.ok) {
-      const failure = 'failure' in completion ? completion.failure : { code: 'DELIVERY_NOT_COMPLETE', message: 'Delivery completion blocked' };
-      return res.status(409).json({ error: failure.message, code: failure.code });
+    const approvedCompletionRequest = await db.get(
+      `SELECT * FROM ApprovalRequest
+       WHERE projectId = ? AND requestType = 'delivery_completion' AND status = 'approved'
+       ORDER BY COALESCE(decidedAt, updatedAt, createdAt) DESC
+       LIMIT 1`,
+      [projectId],
+    );
+    if (!approvedCompletionRequest) {
+      return res.status(409).json({ error: 'Approved delivery completion request is required before finalizing delivery', code: 'DELIVERY_COMPLETION_APPROVAL_REQUIRED' });
     }
 
-    await projectRepository.updateProjectStageById(projectId, 'delivery_completed');
-    await createProjectTimelineEvent(null, {
+    const completion = await finalizeDeliveryCompletion({
+      db,
+      projectRepository,
       projectId,
-      eventType: 'delivery.completed',
-      title: 'Hoàn tất giao hàng',
-      description: 'Dự án đã hoàn tất toàn bộ delivery lines và sẵn sàng đóng giao hàng.',
-      eventDate: new Date().toISOString(),
-      entityType: 'Project',
-      entityId: projectId,
-      payload: { projectStage: 'delivery_completed' },
-      createdBy: getCurrentUserId(req),
+      actorUserId: getCurrentUserId(req) || null,
+      sourceApprovalId: approvedCompletionRequest.id,
+      createProjectTimelineEvent,
     });
-    await enqueueErpEvent(db, {
-      eventType: 'project.delivery_completed',
-      entityType: 'Project',
-      entityId: projectId,
-      payload: { projectId, projectStage: 'delivery_completed' },
-    });
+    if (completion.ok === false) {
+      return res.status(completion.httpStatus).json({ error: completion.error, code: completion.code });
+    }
 
-    res.json(await projectRepository.findProjectSummaryById(projectId));
+    res.json(completion.project);
   }));
 
   app.post('/api/projects/:id/milestones', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {

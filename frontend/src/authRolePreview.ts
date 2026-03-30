@@ -7,7 +7,6 @@ type PreviewableUser = {
   previewRoleCodes?: SystemRole[];
   baseSystemRole?: SystemRole;
   baseRoleCodes?: SystemRole[];
-  isSalesProjectManager?: boolean;
   isRolePreviewActive?: boolean;
 };
 
@@ -19,7 +18,6 @@ export function normalizePreviewRoleCodes(roleCodes: unknown): SystemRole[] {
 export const ROLE_PREVIEW_PRESETS: Array<{ key: string; label: string; roleCodes?: SystemRole[] }> = [
   { key: 'sales', label: 'View as Sales', roleCodes: ['sales'] },
   { key: 'project_manager', label: 'View as PM', roleCodes: ['project_manager'] },
-  { key: 'sales_pm_combined', label: 'View as Sales + PM', roleCodes: ['sales', 'project_manager'] },
   { key: 'procurement', label: 'View as Procurement', roleCodes: ['procurement'] },
   { key: 'accounting', label: 'View as Accounting', roleCodes: ['accounting'] },
   { key: 'legal', label: 'View as Legal', roleCodes: ['legal'] },
@@ -38,8 +36,6 @@ export function getRolePreviewPresetNavigation(presetKey: string): RolePreviewNa
       return { route: 'My Work', navContext: { route: 'My Work', filters: { workFocus: 'commercial' } } };
     case 'project_manager':
       return { route: 'My Work', navContext: { route: 'My Work', filters: { workFocus: 'execution' } } };
-    case 'sales_pm_combined':
-      return { route: 'My Work', navContext: { route: 'My Work', filters: { workFocus: 'combined' } } };
     case 'procurement':
       return { route: 'Inbox', navContext: { route: 'Inbox', filters: { department: 'procurement' } } };
     case 'accounting':
@@ -62,9 +58,7 @@ export function getRolePreviewWorkspaceNavigation(roleCodes: unknown, legacyRole
     case 'sales':
       return { route: 'Projects', navContext: { route: 'Projects', filters: { projectStage: 'quoting', workspaceTab: 'commercial', openRepresentative: true } } };
     case 'project_manager':
-      return { route: 'Projects', navContext: { route: 'Projects', filters: { projectStage: 'delivery', workspaceTab: 'timeline', openRepresentative: true } } };
-    case 'sales_pm_combined':
-      return { route: 'Projects', navContext: { route: 'Projects', filters: { projectStage: 'won', workspaceTab: 'commercial', openRepresentative: true } } };
+      return { route: 'Projects', navContext: { route: 'Projects', filters: { projectStage: 'delivery', workspaceTab: 'commercial', openRepresentative: true } } };
     case 'procurement':
       return { route: 'Projects', navContext: { route: 'Projects', filters: { projectStage: 'delivery', workspaceTab: 'procurement', openRepresentative: true } } };
     case 'accounting':
@@ -94,7 +88,6 @@ export function applyRolePreviewToUser<T extends PreviewableUser>(user: T): T & 
   baseRoleCodes: SystemRole[];
   previewRoleCodes?: SystemRole[];
   isRolePreviewActive: boolean;
-  isSalesProjectManager: boolean;
 } {
   const baseRoleCodes = normalizeRoleCodes(user.baseRoleCodes ?? user.roleCodes, user.baseSystemRole ?? user.systemRole);
   const baseProfile = buildRoleProfile(baseRoleCodes, user.baseSystemRole ?? user.systemRole);
@@ -109,7 +102,6 @@ export function applyRolePreviewToUser<T extends PreviewableUser>(user: T): T & 
       baseRoleCodes,
       previewRoleCodes: undefined,
       isRolePreviewActive: false,
-      isSalesProjectManager: baseProfile.personaMode === 'sales_pm_combined',
     };
   }
 
@@ -123,6 +115,5 @@ export function applyRolePreviewToUser<T extends PreviewableUser>(user: T): T & 
     baseRoleCodes,
     previewRoleCodes,
     isRolePreviewActive: true,
-    isSalesProjectManager: previewProfile.personaMode === 'sales_pm_combined',
   };
 }

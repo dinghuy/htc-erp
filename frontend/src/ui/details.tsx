@@ -1,6 +1,6 @@
 import { type ComponentChildren } from 'preact';
+import { OverlayPortal, getOverlayContainerStyle, overlayStyles } from './overlay';
 import { tokens } from './tokens';
-import { ui } from './styles';
 
 type DetailModalProps = {
   open: boolean;
@@ -16,31 +16,25 @@ export function DetailModal({ open, title, subtitle, onClose, actions, children,
   if (!open) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1200,
-        padding: '12px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(15, 23, 42, 0.42)',
-        backdropFilter: 'blur(6px)',
-      }}
-      onClick={onClose}
-    >
+    <OverlayPortal>
       <div
-        style={{
-          ...ui.modal.shell,
-          width,
-          maxHeight: 'calc(100vh - 24px)',
-          display: 'flex',
-          flexDirection: 'column',
-          background: tokens.colors.surface,
-        }}
-        onClick={(event) => event.stopPropagation()}
+        style={getOverlayContainerStyle('detail', {
+          padding: '12px',
+        })}
+        onClick={onClose}
       >
+        <div aria-hidden="true" style={overlayStyles.backdrop} />
+        <div
+          style={{
+            ...overlayStyles.surface,
+            width,
+            maxHeight: 'calc(100vh - 24px)',
+            display: 'flex',
+            flexDirection: 'column',
+            background: tokens.colors.surface,
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
         <div
           style={{
             padding: '18px 24px',
@@ -81,7 +75,8 @@ export function DetailModal({ open, title, subtitle, onClose, actions, children,
 
         <div style={{ padding: '24px', overflowY: 'auto' }}>{children}</div>
       </div>
-    </div>
+      </div>
+    </OverlayPortal>
   );
 }
 

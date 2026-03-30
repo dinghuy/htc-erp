@@ -28,7 +28,6 @@ export interface CurrentUser {
   baseSystemRole?: SystemRole;
   baseRoleCodes?: SystemRole[];
   previewRoleCodes?: SystemRole[];
-  isSalesProjectManager?: boolean;
   isRolePreviewActive?: boolean;
   token: string;
   mustChangePassword?: boolean;

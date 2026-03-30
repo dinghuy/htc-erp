@@ -3,6 +3,9 @@ import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { showNotify } from './Notification';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
+import { PageHeader } from './ui/PageHeader';
+import { ConfirmDialog } from './ui/ConfirmDialog';
+import { OverlayModal } from './ui/OverlayModal';
 import { canEdit, canDelete, fetchWithAuth } from './auth';
 import { consumeNavContext } from './navContext';
 import { useI18n } from './i18n';
@@ -16,10 +19,51 @@ import {
   PlusIcon,
   QuoteIcon,
   ReportIcon,
-  SettingsIcon,
   TargetIcon,
   TrashIcon,
 } from './ui/icons';
+
+type ApprovalGateSummary = {
+  gateType?: string;
+  status?: string | null;
+  latestApprovalId?: string | null;
+  pendingCount?: number;
+  pendingApprovers?: Array<{
+    approvalId?: string;
+    approverRole?: string | null;
+    approverName?: string | null;
+  }>;
+};
+
+type QuotationActionAvailability = {
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canRevise?: boolean;
+  canRequestCommercialApproval?: boolean;
+  canCreateSalesOrder?: boolean;
+  blockers?: string[];
+  linkedSalesOrderId?: string | null;
+  linkedSalesOrderStatus?: string | null;
+};
+
+type QuotationRow = {
+  id: string;
+  quoteNumber?: string | null;
+  revisionNo?: number | null;
+  revisionLabel?: string | null;
+  projectId?: string | null;
+  projectName?: string | null;
+  subject?: string | null;
+  accountName?: string | null;
+  accountId?: string | null;
+  quoteDate?: string | null;
+  createdAt?: string | null;
+  grandTotal?: number | null;
+  status?: string | null;
+  isRemind?: boolean;
+  approvalGateState?: ApprovalGateSummary | null;
+  actionAvailability?: QuotationActionAvailability | null;
+};
 
 const API = API_BASE;
 const PREVIEW_PAGE_WIDTH = 595.28;
@@ -128,16 +172,13 @@ function ProductModal({ productsDB, onSelect, onClose, latestRate, rateMissing, 
   const safeProducts = ensureArray(productsDB);
   const filtered = safeProducts.filter((p: any) => p.name?.toLowerCase().includes(filter.toLowerCase()) || p.sku?.toLowerCase().includes(filter.toLowerCase()));
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ position: 'absolute', inset: 0, background: tokens.colors.textPrimary, opacity: 0.7 }} />
-      <div style={{ ...ui.modal.shell, width: '520px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
-        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${tokens.colors.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: tokens.colors.background, borderRadius: `${tokens.radius.lg} ${tokens.radius.lg} 0 0` }}>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: tokens.colors.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <SettingsIcon size={16} />
-            {t('sales.quotations.modal.select_product')}
-          </h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: tokens.colors.textMuted }}>&times;</button>
-        </div>
+    <OverlayModal
+      title={t('sales.quotations.modal.select_product')}
+      onClose={onClose}
+      maxWidth="520px"
+      contentPadding="0"
+    >
+      <div style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '16px 24px' }}>
           <input type="text" placeholder={t('sales.quotations.modal.search_product')} style={S.input} value={filter} onInput={(e:any)=>setFilter(e.target.value)} />
           {rateMissing && (
@@ -184,7 +225,7 @@ function ProductModal({ productsDB, onSelect, onClose, latestRate, rateMissing, 
           )}
         </div>
       </div>
-    </div>
+    </OverlayModal>
   );
 }
 
@@ -210,7 +251,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   const userCanDelete = canDelete(currentUser?.roleCodes, currentUser?.systemRole || 'viewer');
   const OPEN_QUOTE_KEY = 'crm_open_quotation_id'; // backward-compat: older deep links
 
-  const [quotations, setQuotations] = useState<any[]>([]);
+  const [quotations, setQuotations] = useState<QuotationRow[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
@@ -229,6 +270,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   const [showForm, setShowForm] = useState(false);
   const [showProdModal, setShowProdModal] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [filterProjectId, setFilterProjectId] = useState('');
   const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
   const previewA4Ref = useRef<HTMLDivElement | null>(null);
@@ -318,7 +360,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   const loadData = async () => {
     try {
       const [qRes, sRes, aRes, pRes, prRes, cRes, spRes, uRes] = await Promise.all([
-        fetch(`${API}/quotations`), fetch(`${API}/stats`), fetch(`${API}/accounts`),
+        fetchWithAuth(token, `${API}/quotations`), fetch(`${API}/stats`), fetch(`${API}/accounts`),
         fetch(`${API}/products`), fetch(`${API}/projects`), fetch(`${API}/contacts`), fetch(`${API}/salespersons`),
         fetchWithAuth(token, `${API}/users`)
       ]);
@@ -332,7 +374,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
         spRes.json(),
         uRes.json(),
       ]);
-      setQuotations(ensureArray(quotationsPayload));
+      setQuotations(ensureArray<QuotationRow>(quotationsPayload));
       setStats(statsPayload && typeof statsPayload === 'object' && !Array.isArray(statsPayload) ? statsPayload : {});
       setAccounts(ensureArray(accountsPayload));
       setProjects(ensureArray(projectsPayload));
@@ -560,11 +602,15 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
     }
   };
 
-  const deleteQuote = async (id: string) => {
-    if (window.confirm('Xóa báo giá này?')) {
-      setQuotations(prev => prev.filter((q: any) => q.id !== id));
-      await fetchWithAuth(token, `${API}/quotations/${id}`, { method: 'DELETE' });
-    }
+  const deleteQuote = (id: string) => {
+    setConfirmState({
+      message: 'Xóa báo giá này?',
+      onConfirm: async () => {
+        setConfirmState(null);
+        setQuotations(prev => prev.filter((q: any) => q.id !== id));
+        await fetchWithAuth(token, `${API}/quotations/${id}`, { method: 'DELETE' });
+      },
+    });
   };
 
   const handleCreateRevision = async (q: any) => {
@@ -592,7 +638,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
 
   const handleEditQuote = async (q: any) => {
     try {
-      const res = await fetch(`${API}/quotations/${q.id}`);
+      const res = await fetchWithAuth(token, `${API}/quotations/${q.id}`);
       const fullQ = await res.json();
       setEditingQuoteId(fullQ.id);
       setQuoteStatus(fullQ.status || 'draft');
@@ -626,6 +672,48 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
       setShowForm(true);
     } catch {
       showNotify('Không thể tải chi tiết báo giá', 'error');
+    }
+  };
+
+  const requestCommercialApproval = async (quotation: QuotationRow) => {
+    if (!quotation.projectId) {
+      showNotify('Quotation cần gắn project trước khi submit approval', 'error');
+      return;
+    }
+    try {
+      const res = await fetchWithAuth(token, `${API}/projects/${quotation.projectId}/approvals`, {
+        method: 'POST',
+        body: JSON.stringify({
+          quotationId: quotation.id,
+          requestType: 'quotation_commercial',
+          title: `Quotation approval - ${quotation.quoteNumber || quotation.id}`,
+          department: 'Commercial',
+          approverRole: 'director',
+          note: 'Submitted from quotations list',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Không thể tạo approval request');
+      }
+      showNotify('Đã tạo approval request cho quotation', 'success');
+      await loadData();
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể tạo approval request', 'error');
+    }
+  };
+
+  const createSalesOrderFromQuotation = async (quotation: QuotationRow) => {
+    try {
+      const res = await fetchWithAuth(token, `${API}/sales-orders/from-quotation/${quotation.id}`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Không thể tạo sales order');
+      }
+      showNotify('Đã tạo sales order', 'success');
+      await loadData();
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể tạo sales order', 'error');
     }
   };
 
@@ -705,16 +793,12 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
           />
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h2 style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <QuoteIcon size={22} />
-              Trình tạo Báo giá
-            </h2>
-            <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0' }}>Sales Kit — nhập đầy đủ để đồng bộ với template PDF</p>
-          </div>
-          <button onClick={() => { setShowForm(false); setEditingQuoteId(null); }} style={S.btnOutline}>&larr; Quay lại</button>
-        </div>
+        <PageHeader
+          icon={<QuoteIcon size={22} />}
+          title="Trình tạo Báo giá"
+          subtitle="Sales Kit — nhập đầy đủ để đồng bộ với template PDF"
+          actions={<button onClick={() => { setShowForm(false); setEditingQuoteId(null); }} style={S.btnOutline}>&larr; Quay lại</button>}
+        />
 
         {isMobile && (
           <div style={{ display: 'flex', gap: '8px', borderBottom: `1px solid ${tokens.colors.border}`, paddingBottom: '8px' }}>
@@ -1294,16 +1378,13 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   // ── LIST VIEW ──
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <ReportIcon size={22} />
-            {t('sales.quotations.title')}
-          </h2>
-          <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0' }}>{t('sales.quotations.subtitle')}</p>
-        </div>
-        {userCanEdit && <button style={S.btnPrimary} onClick={handleCreateNew}><PlusIcon size={14} /> {t('sales.quotations.action.create')}</button>}
-      </div>
+      {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
+      <PageHeader
+        icon={<ReportIcon size={22} />}
+        title={t('sales.quotations.title')}
+        subtitle={t('sales.quotations.subtitle')}
+        actions={userCanEdit ? <button style={S.btnPrimary} onClick={handleCreateNew}><PlusIcon size={14} /> {t('sales.quotations.action.create')}</button> : undefined}
+      />
 
       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
         <KpiCard icon={<QuoteIcon size={20} />} label="Tổng Báo giá" value={stats.quotations ?? '—'} color={tokens.colors.primary} />
@@ -1336,24 +1417,35 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
             <tbody>
               {visibleQuotations.length === 0 ? (
                 <tr><td colSpan={9} style={{ padding: '80px', textAlign: 'center', color: tokens.colors.textMuted }}>Bắt đầu bằng cách nhấn "Tạo Báo giá Mới"</td></tr>
-              ) : visibleQuotations.map((q: any) => (
+              ) : visibleQuotations.map((q) => (
                 <tr key={q.id} style={{ ...ui.table.row }} onMouseEnter={(e: any) => e.currentTarget.style.background = tokens.colors.background} onMouseLeave={(e: any) => e.currentTarget.style.background = ''}>
                   <td style={{ ...S.td, fontWeight: 800, color: tokens.colors.primary }}>{q.quoteNumber}</td>
                   <td style={S.td}>{q.revisionLabel || `R${q.revisionNo || 1}`}</td>
                   <td style={{ ...S.td, fontSize: '12px', color: tokens.colors.textSecondary }}>{q.projectName || q.projectId || 'Tự tạo khi lưu'}</td>
                   <td style={{ ...S.td, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: tokens.colors.textMuted, fontSize: '12px' }}>{q.subject || '—'}</td>
                   <td style={{ ...S.td, fontWeight: 700 }}>{q.accountName || q.accountId}</td>
-                  <td style={S.td}>{new Date(q.quoteDate || q.createdAt).toLocaleDateString('vi-VN')}</td>
+                  <td style={S.td}>{new Date(q.quoteDate || q.createdAt || Date.now()).toLocaleDateString('vi-VN')}</td>
                   <td style={{ ...S.td, fontWeight: 800, color: tokens.colors.textPrimary }}>{q.grandTotal?.toLocaleString()} đ</td>
                   <td style={S.td}>
                     {(() => {
-                      const legacy = isLegacyStatus(q.status);
+                      const legacy = isLegacyStatus(q.status || undefined);
                       const remind = q.isRemind === true;
+                      const gateState = q.approvalGateState;
                       return (
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ ...statusBadgeStyle(q.status), border: `1px solid ${tokens.colors.border}` }}>
+                          <span style={{ ...statusBadgeStyle(q.status || undefined), border: `1px solid ${tokens.colors.border}` }}>
                             {q.status?.toUpperCase()}
                           </span>
+                          {gateState?.status && gateState.status !== 'not_requested' && (
+                            <span style={gateState.status === 'pending' ? ui.badge.warning : gateState.status === 'approved' ? ui.badge.success : ui.badge.info}>
+                              Approval: {String(gateState.status).toUpperCase()}
+                            </span>
+                          )}
+                          {(gateState?.pendingApprovers || []).map((approver) => (
+                            <span key={`${q.id}-${approver.approvalId || approver.approverRole || 'approver'}`} style={ui.badge.info}>
+                              {approver.approverRole || approver.approverName || 'Pending approver'}
+                            </span>
+                          ))}
                           {legacy && (
                             <span title="Unsupported status; editing disabled." style={{ ...ui.badge.neutral, border: `1px dashed ${tokens.colors.border}` }}>LEGACY</span>
                           )}
@@ -1370,18 +1462,35 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
                   </td>
                   <td style={{ ...S.td, display: 'flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center' }}>
                     {(() => {
-                      const legacy = isLegacyStatus(q.status);
+                      const legacy = isLegacyStatus(q.status || undefined);
                       const readOnly = legacy || q.status === 'accepted' || q.status === 'rejected';
-                      const nextOptions = allowedTransitions(q.status);
+                      const nextOptions = allowedTransitions(q.status || undefined);
                       const busy = updatingStatusId === q.id;
+                      const actions = q.actionAvailability || {};
                       return (
                         <>
+                          {actions.canRequestCommercialApproval && (
+                            <button
+                              onClick={() => requestCommercialApproval(q)}
+                              style={{ ...S.btnGhost, color: tokens.colors.warningDark, fontWeight: 700 }}
+                            >
+                              Submit approval
+                            </button>
+                          )}
+                          {actions.canCreateSalesOrder && (
+                            <button
+                              onClick={() => createSalesOrderFromQuotation(q)}
+                              style={{ ...S.btnGhost, color: tokens.colors.success, fontWeight: 700 }}
+                            >
+                              Tạo SO
+                            </button>
+                          )}
                           {!readOnly && nextOptions.length > 0 && (
                             <select
                               style={{ ...S.select, padding: '6px 8px', fontSize: '11px' }}
                               onChange={(e: any) => {
                                 const next = e.target.value;
-                                if (next) updateStatus(q.id, q.status, next);
+                                if (next) updateStatus(q.id, q.status || 'draft', next);
                                 e.target.value = '';
                               }}
                               disabled={busy}
@@ -1394,11 +1503,11 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
                             </select>
                           )}
                           <button onClick={() => handleEditQuote(q)} style={{ ...S.btnGhost, color: tokens.colors.info, fontWeight: 700 }}><EyeIcon size={14} /></button>
-                          {userCanEdit && (
+                          {userCanEdit && actions.canRevise !== false && (
                             <button onClick={() => handleCreateRevision(q)} style={{ ...S.btnGhost, color: tokens.colors.primary, fontWeight: 700 }}>R+</button>
                           )}
                           <button
-                            onClick={() => downloadQuotationPdf(q.id, q.quoteNumber)}
+                            onClick={() => downloadQuotationPdf(q.id, q.quoteNumber || undefined)}
                             disabled={downloadingPdfId === q.id}
                             style={{
                               border: `1px solid ${tokens.colors.primary}`,
@@ -1415,14 +1524,14 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
                             {downloadingPdfId === q.id ? '...' : 'PDF'}
                           </button>
                           {userCanDelete && <button
-                            onClick={() => { if (!readOnly) deleteQuote(q.id); }}
-                            disabled={readOnly}
+                            onClick={() => { if (!readOnly && actions.canDelete !== false) deleteQuote(q.id); }}
+                            disabled={readOnly || actions.canDelete === false}
                             style={{
                               ...S.btnGhost,
                               color: tokens.colors.error,
                               fontWeight: 700,
-                              opacity: readOnly ? 0.5 : 1,
-                              cursor: readOnly ? 'not-allowed' : 'pointer'
+                              opacity: (readOnly || actions.canDelete === false) ? 0.5 : 1,
+                              cursor: (readOnly || actions.canDelete === false) ? 'not-allowed' : 'pointer'
                             }}
                           >
                             <TrashIcon size={14} />
@@ -1440,4 +1549,3 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
     </div>
   );
 }
-

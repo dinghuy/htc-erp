@@ -26,7 +26,6 @@ export type SessionUser = {
   fullName: string;
   systemRole: string;
   roleCodes: string[];
-  isSalesProjectManager: boolean;
   email: string;
   gender?: string | null;
   mustChangePassword: boolean;
@@ -61,7 +60,6 @@ export function mapSessionUser(user: UserRecord, mustChangePassword: boolean): S
     fullName: user.fullName,
     systemRole,
     roleCodes,
-    isSalesProjectManager: roleCodes.includes('sales') && roleCodes.includes('project_manager'),
     email: user.email,
     gender: user.gender ?? null,
     mustChangePassword,

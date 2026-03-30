@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  AUDIT_DRIVERS,
-  FAILURE_TYPES,
-  resolveFrontendUrl,
-  classifyFailureType,
-  createFatalAuditSummary,
-  renderAuditMarkdown,
-} from '../../scripts/qa/ux-audit-contract.mjs';
+// @ts-ignore Test-only JS helper without TypeScript declarations.
+import { AUDIT_DRIVERS, FAILURE_TYPES, resolveFrontendUrl, classifyFailureType, createFatalAuditSummary, renderAuditMarkdown } from '../../scripts/qa/ux-audit-contract.mjs';
 
 describe('ux audit contracts', () => {
   it('prefers explicit env URL over contract URL', () => {
