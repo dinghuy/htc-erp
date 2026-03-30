@@ -1,6 +1,10 @@
 export type { LucideProps as IconProps } from 'lucide-preact';
 
 export {
+  ArrowUp as ArrowUpIcon,
+  ArrowDown as ArrowDownIcon,
+  Star as StarIcon,
+  Crop as CropIcon,
   ArrowDownRight as TrendDownIcon,
   ArrowUpRight as TrendUpIcon,
   CheckCircle2 as CheckCircle2Icon,

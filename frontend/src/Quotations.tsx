@@ -3,6 +3,9 @@ import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { showNotify } from './Notification';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
+import { PageHeader } from './ui/PageHeader';
+import { ConfirmDialog } from './ui/ConfirmDialog';
+import { OverlayModal } from './ui/OverlayModal';
 import { canEdit, canDelete, fetchWithAuth } from './auth';
 import { consumeNavContext } from './navContext';
 import { useI18n } from './i18n';
@@ -16,7 +19,6 @@ import {
   PlusIcon,
   QuoteIcon,
   ReportIcon,
-  SettingsIcon,
   TargetIcon,
   TrashIcon,
 } from './ui/icons';
@@ -170,16 +172,13 @@ function ProductModal({ productsDB, onSelect, onClose, latestRate, rateMissing, 
   const safeProducts = ensureArray(productsDB);
   const filtered = safeProducts.filter((p: any) => p.name?.toLowerCase().includes(filter.toLowerCase()) || p.sku?.toLowerCase().includes(filter.toLowerCase()));
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1100, padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ position: 'absolute', inset: 0, background: tokens.colors.textPrimary, opacity: 0.7 }} />
-      <div style={{ ...ui.modal.shell, width: '520px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
-        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${tokens.colors.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: tokens.colors.background, borderRadius: `${tokens.radius.lg} ${tokens.radius.lg} 0 0` }}>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: tokens.colors.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <SettingsIcon size={16} />
-            {t('sales.quotations.modal.select_product')}
-          </h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: tokens.colors.textMuted }}>&times;</button>
-        </div>
+    <OverlayModal
+      title={t('sales.quotations.modal.select_product')}
+      onClose={onClose}
+      maxWidth="520px"
+      contentPadding="0"
+    >
+      <div style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '16px 24px' }}>
           <input type="text" placeholder={t('sales.quotations.modal.search_product')} style={S.input} value={filter} onInput={(e:any)=>setFilter(e.target.value)} />
           {rateMissing && (
@@ -226,7 +225,7 @@ function ProductModal({ productsDB, onSelect, onClose, latestRate, rateMissing, 
           )}
         </div>
       </div>
-    </div>
+    </OverlayModal>
   );
 }
 
@@ -271,6 +270,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   const [showForm, setShowForm] = useState(false);
   const [showProdModal, setShowProdModal] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [filterProjectId, setFilterProjectId] = useState('');
   const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
   const previewA4Ref = useRef<HTMLDivElement | null>(null);
@@ -602,11 +602,15 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
     }
   };
 
-  const deleteQuote = async (id: string) => {
-    if (window.confirm('Xóa báo giá này?')) {
-      setQuotations(prev => prev.filter((q: any) => q.id !== id));
-      await fetchWithAuth(token, `${API}/quotations/${id}`, { method: 'DELETE' });
-    }
+  const deleteQuote = (id: string) => {
+    setConfirmState({
+      message: 'Xóa báo giá này?',
+      onConfirm: async () => {
+        setConfirmState(null);
+        setQuotations(prev => prev.filter((q: any) => q.id !== id));
+        await fetchWithAuth(token, `${API}/quotations/${id}`, { method: 'DELETE' });
+      },
+    });
   };
 
   const handleCreateRevision = async (q: any) => {
@@ -789,16 +793,12 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
           />
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h2 style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <QuoteIcon size={22} />
-              Trình tạo Báo giá
-            </h2>
-            <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0' }}>Sales Kit — nhập đầy đủ để đồng bộ với template PDF</p>
-          </div>
-          <button onClick={() => { setShowForm(false); setEditingQuoteId(null); }} style={S.btnOutline}>&larr; Quay lại</button>
-        </div>
+        <PageHeader
+          icon={<QuoteIcon size={22} />}
+          title="Trình tạo Báo giá"
+          subtitle="Sales Kit — nhập đầy đủ để đồng bộ với template PDF"
+          actions={<button onClick={() => { setShowForm(false); setEditingQuoteId(null); }} style={S.btnOutline}>&larr; Quay lại</button>}
+        />
 
         {isMobile && (
           <div style={{ display: 'flex', gap: '8px', borderBottom: `1px solid ${tokens.colors.border}`, paddingBottom: '8px' }}>
@@ -1378,16 +1378,13 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   // ── LIST VIEW ──
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <ReportIcon size={22} />
-            {t('sales.quotations.title')}
-          </h2>
-          <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0' }}>{t('sales.quotations.subtitle')}</p>
-        </div>
-        {userCanEdit && <button style={S.btnPrimary} onClick={handleCreateNew}><PlusIcon size={14} /> {t('sales.quotations.action.create')}</button>}
-      </div>
+      {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
+      <PageHeader
+        icon={<ReportIcon size={22} />}
+        title={t('sales.quotations.title')}
+        subtitle={t('sales.quotations.subtitle')}
+        actions={userCanEdit ? <button style={S.btnPrimary} onClick={handleCreateNew}><PlusIcon size={14} /> {t('sales.quotations.action.create')}</button> : undefined}
+      />
 
       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
         <KpiCard icon={<QuoteIcon size={20} />} label="Tổng Báo giá" value={stats.quotations ?? '—'} color={tokens.colors.primary} />
@@ -1552,4 +1549,3 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
     </div>
   );
 }
-

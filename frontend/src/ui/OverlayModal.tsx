@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { tokens } from './tokens';
 import { ui } from './styles';
+import { OverlayPortal, getOverlayContainerStyle, overlayStyles } from './overlay';
 
 let overlayModalIdCounter = 0;
 const overlayModalStack: number[] = [];
@@ -12,6 +13,12 @@ type OverlayModalProps = {
   onClose: () => void;
   children: ComponentChildren;
   maxWidth?: string;
+  subtitle?: string;
+  variant?: 'modal' | 'drawer';
+  contentPadding?: string;
+  placement?: 'center' | 'right';
+  closeButtonTestId?: string;
+  closeOnBackdrop?: boolean;
 };
 
 export function OverlayModal({
@@ -19,6 +26,12 @@ export function OverlayModal({
   onClose,
   children,
   maxWidth = '600px',
+  subtitle,
+  variant = 'modal',
+  contentPadding = '24px 32px',
+  placement,
+  closeButtonTestId,
+  closeOnBackdrop = true,
 }: OverlayModalProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -133,98 +146,115 @@ export function OverlayModal({
     };
   }, [instanceId]);
 
+  const isDrawer = variant === 'drawer';
+  const resolvedPlacement = placement ?? (isDrawer ? 'right' : 'center');
+
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1100,
-        padding: '20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <OverlayPortal>
       <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundColor: tokens.colors.textPrimary,
-          opacity: 0.7,
+        onClick={() => {
+          if (closeOnBackdrop) onCloseRef.current();
         }}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        ref={shellRef}
-        tabIndex={-1}
-        onClick={(event) => event.stopPropagation()}
-        style={{
-          ...ui.modal.shell,
-          width: '100%',
-          maxWidth,
-          position: 'relative',
-          zIndex: 1,
-          maxHeight: '80vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
+        style={getOverlayContainerStyle(isDrawer ? 'drawer' : 'modal', {
+          padding: isDrawer ? '14px' : '20px',
+          alignItems: isDrawer ? 'stretch' : 'center',
+          justifyContent: resolvedPlacement === 'right' ? 'flex-end' : 'center',
+        })}
       >
+        <div aria-hidden="true" style={overlayStyles.backdrop} />
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          ref={shellRef}
+          tabIndex={-1}
+          onClick={(event) => event.stopPropagation()}
           style={{
+            ...overlayStyles.surface,
+            width: '100%',
+            maxWidth,
+            maxHeight: isDrawer ? 'calc(100vh - 28px)' : '80vh',
+            height: isDrawer ? 'calc(100vh - 28px)' : 'auto',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            padding: '20px 24px',
-            borderBottom: `1px solid ${tokens.colors.border}`,
-            background: tokens.colors.background,
+            flexDirection: 'column',
+            overflow: 'hidden',
+            borderRadius: isDrawer ? '28px' : ui.modal.shell.borderRadius,
+            background: isDrawer
+              ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(17, 24, 39, 0.98) 100%)'
+              : ui.modal.shell.background,
+            boxShadow: isDrawer ? tokens.overlay.modalShadow : ui.modal.shell.boxShadow,
           }}
         >
-          <h3
-            id={titleId}
+          <div
             style={{
-              margin: 0,
-              fontSize: '17px',
-              fontWeight: 800,
-              color: tokens.colors.textPrimary,
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '12px',
+              padding: isDrawer ? '22px 24px 20px' : '20px 24px',
+              borderBottom: `1px solid ${tokens.colors.border}`,
+              background: isDrawer ? 'rgba(15, 23, 42, 0.84)' : tokens.colors.background,
             }}
           >
-            {title}
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            ref={closeButtonRef}
+            <div style={{ minWidth: 0, display: 'grid', gap: subtitle ? '6px' : 0 }}>
+              <h3
+                id={titleId}
+                style={{
+                  margin: 0,
+                  fontSize: '17px',
+                  fontWeight: 800,
+                  color: tokens.colors.textPrimary,
+                }}
+              >
+                {title}
+              </h3>
+              {subtitle ? (
+                <div
+                  style={{
+                    fontSize: '12px',
+                    lineHeight: 1.5,
+                    color: tokens.colors.textSecondary,
+                  }}
+                >
+                  {subtitle}
+                </div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              ref={closeButtonRef}
+              data-testid={closeButtonTestId}
+              style={{
+                width: '40px',
+                height: '40px',
+                flexShrink: 0,
+                borderRadius: '999px',
+                background: isDrawer ? 'rgba(148, 163, 184, 0.08)' : 'transparent',
+                border: isDrawer ? `1px solid ${tokens.colors.border}` : 'none',
+                color: 'inherit',
+                fontSize: '24px',
+                lineHeight: 1,
+                cursor: 'pointer',
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div
             style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'inherit',
-              fontSize: '24px',
-              lineHeight: 1,
-              cursor: 'pointer',
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              padding: contentPadding,
             }}
           >
-            ×
-          </button>
-        </div>
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowY: 'auto',
-            padding: '24px 32px',
-          }}
-        >
-          {children}
+            {children}
+          </div>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }
 

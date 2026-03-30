@@ -4,6 +4,7 @@ import { API_BASE } from './config';
 import { buildRoleProfile, type CurrentUser, fetchWithAuth } from './auth';
 import { showNotify } from './Notification';
 import { consumeNavContext, setNavContext } from './navContext';
+import { buildSalesQuotationNavigation } from './shared/workflow/workflowNavigation';
 import { projectStageLabel, projectStageValueOptions } from './ops/workflowOptions';
 import { canPerformAction, type ProjectWorkspaceTabKey } from './shared/domain/contracts';
 import { QA_TEST_IDS, projectCardTestId, projectDetailsButtonTestId, projectWorkspaceButtonTestId } from './testing/testIds';
@@ -12,6 +13,7 @@ import { ui } from './ui/styles';
 import { DetailField, DetailGrid, DetailModal, DetailSection } from './ui/details';
 import { EntitySummaryCard, FilterToolbar, PageHero, PageSectionHeader, StatusChipRow } from './ui/patterns';
 import { CompassIcon, EditIcon, EyeIcon, TrashIcon } from './ui/icons';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 import { buildProjectRoleView } from './projects/projectRoleViews';
 const ProjectWorkspaceHubModal = lazy(async () => {
   const module = await import('./projects/ProjectWorkspaceHub');
@@ -184,15 +186,15 @@ function workflowGateLabel(gateType?: string) {
     case 'quotation_commercial':
       return 'Thương mại';
     case 'sales_order_release':
-      return 'Release SO';
+      return 'Phát hành SO';
     case 'procurement_commitment':
       return 'Mua hàng';
     case 'delivery_release':
-      return 'Release giao hàng';
+      return 'Phát hành giao hàng';
     case 'delivery_completion':
       return 'Hoàn tất giao hàng';
     default:
-      return 'Workflow';
+      return 'Quy trình';
   }
 }
 
@@ -225,7 +227,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   if (quotationAvailability?.canRequestCommercialApproval) {
     return {
       nextActionLabel: 'Gửi approval thương mại',
-      nextActionHint: 'Báo giá đã sẵn sàng để vào lane approval thương mại.',
+      nextActionHint: 'Báo giá đã sẵn sàng để vào làn phê duyệt thương mại.',
       workspaceTab: 'commercial',
       tone: 'warn',
       blockers,
@@ -234,7 +236,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   if (quotationAvailability?.canCreateSalesOrder) {
     return {
       nextActionLabel: 'Tạo sales order',
-      nextActionHint: 'Báo giá đã approved/won và đủ điều kiện handoff sang sales order.',
+      nextActionHint: 'Báo giá đã được duyệt/chốt và đủ điều kiện bàn giao sang sales order.',
       workspaceTab: 'commercial',
       tone: 'good',
       blockers,
@@ -242,8 +244,8 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   }
   if (salesOrderAvailability?.canReleaseLatest) {
     return {
-      nextActionLabel: 'Release sales order',
-      nextActionHint: 'Sales order mới nhất đã sẵn sàng để release cho execution.',
+      nextActionLabel: 'Phát hành sales order',
+      nextActionHint: 'Sales order mới nhất đã sẵn sàng để chuyển sang triển khai.',
       workspaceTab: 'commercial',
       tone: 'warn',
       blockers,
@@ -252,7 +254,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   if (projectAvailability?.canRecordLogistics) {
     return {
       nextActionLabel: 'Ghi nhận logistics',
-      nextActionHint: 'Sales order đã release, có thể bắt đầu inbound và chuẩn bị giao hàng.',
+      nextActionHint: 'Sales order đã phát hành, có thể bắt đầu inbound và chuẩn bị giao hàng.',
       workspaceTab: 'delivery',
       tone: 'info',
       blockers,
@@ -278,7 +280,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   }
   if (blockers.length > 0) {
     return {
-      nextActionLabel: 'Gỡ workflow blockers',
+      nextActionLabel: 'Gỡ chặn quy trình',
       nextActionHint: blockers[0],
       workspaceTab,
       tone: 'bad',
@@ -293,15 +295,15 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   const latestQuotationStatus = String(project?.latestQuotationStatus || '').trim().toLowerCase();
   const projectStage = String(project?.projectStage || '').trim().toLowerCase();
   const derivedBlockers = [
-    pendingApprovals > 0 ? `${pendingApprovals} approval đang chờ` : '',
+    pendingApprovals > 0 ? `${pendingApprovals} phê duyệt đang chờ` : '',
     missingDocuments > 0 ? `${missingDocuments} hồ sơ còn thiếu` : '',
-    overdueTasks > 0 ? `${overdueTasks} task bị trễ` : '',
+    overdueTasks > 0 ? `${overdueTasks} công việc bị trễ` : '',
   ].filter(Boolean);
 
   if (pendingApprovals > 0) {
     return {
-      nextActionLabel: 'Dọn hàng đợi approval',
-      nextActionHint: `${pendingApprovals} approval đang chặn bước workflow kế tiếp của dự án.`,
+      nextActionLabel: 'Dọn hàng đợi phê duyệt',
+      nextActionHint: `${pendingApprovals} phê duyệt đang chặn bước kế tiếp của dự án.`,
       workspaceTab,
       tone: 'warn',
       blockers: derivedBlockers,
@@ -310,7 +312,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   if (missingDocuments > 0) {
     return {
       nextActionLabel: 'Bổ sung hồ sơ',
-      nextActionHint: `${missingDocuments} tài liệu còn thiếu trước khi tiếp tục handoff hoặc execution.`,
+      nextActionHint: `${missingDocuments} tài liệu còn thiếu trước khi tiếp tục bàn giao hoặc triển khai.`,
       workspaceTab: 'documents',
       tone: 'bad',
       blockers: derivedBlockers,
@@ -319,7 +321,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   if (overdueTasks > 0) {
     return {
       nextActionLabel: 'Kéo lại timeline',
-      nextActionHint: `${overdueTasks} task quá hạn đang kéo chậm readiness hoặc delivery.`,
+      nextActionHint: `${overdueTasks} công việc quá hạn đang kéo chậm mức sẵn sàng hoặc giao hàng.`,
       workspaceTab: 'timeline',
       tone: 'bad',
       blockers: derivedBlockers,
@@ -337,7 +339,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   if (latestQuotationStatus === 'submitted_for_approval') {
     return {
       nextActionLabel: 'Theo dõi approval thương mại',
-      nextActionHint: 'Báo giá mới nhất đang nằm trong approval lane.',
+      nextActionHint: 'Báo giá mới nhất đang nằm trong làn phê duyệt.',
       workspaceTab: 'commercial',
       tone: 'warn',
       blockers: derivedBlockers,
@@ -345,8 +347,8 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   }
   if (latestQuotationStatus === 'approved' || latestQuotationStatus === 'won') {
     return {
-      nextActionLabel: 'Tiếp tục sales order handoff',
-      nextActionHint: 'Báo giá đã approved/won; bước kế tiếp là sales order và release readiness.',
+      nextActionLabel: 'Tiếp tục bàn giao sales order',
+      nextActionHint: 'Báo giá đã được duyệt/chốt; bước kế tiếp là sales order và mức sẵn sàng phát hành.',
       workspaceTab: 'commercial',
       tone: 'good',
       blockers: derivedBlockers,
@@ -355,7 +357,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   if (['order_released', 'procurement_active'].includes(projectStage)) {
     return {
       nextActionLabel: 'Đẩy procurement',
-      nextActionHint: 'Dự án đã rời cổng thương mại và cần follow-through từ mua hàng hoặc inbound.',
+      nextActionHint: 'Dự án đã rời cổng thương mại và cần bám tiếp từ mua hàng hoặc inbound.',
       workspaceTab: 'procurement',
       tone: 'info',
       blockers: derivedBlockers,
@@ -364,7 +366,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   if (['delivery_active', 'delivery'].includes(projectStage)) {
     return {
       nextActionLabel: 'Theo dõi giao hàng',
-      nextActionHint: 'Dự án đang ở pha giao hàng; logistics và completion readiness là trọng tâm.',
+      nextActionHint: 'Dự án đang ở pha giao hàng; logistics và mức sẵn sàng hoàn tất là trọng tâm.',
       workspaceTab: 'delivery',
       tone: 'info',
       blockers: derivedBlockers,
@@ -372,7 +374,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   }
   if (['delivery_completed', 'closed'].includes(projectStage) || String(project?.status || '').trim().toLowerCase() === 'completed') {
     return {
-      nextActionLabel: 'Rà completion state',
+      nextActionLabel: 'Rà trạng thái hoàn tất',
       nextActionHint: 'Dự án đã ở giai đoạn cuối, cần kiểm tra hoàn tất và đóng vòng.',
       workspaceTab: 'overview',
       tone: 'good',
@@ -382,7 +384,7 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   if (openTasks > 0) {
     return {
       nextActionLabel: 'Xử lý task mở',
-      nextActionHint: `${openTasks} task còn mở trong workspace hiện tại.`,
+      nextActionHint: `${openTasks} công việc còn mở trong không gian hiện tại.`,
       workspaceTab: 'tasks',
       tone: 'info',
       blockers: derivedBlockers,
@@ -390,8 +392,8 @@ function resolveProjectActionAvailability(project: any): ResolvedProjectActionAv
   }
 
   return {
-    nextActionLabel: 'Mở workspace',
-      nextActionHint: 'Dự án chưa có blocker nổi bật; rà bước kế tiếp theo workspace.',
+    nextActionLabel: 'Mở không gian dự án',
+      nextActionHint: 'Dự án chưa có điểm nghẽn nổi bật; rà bước kế tiếp trong không gian làm việc.',
     workspaceTab,
     tone: 'info',
     blockers: derivedBlockers,
@@ -519,7 +521,7 @@ function ProjectEditorModal({
             </select>
           </div>
           <div>
-            <label style={S.label}>Project Owner</label>
+            <label style={S.label}>Người phụ trách dự án</label>
             <select style={S.input} value={form.managerId} onChange={(e: any) => setForm((prev) => ({ ...prev, managerId: e.target.value }))}>
               <option value="">-- Chọn người phụ trách --</option>
               {users.map((user) => (
@@ -605,9 +607,11 @@ function ProjectDetailsModal({
 
   const latestQuotationAction = project?.latestQuotationId && onNavigate
     ? () => {
-        setNavContext({ route: 'Sales', entityType: 'Quotation', entityId: project.latestQuotationId });
+        const target = buildSalesQuotationNavigation(project.latestQuotationId);
+        if (!target) return;
+        setNavContext(target.navContext);
         onClose();
-        onNavigate('Sales');
+        onNavigate(target.route);
       }
     : null;
 
@@ -631,7 +635,7 @@ function ProjectDetailsModal({
             <DetailField label="Trạng thái" value={<span style={statusBadgeStyle(project.status)}>{STATUS_LABELS[(project.status || 'pending') as ProjectStatus] || project.status || '—'}</span>} />
             <DetailField label="Giai đoạn" value={<span style={projectStageBadgeStyle(project.projectStage)}>{projectStageLabel(project.projectStage) || '—'}</span>} />
             <DetailField label="Khách hàng" value={project.accountName || '—'} />
-            <DetailField label="Owner" value={project.managerName || '—'} />
+            <DetailField label="Người phụ trách" value={project.managerName || '—'} />
             <DetailField label="Ngày bắt đầu" value={formatDate(project.startDate)} />
             <DetailField label="Ngày kết thúc" value={formatDate(project.endDate)} />
             <DetailField label="Tiến độ" value={<ProgressBar value={computeProgress(project)} />} wide />
@@ -678,6 +682,7 @@ export function Projects({
   const [showAdd, setShowAdd] = useState(false);
   const [editProject, setEditProject] = useState<any | null>(null);
   const [detailProject, setDetailProject] = useState<any | null>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [workspaceProjectId, setWorkspaceProjectId] = useState<string | null>(null);
   const [workspaceInitialTab, setWorkspaceInitialTab] = useState<ProjectWorkspaceTabKey | undefined>(undefined);
   const roleProfile = useMemo(() => buildRoleProfile(currentUser.roleCodes, currentUser.systemRole), [currentUser.roleCodes, currentUser.systemRole]);
@@ -787,22 +792,27 @@ export function Projects({
     setManagerFilter('');
   };
 
-  const handleDelete = async (project: any) => {
+  const handleDelete = (project: any) => {
     if (!canDeleteProject) return;
-    if (!window.confirm(`Xóa dự án \"${project.name}\"? Thao tác này không thể hoàn tác.`)) return;
-    try {
-      await requestJsonWithAuth(currentUser.token, `${API}/projects/${project.id}`, { method: 'DELETE' }, 'Không thể xóa dự án');
-      showNotify('Đã xóa dự án', 'success');
-      if (detailProject?.id === project.id) setDetailProject(null);
-      if (editProject?.id === project.id) setEditProject(null);
-      if (workspaceProjectId === project.id) {
-        setWorkspaceProjectId(null);
-        setWorkspaceInitialTab(undefined);
-      }
-      await loadData();
-    } catch (error: any) {
-      showNotify(error?.message || 'Không thể xóa dự án', 'error');
-    }
+    setConfirmState({
+      message: `Xóa dự án "${project.name}"? Thao tác này không thể hoàn tác.`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          await requestJsonWithAuth(currentUser.token, `${API}/projects/${project.id}`, { method: 'DELETE' }, 'Không thể xóa dự án');
+          showNotify('Đã xóa dự án', 'success');
+          if (detailProject?.id === project.id) setDetailProject(null);
+          if (editProject?.id === project.id) setEditProject(null);
+          if (workspaceProjectId === project.id) {
+            setWorkspaceProjectId(null);
+            setWorkspaceInitialTab(undefined);
+          }
+          await loadData();
+        } catch (error: any) {
+          showNotify(error?.message || 'Không thể xóa dự án', 'error');
+        }
+      },
+    });
   };
 
   const resetFilters = () => {
@@ -816,8 +826,9 @@ export function Projects({
 
   return (
     <div style={{ display: 'grid', gap: '20px', padding: isMobile ? '16px' : '20px' }}>
+      {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
       <PageHero
-        eyebrow="Project cockpit"
+        eyebrow="Cockpit dự án"
         title={projectRoleView.title}
         description={`${projectRoleView.subtitle} ${projectRoleView.note}`}
         actions={[
@@ -831,13 +842,13 @@ export function Projects({
             : []),
           {
             key: 'open-approvals',
-            label: 'Mở Approvals',
+            label: 'Mở phê duyệt',
             onClick: () => onNavigate?.('Approvals'),
             variant: 'outline' as const,
           },
           {
             key: 'open-reports',
-            label: 'Xem Reports',
+            label: 'Xem báo cáo',
             onClick: () => onNavigate?.('Reports'),
             variant: 'ghost' as const,
           },
@@ -880,7 +891,7 @@ export function Projects({
       <section style={{ display: 'grid', gap: '12px' }}>
         <PageSectionHeader
           title="Thanh lọc dự án"
-          description="Giữ một bộ lọc gọn để xác định status, stage, owner và queue ưu tiên trước khi đi vào từng project."
+          description="Giữ một bộ lọc gọn để xác định trạng thái, giai đoạn, người phụ trách và hàng đợi ưu tiên trước khi đi vào từng dự án."
         />
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           {STATUS_TABS.map((tab) => {
@@ -917,7 +928,7 @@ export function Projects({
                   style={S.input}
                   value={searchTerm}
                   onInput={(e: any) => setSearchTerm(e.target.value)}
-                  placeholder="Tìm theo tên, mã, account, owner..."
+                  placeholder="Tìm theo tên, mã, account, người phụ trách..."
                 />
               ),
             },
@@ -947,7 +958,7 @@ export function Projects({
               key: 'manager',
               node: (
                 <select style={S.input} value={managerFilter} onChange={(e: any) => setManagerFilter(e.target.value)}>
-                  <option value="">Tất cả owner</option>
+                  <option value="">Tất cả người phụ trách</option>
                   {users.map((user) => (
                     <option key={user.id} value={user.id}>{resolveUserLabel(user)}</option>
                   ))}
@@ -1016,7 +1027,7 @@ export function Projects({
             const supportItems = [
               {
                 key: `${project.id}-approvals`,
-                label: `${Number(project.pendingApprovalCount || 0)} approval`,
+                label: `${Number(project.pendingApprovalCount || 0)} phê duyệt`,
                 tone: Number(project.pendingApprovalCount || 0) > 0 ? 'warn' as const : 'good' as const,
               },
               {
@@ -1026,12 +1037,12 @@ export function Projects({
               },
               {
                 key: `${project.id}-overdue`,
-                label: `${Number(project.overdueTaskCount || 0)} task trễ`,
+                label: `${Number(project.overdueTaskCount || 0)} công việc trễ`,
                 tone: Number(project.overdueTaskCount || 0) > 0 ? 'bad' as const : 'info' as const,
               },
               ...pendingGates.slice(0, 1).map((gate: any, index: number) => ({
                 key: `${project.id}-gate-${gate.gateType || 'pending'}-${index}`,
-                label: `Gate ${workflowGateLabel(gate.gateType)}`,
+                label: `Cổng ${workflowGateLabel(gate.gateType)}`,
                 tone: String(gate.status || '').toLowerCase() === 'pending' ? 'warn' as const : 'neutral' as const,
               })),
               ...pendingApprovers.slice(0, 1).map((approver: any, index: number) => ({
@@ -1044,14 +1055,14 @@ export function Projects({
               <div key={project.id} data-testid={projectCardTestId(project.id)}>
                 <EntitySummaryCard
                   title={project.name}
-                  subtitle={`${project.accountName || 'Chưa có account'} · ${project.code ? `#${project.code} · ` : ''}${project.managerName || 'Chưa gán owner'}`}
+                  subtitle={`${project.accountName || 'Chưa có account'} · ${project.code ? `#${project.code} · ` : ''}${project.managerName || 'Chưa gán người phụ trách'}`}
                   description={project.description || 'Chưa có mô tả dự án.'}
                   statusItems={statusItems}
                   meta={[
-                    { key: 'account', label: 'Account', value: project.accountName || '—' },
-                    { key: 'owner', label: 'Owner', value: project.managerName || '—' },
-                    { key: 'timeline', label: 'Timeline', value: `${formatDate(project.startDate)} - ${formatDate(project.endDate)}` },
-                    { key: 'volume', label: 'Task / Quote', value: `${Number(project.taskCount || 0).toLocaleString('vi-VN')} task / ${Number(project.quotationCount || 0).toLocaleString('vi-VN')} báo giá` },
+                    { key: 'account', label: 'Khách hàng', value: project.accountName || '—' },
+                    { key: 'owner', label: 'Người phụ trách', value: project.managerName || '—' },
+                    { key: 'timeline', label: 'Tiến độ thời gian', value: `${formatDate(project.startDate)} - ${formatDate(project.endDate)}` },
+                    { key: 'volume', label: 'Công việc / Báo giá', value: `${Number(project.taskCount || 0).toLocaleString('vi-VN')} công việc / ${Number(project.quotationCount || 0).toLocaleString('vi-VN')} báo giá` },
                   ]}
                   primaryLabel={workflowAction.nextActionLabel}
                   primaryHint={workflowAction.nextActionHint}

@@ -4,6 +4,12 @@ import { showNotify } from './Notification';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
 import { canEdit, canDelete, fetchWithAuth } from './auth';
+import { useI18n } from './i18n';
+import { normalizeImportReport, buildImportSummary } from './shared/imports/importReport';
+import { buildTabularFileUrl } from './shared/imports/tabularFiles';
+import { FormatActionButton } from './ui/FormatActionButton';
+import { ConfirmDialog } from './ui/ConfirmDialog';
+import { OverlayModal } from './ui/OverlayModal';
 import { EditIcon, ExportIcon, EyeIcon, HandshakeIcon, ImportIcon, SearchIcon, TrashIcon } from './ui/icons';
 
 const API = API_BASE;
@@ -87,16 +93,9 @@ function TagChips({ tags, activeTag, onTagClick }: { tags: string[]; activeTag?:
 
 function Modal({ title, children, onClose }: any) {
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ position: 'absolute', inset: 0, background: tokens.colors.textPrimary, opacity: 0.7 }} />
-      <div style={{ ...ui.modal.shell, width: '100%', maxWidth: '560px', position: 'relative', zIndex: 1 }}>
-        <div style={{ padding: '20px 28px', borderBottom: `1px solid ${tokens.colors.border}`, background: tokens.colors.background, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: tokens.colors.textPrimary }}>{title}</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: tokens.colors.textMuted }}>&times;</button>
-        </div>
-        <div style={{ padding: '28px' }}>{children}</div>
-      </div>
-    </div>
+    <OverlayModal title={title} onClose={onClose} maxWidth="560px" contentPadding="28px">
+      {children}
+    </OverlayModal>
   );
 }
 
@@ -295,6 +294,7 @@ function useSortableData(items: any[]) {
 
 export function Suppliers({ isMobile, currentUser }: { isMobile?: boolean; currentUser?: any } = {}) {
   const token = currentUser?.token || '';
+  const { t } = useI18n();
   const userCanEdit = canEdit(currentUser?.roleCodes, currentUser?.systemRole || 'viewer');
   const userCanDelete = canDelete(currentUser?.roleCodes, currentUser?.systemRole || 'viewer');
 
@@ -304,6 +304,7 @@ export function Suppliers({ isMobile, currentUser }: { isMobile?: boolean; curre
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [showAddQuote, setShowAddQuote] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [editingSup, setEditingSup] = useState<any>(null);
   const [viewingSup, setViewingSup] = useState<any>(null);
   const [viewingQuote, setViewingQuote] = useState<any>(null);
@@ -375,23 +376,46 @@ export function Suppliers({ isMobile, currentUser }: { isMobile?: boolean; curre
     const file = e.target.files[0]; if (!file) return;
     const formData = new FormData(); formData.append('file', file);
     setLoading(true);
-    const res = await fetchWithAuth(token, `${API}/suppliers/import`, { method: 'POST', body: formData });
-    const result = await res.json();
-    showNotify(`Đã nhập: ${result.inserted} NCC mới.`, 'success'); loadData();
-  };
-
-  const deleteSup = async (id: string) => {
-    if (window.confirm('Xóa Nhà CC này?')) {
-      setSuppliers(prev => prev.filter((s: any) => s.id !== id));
-      await fetchWithAuth(token, `${API}/suppliers/${id}`, { method: 'DELETE' });
+    try {
+      const res = await fetchWithAuth(token, `${API}/suppliers/import`, { method: 'POST', body: formData });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result?.error || 'Không thể import dữ liệu');
+      const report = normalizeImportReport(result);
+      showNotify(buildImportSummary(report), report.errors > 0 ? 'info' : 'success');
+      loadData();
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể import dữ liệu', 'error');
+    } finally {
+      setLoading(false);
+      if (e?.target) e.target.value = '';
     }
   };
 
-  const deleteQuote = async (id: string) => {
-    if (window.confirm('Xóa Báo giá này?')) {
-      setQuotes(prev => prev.filter((q: any) => q.id !== id));
-      await fetchWithAuth(token, `${API}/supplier-quotes/${id}`, { method: 'DELETE' });
-    }
+  const openSupplierFile = (kind: 'template' | 'export', format: 'csv' | 'xlsx') => {
+    const path = kind === 'template' ? `${API}/template/suppliers` : `${API}/suppliers/export`;
+    window.open(buildTabularFileUrl(path, format), '_blank');
+  };
+
+  const deleteSup = (id: string) => {
+    setConfirmState({
+      message: 'Xóa Nhà cung cấp này?',
+      onConfirm: async () => {
+        setConfirmState(null);
+        setSuppliers(prev => prev.filter((s: any) => s.id !== id));
+        await fetchWithAuth(token, `${API}/suppliers/${id}`, { method: 'DELETE' });
+      },
+    });
+  };
+
+  const deleteQuote = (id: string) => {
+    setConfirmState({
+      message: 'Xóa Báo giá này?',
+      onConfirm: async () => {
+        setConfirmState(null);
+        setQuotes(prev => prev.filter((q: any) => q.id !== id));
+        await fetchWithAuth(token, `${API}/supplier-quotes/${id}`, { method: 'DELETE' });
+      },
+    });
   };
 
   const toggleSelectedTag = (tag: string) => setSelectedTag(prev => prev === tag ? '' : tag);
@@ -401,28 +425,76 @@ export function Suppliers({ isMobile, currentUser }: { isMobile?: boolean; curre
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
       {showAdd && <AddSupplierModal onClose={()=>setShowAdd(false)} onSaved={loadData} token={token} />}
       {showAddQuote && <AddSupplierQuoteModal suppliers={suppliers} onClose={()=>setShowAddQuote(false)} onSaved={loadData} token={token} />}
       {editingSup && <EditSupplierModal supplier={editingSup} onClose={()=>setEditingSup(null)} onSaved={loadData} token={token} />}
       {viewingSup && <SupplierDetailsModal supplier={viewingSup} canEditSupplier={userCanEdit} canDeleteSupplier={userCanDelete} onEdit={() => setEditingSup(viewingSup)} onDelete={() => deleteSup(viewingSup.id)} onClose={() => setViewingSup(null)} />}
       {viewingQuote && <QuoteDetailsModal quote={viewingQuote} canDeleteQuote={userCanDelete} onDelete={() => deleteQuote(viewingQuote.id)} onClose={() => setViewingQuote(null)} />}
-      <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImport} accept=".csv" />
+      <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImport} accept=".csv,.xlsx" />
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          flexDirection: isMobile ? 'column' : 'row',
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '8px' }}><HandshakeIcon size={22} /> Mua hàng & Nhà cung cấp</h2>
+          <h2
+            style={{
+              fontSize: '24px',
+              fontWeight: 800,
+              color: tokens.colors.textPrimary,
+              margin: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <HandshakeIcon size={22} /> Mua hàng & Nhà cung cấp
+          </h2>
           <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0' }}>Bảng quản lý đối tác và báo giá cung ứng</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', ...(isMobile ? { overflowX: 'auto', maxWidth: '100%', flexWrap: 'nowrap', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' } : {}) }}>
-           {activeTab === 'Vendors' ? (
-             <>
-          <button style={S.btnOutline} onClick={() => window.open(`${API}/template/suppliers`)}><ExportIcon size={14} /> Tải file mẫu CSV</button>
-          {userCanEdit && <button style={S.btnOutline} onClick={() => fileInputRef.current?.click()}><ImportIcon size={14} /> Nhập CSV</button>}
-               {userCanEdit && <button style={S.btnPrimary} onClick={()=>setShowAdd(true)}>+ Thêm Nhà CC</button>}
-             </>
-           ) : (
-             userCanEdit && <button style={S.btnPrimary} onClick={()=>setShowAddQuote(true)}>+ Thêm Báo giá Mới</button>
-           )}
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            ...(isMobile ? { overflowX: 'auto', maxWidth: '100%', flexWrap: 'nowrap', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' } : {}),
+          }}
+        >
+          {activeTab === 'Vendors' ? (
+            <>
+              <FormatActionButton
+                label={t('common.import_template')}
+                icon={ExportIcon}
+                buttonStyle={S.btnOutline}
+                onSelect={(format) => openSupplierFile('template', format)}
+              />
+              {userCanEdit ? (
+                <button style={S.btnOutline} onClick={() => fileInputRef.current?.click()}>
+                  <ImportIcon size={14} /> {t('common.import_file')}
+                </button>
+              ) : null}
+              <FormatActionButton
+                label={t('common.export_data')}
+                icon={ExportIcon}
+                buttonStyle={S.btnOutline}
+                onSelect={(format) => openSupplierFile('export', format)}
+              />
+              {userCanEdit ? (
+                <button style={S.btnPrimary} onClick={() => setShowAdd(true)}>
+                  + Thêm Nhà CC
+                </button>
+              ) : null}
+            </>
+          ) : userCanEdit ? (
+            <button style={S.btnPrimary} onClick={() => setShowAddQuote(true)}>
+              + Thêm Báo giá Mới
+            </button>
+          ) : null}
         </div>
       </div>
 
