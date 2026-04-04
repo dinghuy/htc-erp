@@ -53,6 +53,12 @@ Use the project-local OMX skill surface under `.codex/skills/` as follows:
 
 Treat `crm-delivery-orchestrator` as legacy compatibility only for historical `crm-app` references. It is not the default for active `htc-erp` work.
 
+If sandbox restrictions prevent direct reads from global skills under `%USERPROFILE%\.codex\skills\`, mirror only the needed skill into `tmp/skills-global/` with:
+
+- `pwsh -NoLogo -NoProfile -File scripts/mirror-global-skills.ps1 -Skill <skill-name>`
+
+Treat `tmp/skills-global/` as a local cache, not as canonical project-owned skills.
+
 ## Active Workstreams
 
 The following top-level plans are active or decision-relevant and should be read as planning inputs, not as canonical truth on their own:

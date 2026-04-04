@@ -323,14 +323,20 @@ export function Reports({ isMobile, currentUser }: { isMobile?: boolean; current
             setInboxPayload(null);
             setApprovalsPayload(null);
           }
-          const [s, r, f] = await Promise.all([
-            fetch(`${API}/stats`).then((res) => res.json()),
-            fetch(`${API}/reports/revenue`).then((res) => res.json()),
-            fetch(`${API}/reports/funnel`).then((res) => res.json()),
-          ]);
-          setStats(s);
-          setRevenueData(r);
-          setFunnelData(f);
+          if (currentUser?.token) {
+            const [s, r, f] = await Promise.all([
+              requestJsonWithAuth<any>(currentUser.token, `${API}/stats`, {}, 'Không thể tải thống kê tổng quan'),
+              requestJsonWithAuth<any[]>(currentUser.token, `${API}/reports/revenue`, {}, 'Không thể tải báo cáo doanh thu'),
+              requestJsonWithAuth<any[]>(currentUser.token, `${API}/reports/funnel`, {}, 'Không thể tải funnel report'),
+            ]);
+            setStats(s);
+            setRevenueData(Array.isArray(r) ? r : []);
+            setFunnelData(Array.isArray(f) ? f : []);
+          } else {
+            setStats({});
+            setRevenueData([]);
+            setFunnelData([]);
+          }
           setExecutivePayload(null);
         }
       } catch (error) {

@@ -1,0 +1,7 @@
+name: app-delivery-orchestrator
+short_description: Generic app delivery orchestration with Linear, Notion, Figma, and Playwright
+description: |
+  Reusable workspace template skill for coding apps with cross-tool context from Linear, Notion,
+  Figma, and Playwright.
+when_to_use: |
+  Use when the task needs issue context, product docs, design context, or browser verification before coding.

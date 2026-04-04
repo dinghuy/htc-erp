@@ -19,7 +19,11 @@ export async function initDb() {
 
   await bootstrapSqliteSchema(db);
   await finalizeSqliteSchema(db);
-  await ensureDefaultAdmin(db, { createId: uuidv4 });
+  await ensureDefaultAdmin(db, {
+    createId: uuidv4,
+    username: process.env.BOOTSTRAP_DEFAULT_ADMIN_USERNAME,
+    password: process.env.BOOTSTRAP_DEFAULT_ADMIN_PASSWORD,
+  });
 
   console.log('✅ SQLite Database Tables Initialized');
   dbInitialized = true;

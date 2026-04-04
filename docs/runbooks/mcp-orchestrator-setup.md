@@ -24,6 +24,7 @@ This runbook covers the project-local MCP setup for `htc-erp`, and the portable 
 
 - `GitHub` and `Supabase` are deferred for now and are not in the active MCP config.
 - `Playwright` runs through `htc-erp/.codex/scripts/playwright-mcp.ps1` so npm cache stays inside the repo-local `.codex/npm-cache/`.
+- Global skills live outside the repo by default under `%USERPROFILE%\.codex\skills\`; if sandbox mode blocks direct reads, mirror only the required skill into `htc-erp/tmp/skills-global/`.
 
 ## First-Time Setup
 
@@ -109,3 +110,6 @@ Do not point that config at production.
 - If `Playwright` fails to start, rerun a simple help check through the wrapper script:
   - `pwsh -NoLogo -NoProfile -File htc-erp/.codex/scripts/playwright-mcp.ps1 --help`
 - If Codex does not load the project-local config, make sure the session root is `htc-erp`.
+- If a required global skill cannot be opened without full access, mirror it locally first:
+  - `pwsh -NoLogo -NoProfile -File htc-erp/scripts/mirror-global-skills.ps1 -Skill coding-standards`
+  - inspect available global skills with `-List`

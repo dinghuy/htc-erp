@@ -17,7 +17,7 @@ import jwt from 'jsonwebtoken';
 import { normalizeGender } from '../gender';
 import { createOperationalServices } from './bootstrap/createOperationalServices';
 import { startServer } from './bootstrap/startServer';
-import { requireAuth, requireRole } from './shared/auth/httpAuth';
+import { getJwtSecret, requireAuth, requireRole } from './shared/auth/httpAuth';
 import { asyncHandler } from './shared/http/asyncHandler';
 import { parseLimitParam } from './shared/http/params';
 import { registerPlatformRoutes } from './modules/platform/routes';
@@ -59,6 +59,7 @@ import { registerTimeSpendRoutes } from './modules/tasks/timeSpendRoutes';
 import { registerUserRoutes } from './modules/users/routes';
 
 dotenv.config();
+getJwtSecret();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 const ah = asyncHandler;
@@ -304,7 +305,7 @@ const crmSerializationServices = createCrmSerializationServices();
 registerAuthRoutes(app, { mapGenderRecord });
 registerPlatformCalculatorRoutes(app, { ah });
 registerPlatformQaRoutes(app, { ah, requireAuth });
-registerPlatformReportingRoutes(app, { ah, reportingServices: platformReportingServices });
+registerPlatformReportingRoutes(app, { ah, requireAuth, reportingServices: platformReportingServices });
 registerPlatformWorkspaceRoutes(app, { ah, requireAuth, workspaceServices: platformWorkspaceServices });
 registerPlatformSystemRoutes(app, { ah, requireAuth, requireRole });
 registerCrmRoutes(app, { ah, requireAuth, requireRole, upload: importUpload, mapGenderRecord, mapGenderRecords, logAct });
@@ -331,7 +332,7 @@ registerSupplierQuoteRoutes(app, {
   ah,
   createSupplierQuote,
 });
-registerSalespersonRoutes(app, { ah });
+registerSalespersonRoutes(app, { ah, requireAuth, requireRole });
 registerUserRoutes(app, {
   ah,
   requireAuth,

@@ -74,6 +74,14 @@ Use the project-local OMX skill surface under `.codex/skills/` to route delivery
 
 Use plain Codex for small bounded edits. Reserve heavier OMX flows such as `$team` for work that cleanly splits into frontend, backend, and verification lanes.
 
+If a needed global skill under `%USERPROFILE%\.codex\skills\` is not accessible in the current sandbox mode, mirror it locally first:
+
+```powershell
+pwsh -NoLogo -NoProfile -File scripts/mirror-global-skills.ps1 -Skill coding-standards
+```
+
+Mirrored skills are stored in `tmp/skills-global/` as a local cache and remain out of Git.
+
 See:
 
 - `docs/index.md`

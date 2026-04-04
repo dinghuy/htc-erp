@@ -1,5 +1,6 @@
 import { API_BASE } from './config';
 import { useState, useEffect } from 'preact/hooks';
+import { fetchWithAuth } from './auth';
 import { HistoryModal } from './Customers';
 import { tokens } from './ui/tokens';
 import { useI18n } from './i18n';
@@ -61,8 +62,9 @@ function KpiCard({ id, icon, label, value, trend, trendUp, sub, ghostIcon, isDar
   );
 }
 
-export function Dashboard({ onNavigate, isDarkMode, isMobile, currentUser: _currentUser }: { onNavigate?: (route: string) => void; isDarkMode?: boolean; isMobile?: boolean; currentUser?: any }) {
+export function Dashboard({ onNavigate, isDarkMode, isMobile, currentUser }: { onNavigate?: (route: string) => void; isDarkMode?: boolean; isMobile?: boolean; currentUser?: any }) {
   const { t } = useI18n();
+  const token = currentUser?.token || '';
   const [stats, setStats] = useState<any>(null);
   const [funnel, setFunnel] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
@@ -73,10 +75,17 @@ export function Dashboard({ onNavigate, isDarkMode, isMobile, currentUser: _curr
   const loadDashboard = async () => {
     setRefreshing(true);
     try {
+      if (!token) {
+        setStats({});
+        setFunnel([]);
+        setActivities([]);
+        return;
+      }
+
       const [statsRes, funnelRes, activitiesRes] = await Promise.all([
-        fetch(`${API}/stats`),
-        fetch(`${API}/reports/funnel`),
-        fetch(`${API}/activities`),
+        fetchWithAuth(token, `${API}/stats`),
+        fetchWithAuth(token, `${API}/reports/funnel`),
+        fetchWithAuth(token, `${API}/activities`),
       ]);
 
       const nextStats = statsRes.ok ? await statsRes.json() : {};
@@ -106,7 +115,7 @@ export function Dashboard({ onNavigate, isDarkMode, isMobile, currentUser: _curr
 
   useEffect(() => {
     void loadDashboard();
-  }, [isDarkMode]);
+  }, [isDarkMode, token]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -114,7 +123,7 @@ export function Dashboard({ onNavigate, isDarkMode, isMobile, currentUser: _curr
     }, 60000);
 
     return () => window.clearInterval(interval);
-  }, [isDarkMode]);
+  }, [isDarkMode, token]);
 
   const formatTime = (isoString: string) => {
     if (!isoString) return '';

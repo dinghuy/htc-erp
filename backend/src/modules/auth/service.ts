@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET, type AuthenticatedRequest } from '../../shared/auth/httpAuth';
+import { getJwtSecret, type AuthenticatedRequest } from '../../shared/auth/httpAuth';
 import { normalizeRoleCodes, resolvePrimaryRole, roleCodesToJson } from '../../shared/auth/roles';
 import { authRepository, type UserRecord } from './repository';
 
@@ -33,7 +33,7 @@ export function issueSessionToken(user: Pick<UserRecord, 'id' | 'username' | 'fu
       mustChangePassword,
       isSalesProjectManager,
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: '8h' },
   );
 }
