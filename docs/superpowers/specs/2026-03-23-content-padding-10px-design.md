@@ -13,7 +13,7 @@ Remove the empty space at the top of pages by standardizing the main content are
 - Verify that no page-level layout wrappers re-introduce extra top padding; if found, align them to the global padding (only if they are explicitly adding extra space).
 
 ## Files
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Layout.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Layout.tsx`
 
 ## Success Criteria
 - All tabs show reduced top spacing (no large blank area).
@@ -23,3 +23,4 @@ Remove the empty space at the top of pages by standardizing the main content are
 ## Non-Goals
 - No changes to header, sidebar, or component styles.
 - No per-page redesign or spacing refactors beyond the main wrapper.
+

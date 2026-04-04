@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import type { AuthenticatedUser } from '../contracts/domain';
+import { sendApiError } from '../errors';
 import { normalizeRoleCodes, resolvePrimaryRole, userHasAnyRole } from './roles';
 
 export const JWT_SECRET = process.env.JWT_SECRET || 'htg-crm-secret-2026';
@@ -12,7 +13,7 @@ export type AuthenticatedRequest = Request & {
 export const requireAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const auth = req.headers.authorization;
   if (!auth?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Chưa đăng nhập' });
+    return sendApiError(res, 401, { error: 'Chưa đăng nhập', code: 'UNAUTHORIZED' });
   }
 
   try {
@@ -38,7 +39,7 @@ export const requireAuth = (req: AuthenticatedRequest, res: Response, next: Next
     };
     next();
   } catch {
-    res.status(401).json({ error: 'Token không hợp lệ hoặc đã hết hạn' });
+    return sendApiError(res, 401, { error: 'Token không hợp lệ hoặc đã hết hạn', code: 'INVALID_TOKEN' });
   }
 };
 
@@ -46,7 +47,7 @@ export const requireRole = (...roles: string[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const user = req.user;
     if (!user || !userHasAnyRole(user, roles)) {
-      return res.status(403).json({ error: 'Không có quyền thực hiện thao tác này' });
+      return sendApiError(res, 403, { error: 'Không có quyền thực hiện thao tác này', code: 'FORBIDDEN' });
     }
     next();
   };

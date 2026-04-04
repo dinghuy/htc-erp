@@ -21,3 +21,5 @@
 - [ ] Relevant UAT checklist updated
 - [ ] Scope limited to the approved task/spec
 - [ ] No unrelated runtime artifacts appear in Git diff
+- [ ] Active docs route through `docs/index.md`
+- [ ] Active docs do not depend on stale repo paths or ambiguous historical plans

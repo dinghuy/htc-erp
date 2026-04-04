@@ -18,6 +18,9 @@ export type NavContext = {
     department?: string;
     workFocus?: string;
     workspaceTab?: string;
+    documentId?: string;
+    approvalId?: string;
+    openThread?: boolean;
     openRepresentative?: boolean;
     overdue?: boolean;
   };
@@ -55,10 +58,13 @@ function normalizeFilters(value: unknown): NavContext['filters'] | undefined {
   const department = normalizeString(value.department);
   const workFocus = normalizeString(value.workFocus);
   const workspaceTab = normalizeString(value.workspaceTab);
+  const documentId = normalizeString(value.documentId);
+  const approvalId = normalizeString(value.approvalId);
+  const openThread = typeof value.openThread === 'boolean' ? value.openThread : undefined;
   const openRepresentative = typeof value.openRepresentative === 'boolean' ? value.openRepresentative : undefined;
   const overdue = typeof value.overdue === 'boolean' ? value.overdue : undefined;
-  if (!projectId && !accountId && !leadId && !quotationId && !projectStage && !status && !statusGroup && !priority && !priorityGroup && !approvalLane && !department && !workFocus && !workspaceTab && openRepresentative === undefined && overdue === undefined) return undefined;
-  return { projectId, accountId, leadId, quotationId, projectStage, status, statusGroup, priority, priorityGroup, approvalLane, department, workFocus, workspaceTab, openRepresentative, overdue };
+  if (!projectId && !accountId && !leadId && !quotationId && !projectStage && !status && !statusGroup && !priority && !priorityGroup && !approvalLane && !department && !workFocus && !workspaceTab && !documentId && !approvalId && openThread === undefined && openRepresentative === undefined && overdue === undefined) return undefined;
+  return { projectId, accountId, leadId, quotationId, projectStage, status, statusGroup, priority, priorityGroup, approvalLane, department, workFocus, workspaceTab, documentId, approvalId, openThread, openRepresentative, overdue };
 }
 
 function normalizeNavContext(raw: unknown): NavContext | null {

@@ -1,9 +1,9 @@
-import type { NavContext } from '../navContext';
 import type { RolePersonaMode } from '../shared/domain/contracts';
+import { buildProjectWorkspaceNavigation } from '../shared/workflow/workflowNavigation';
 
 export type HomeNavigationTarget = {
   route: string;
-  navContext?: NavContext;
+  navContext?: any;
 };
 
 function includesAny(haystack: string, needles: string[]) {
@@ -34,12 +34,5 @@ export function buildHomePriorityNavigation(metricKey: string, personaMode: Role
 }
 
 export function buildHomeHighlightNavigation(projectId: string): HomeNavigationTarget {
-  return {
-    route: 'Projects',
-    navContext: {
-      route: 'Projects',
-      entityType: 'Project',
-      entityId: projectId,
-    },
-  };
+  return buildProjectWorkspaceNavigation(projectId) || { route: 'Projects' };
 }

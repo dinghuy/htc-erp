@@ -175,6 +175,10 @@ async function main() {
     assert.equal(home.body.persona.mode, 'sales_pm_combined');
     assert.equal(home.body.priorities[0].metricKey, 'handoff_pending');
     assert.ok(home.body.highlights.some((item) => item.projectId === projectId));
+    const highlightedHomeProject = home.body.highlights.find((item) => item.projectId === projectId);
+    assert.ok(highlightedHomeProject?.handoffActivation, 'home highlight should expose handoff activation');
+    assert.equal(highlightedHomeProject.handoffActivation.status, 'ready_to_create_sales_order');
+    assert.equal(highlightedHomeProject.handoffActivation.nextActionKey, 'create_sales_order');
 
     const myWork = await api('/api/workspace/my-work', {
       headers: { Authorization: `Bearer ${auth.body.token}` },
@@ -277,9 +281,12 @@ async function main() {
     });
     assert.equal(workspace.response.status, 200);
     assert.equal(workspace.body.actionAvailability.quotation.canCreateSalesOrder, true);
-    assert.equal(workspace.body.actionAvailability.salesOrder.canReleaseLatest, true);
+    assert.equal(workspace.body.actionAvailability.salesOrder.canReleaseLatest, false);
     assert.equal(workspace.body.actionAvailability.project.canFinalizeDeliveryCompletion, false);
     assert.ok(Array.isArray(workspace.body.pendingApproverState));
+    assert.ok(workspace.body.handoffActivation, 'workspace should expose handoff activation');
+    assert.equal(workspace.body.handoffActivation.status, 'awaiting_release_approval');
+    assert.equal(workspace.body.handoffActivation.nextActionKey, 'request_sales_order_release_approval');
 
     const deliveryGate = workspace.body.approvalGateStates.find((gate) => gate.gateType === 'delivery_completion');
     assert.ok(deliveryGate);
@@ -343,6 +350,8 @@ async function main() {
     assert.ok(quotationRow);
     assert.equal(quotationRow.actionAvailability.canCreateSalesOrder, true);
     assert.equal(quotationRow.approvalGateState.gateType, 'quotation_commercial');
+    assert.ok(quotationRow.handoffActivation, 'quotation list row should expose handoff activation');
+    assert.equal(quotationRow.handoffActivation.status, 'awaiting_release_approval');
 
     const salesHome = await api('/api/workspace/home', {
       headers: { Authorization: `Bearer ${salesAuth.body.token}` },
@@ -352,6 +361,8 @@ async function main() {
     assert.ok(highlightedProject);
     assert.ok(Array.isArray(highlightedProject.approvalGateStates));
     assert.ok(highlightedProject.approvalGateStates.some((gate) => gate.gateType === 'sales_order_release'));
+    assert.ok(highlightedProject.handoffActivation, 'home highlight should carry handoff activation');
+    assert.equal(highlightedProject.handoffActivation.status, 'awaiting_release_approval');
 
     const directorAuth = await login('list_director_user', 'ListDirector@123');
     const salesOrderList = await api('/api/sales-orders?limit=20', {
@@ -360,9 +371,11 @@ async function main() {
     assert.equal(salesOrderList.response.status, 200);
     const salesOrderRow = salesOrderList.body.find((item) => item.id === salesOrderId);
     assert.ok(salesOrderRow);
-    assert.equal(salesOrderRow.actionAvailability.canRelease, true);
+    assert.equal(salesOrderRow.actionAvailability.canRelease, false);
     assert.equal(salesOrderRow.approvalGateState.gateType, 'sales_order_release');
     assert.equal(salesOrderRow.approvalGateState.pendingCount, 1);
+    assert.ok(salesOrderRow.handoffActivation, 'sales order row should expose handoff activation');
+    assert.equal(salesOrderRow.handoffActivation.status, 'awaiting_release_approval');
 
     const projectList = await api('/api/projects', {
       headers: { Authorization: `Bearer ${directorAuth.body.token}` },
@@ -371,8 +384,89 @@ async function main() {
     const projectRow = projectList.body.find((item) => item.id === projectId);
     assert.ok(projectRow);
     assert.ok(Array.isArray(projectRow.approvalGateStates));
-    assert.equal(projectRow.actionAvailability.salesOrder.canReleaseLatest, true);
+    assert.equal(projectRow.actionAvailability.salesOrder.canReleaseLatest, false);
     assert.ok(Array.isArray(projectRow.pendingApproverState));
+    assert.ok(projectRow.handoffActivation, 'project row should expose handoff activation');
+    assert.equal(projectRow.handoffActivation.status, 'awaiting_release_approval');
+  });
+
+  await run('release-ready handoff state stays consistent across workspace and list surfaces', async () => {
+    const db = getDb();
+    const directorUserId = await seedUser({
+      username: 'release_ready_director',
+      password: 'Director@123',
+      systemRole: 'director',
+      roleCodes: ['director'],
+      fullName: 'Release Ready Director',
+    });
+
+    const accountId = uuidv4();
+    const projectId = uuidv4();
+    const quotationId = uuidv4();
+    const approvalId = uuidv4();
+    const salesOrderId = uuidv4();
+
+    await db.run(
+      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
+      [accountId, 'Release Ready Customer']
+    );
+    await db.run(
+      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'RELREADY-001', 'Release Ready Project', directorUserId, accountId, 'won', 'active']
+    );
+    await db.run(
+      `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [quotationId, 'RELREADY-Q-001', 'Release Ready Quote', accountId, projectId, 'won', 54000000, 1]
+    );
+    await db.run(
+      `INSERT INTO SalesOrder (id, quotationId, orderNumber, accountId, status)
+       VALUES (?, ?, ?, ?, ?)`,
+      [salesOrderId, quotationId, 'SO-RELREADY-001', accountId, 'draft']
+    );
+    await db.run(
+      `INSERT INTO ApprovalRequest (id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
+      [approvalId, projectId, quotationId, 'sales_order_release', 'Release sales order', 'Operations', directorUserId, 'director', directorUserId, 'approved']
+    );
+
+    const directorAuth = await login('release_ready_director', 'Director@123');
+
+    const workspace = await api(`/api/projects/${projectId}`, {
+      headers: { Authorization: `Bearer ${directorAuth.body.token}` },
+    });
+    assert.equal(workspace.response.status, 200);
+    assert.equal(workspace.body.handoffActivation.status, 'ready_to_release');
+    assert.equal(workspace.body.actionAvailability.salesOrder.canReleaseLatest, true);
+
+    const quotationList = await api('/api/quotations', {
+      headers: { Authorization: `Bearer ${directorAuth.body.token}` },
+    });
+    const quotationRow = quotationList.body.find((item) => item.id === quotationId);
+    assert.ok(quotationRow);
+    assert.equal(quotationRow.handoffActivation.status, 'ready_to_release');
+
+    const salesOrderList = await api('/api/sales-orders?limit=20', {
+      headers: { Authorization: `Bearer ${directorAuth.body.token}` },
+    });
+    const salesOrderRow = salesOrderList.body.find((item) => item.id === salesOrderId);
+    assert.ok(salesOrderRow);
+    assert.equal(salesOrderRow.handoffActivation.status, 'ready_to_release');
+    assert.equal(salesOrderRow.actionAvailability.canRelease, true);
+
+    const projectList = await api('/api/projects', {
+      headers: { Authorization: `Bearer ${directorAuth.body.token}` },
+    });
+    const projectRow = projectList.body.find((item) => item.id === projectId);
+    assert.ok(projectRow);
+    assert.equal(projectRow.handoffActivation.status, 'ready_to_release');
+
+    const home = await api('/api/workspace/home', {
+      headers: { Authorization: `Bearer ${directorAuth.body.token}` },
+    });
+    const highlightedProject = home.body.highlights.find((item) => item.projectId === projectId);
+    assert.ok(highlightedProject);
+    assert.equal(highlightedProject.handoffActivation.status, 'ready_to_release');
   });
 
   await run('sales-order release approval endpoint creates and reuses pending approval requests', async () => {

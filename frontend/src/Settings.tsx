@@ -7,7 +7,7 @@ import { fetchWithAuth, ROLE_LABELS, type SystemRole } from './auth';
 import { buildRolePreviewChecklist } from './preview/rolePreviewChecklist';
 import { loadRolePreviewSessionProgress, resetRolePreviewSessionProgress, toggleRolePreviewSessionChecklistItem } from './preview/rolePreviewSession';
 import { getRolePreviewPresetNavigation, getRolePreviewWorkspaceNavigation, isRolePreviewPresetActive, normalizePreviewRoleCodes, ROLE_PREVIEW_PRESETS, type RolePreviewNavigation } from './authRolePreview';
-import { QA_TEST_IDS, previewPresetTestId } from './testing/testIds';
+import { QA_TEST_IDS, settingsPreviewPresetTestId } from './testing/testIds';
 import { useI18n, type Locale, translate } from './i18n';
 import {
   CheckIcon,
@@ -19,6 +19,7 @@ import {
   SunIcon,
   UserIcon,
 } from './ui/icons';
+import { SegmentedControl } from './ui/SegmentedControl';
 
 const API = API_BASE;
 const PREVIEWABLE_ROLE_CODES: SystemRole[] = ['sales', 'project_manager', 'procurement', 'accounting', 'legal', 'director', 'viewer'];
@@ -193,17 +194,6 @@ export function Settings({ isDarkMode, toggleDarkMode, isMobile, currentUser, on
       border: `1px solid ${tokens.colors.border}`,
       boxShadow: tokens.shadow.md,
     },
-    tabBtn: (id: string) => ({
-      padding: '12px 24px',
-      fontSize: '14px',
-      fontWeight: 700,
-      cursor: 'pointer',
-      background: activeTab === id ? tokens.colors.primary : 'transparent',
-      color: activeTab === id ? tokens.colors.textOnPrimary : tokens.colors.textSecondary,
-      border: 'none',
-      borderRadius: tokens.radius.lg,
-      transition: 'all 0.2s ease',
-    }),
     formRow: {
       marginBottom: '24px',
       display: 'flex',
@@ -262,7 +252,7 @@ export function Settings({ isDarkMode, toggleDarkMode, isMobile, currentUser, on
                 <button
                   key={preset.key}
                     type="button"
-                    data-testid={previewPresetTestId(preset.key)}
+                    data-testid={settingsPreviewPresetTestId(preset.key)}
                     onClick={() => {
                       const nextRoles = normalizePreviewRoleCodes(preset.roleCodes);
                       const navigation = getRolePreviewPresetNavigation(preset.key);
@@ -407,11 +397,19 @@ export function Settings({ isDarkMode, toggleDarkMode, isMobile, currentUser, on
       ) : null}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '48px', padding: '6px', background: tokens.colors.background, borderRadius: tokens.radius.lg, width: 'fit-content', ...(isMobile ? { maxWidth: '100%', overflowX: 'auto', flexWrap: 'nowrap', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' } : {}) }}>
-        <button onClick={() => setActiveTab('Quotation')} style={S.tabBtn('Quotation')}>{t('settings.tab.quotation')}</button>
-        <button onClick={() => setActiveTab('Company')} style={S.tabBtn('Company')}>{t('settings.tab.company')}</button>
-        <button onClick={() => setActiveTab('Display')} style={S.tabBtn('Display')}>{t('settings.tab.display')}</button>
-        <button onClick={() => setActiveTab('Security')} style={S.tabBtn('Security')}><ShieldIcon size={14} /> {t('settings.tab.security')}</button>
+      <div style={{ marginBottom: '48px' }}>
+        <SegmentedControl
+          ariaLabel="Điều hướng cài đặt"
+          wrap={Boolean(isMobile)}
+          options={[
+            { value: 'Quotation', label: t('settings.tab.quotation') },
+            { value: 'Company', label: t('settings.tab.company') },
+            { value: 'Display', label: t('settings.tab.display') },
+            { value: 'Security', label: t('settings.tab.security'), icon: <ShieldIcon size={14} /> },
+          ]}
+          value={activeTab}
+          onChange={setActiveTab}
+        />
       </div>
 
       {activeTab === 'Quotation' && (

@@ -6,7 +6,7 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
 
-OUTPUT_PATH = r"C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\docs\bao-cao-ke-hoach-crm-huynh-thy-demo-go-live-v5.docx"
+OUTPUT_PATH = r"C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\docs\bao-cao-ke-hoach-crm-huynh-thy-demo-go-live-v5.docx"
 
 
 def set_cell_shading(cell, fill: str) -> None:

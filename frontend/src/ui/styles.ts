@@ -5,7 +5,7 @@ export const ui = {
     primary: {
       padding: `${tokens.spacing.md} ${tokens.spacing.xl}`,
       borderRadius: tokens.radius.lg,
-      fontSize: '14px',
+      fontSize: tokens.fontSize.base,
       fontWeight: 700,
       cursor: 'pointer',
       border: 'none',
@@ -14,12 +14,12 @@ export const ui = {
       display: 'flex',
       alignItems: 'center',
       gap: tokens.spacing.sm,
-      transition: 'all 0.2s ease'
+      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease'
     },
     outline: {
       padding: `${tokens.spacing.md} ${tokens.spacing.xl}`,
       borderRadius: tokens.radius.lg,
-      fontSize: '14px',
+      fontSize: tokens.fontSize.base,
       fontWeight: 600,
       cursor: 'pointer',
       border: `1px solid ${tokens.colors.border}`,
@@ -28,23 +28,23 @@ export const ui = {
       display: 'flex',
       alignItems: 'center',
       gap: tokens.spacing.sm,
-      transition: 'all 0.2s ease'
+      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease'
     },
     danger: {
       padding: `${tokens.spacing.xs} ${tokens.spacing.lg}`,
       borderRadius: tokens.radius.md,
-      fontSize: '12px',
+      fontSize: tokens.fontSize.sm,
       fontWeight: 600,
       cursor: 'pointer',
       border: 'none',
       color: tokens.colors.textOnPrimary,
       background: tokens.colors.error,
-      transition: 'all 0.2s ease'
+      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease'
     },
     ghost: {
       padding: `${tokens.spacing.md} ${tokens.spacing.xl}`,
       borderRadius: tokens.radius.lg,
-      fontSize: '14px',
+      fontSize: tokens.fontSize.base,
       fontWeight: 600,
       cursor: 'pointer',
       border: 'none',
@@ -53,7 +53,7 @@ export const ui = {
       display: 'flex',
       alignItems: 'center',
       gap: tokens.spacing.sm,
-      transition: 'all 0.2s ease'
+      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease'
     }
   },
   card: {
@@ -80,7 +80,7 @@ export const ui = {
     thStatic: {
       padding: `${tokens.spacing.lg} ${tokens.spacing.xl}`,
       textAlign: 'left',
-      fontSize: '11px',
+      fontSize: tokens.fontSize.xs,
       fontWeight: 700,
       color: tokens.colors.textMuted,
       textTransform: 'uppercase',
@@ -91,7 +91,7 @@ export const ui = {
     thSortable: {
       padding: `${tokens.spacing.lg} ${tokens.spacing.xl}`,
       textAlign: 'left',
-      fontSize: '11px',
+      fontSize: tokens.fontSize.xs,
       fontWeight: 700,
       color: tokens.colors.textMuted,
       textTransform: 'uppercase',
@@ -103,7 +103,7 @@ export const ui = {
     },
     td: {
       padding: `${tokens.spacing.md} ${tokens.spacing.lg}`,
-      fontSize: '13.5px',
+      fontSize: tokens.fontSize.md,
       color: tokens.colors.textPrimary,
       borderBottom: `1px solid ${tokens.colors.border}`
     },
@@ -120,8 +120,7 @@ export const ui = {
       padding: `${tokens.spacing.md} ${tokens.spacing.xl}`,
       borderRadius: tokens.radius.lg,
       border: `1px solid ${tokens.colors.border}`,
-      fontSize: '14px',
-      outline: 'none',
+      fontSize: tokens.fontSize.base,
       background: tokens.colors.background,
       color: tokens.colors.textPrimary
     }
@@ -132,7 +131,7 @@ export const ui = {
       borderRadius: tokens.radius.md,
       background: tokens.colors.badgeBgSuccess,
       color: tokens.colors.success,
-      fontSize: '11px',
+      fontSize: tokens.fontSize.xs,
       fontWeight: 800
     },
     warning: {
@@ -140,7 +139,7 @@ export const ui = {
       borderRadius: tokens.radius.md,
       background: tokens.colors.badgeBgInfo,
       color: tokens.colors.warning,
-      fontSize: '11px',
+      fontSize: tokens.fontSize.xs,
       fontWeight: 800
     },
     info: {
@@ -148,7 +147,7 @@ export const ui = {
       borderRadius: tokens.radius.md,
       background: tokens.colors.badgeBgInfo,
       color: tokens.colors.info,
-      fontSize: '11px',
+      fontSize: tokens.fontSize.xs,
       fontWeight: 800
     },
     error: {
@@ -156,7 +155,7 @@ export const ui = {
       borderRadius: tokens.radius.md,
       background: tokens.colors.badgeBgError,
       color: tokens.colors.error,
-      fontSize: '11px',
+      fontSize: tokens.fontSize.xs,
       fontWeight: 800
     },
     neutral: {
@@ -164,7 +163,7 @@ export const ui = {
       borderRadius: tokens.radius.md,
       background: tokens.colors.surface,
       color: tokens.colors.textMuted,
-      fontSize: '11px',
+      fontSize: tokens.fontSize.xs,
       fontWeight: 800
     }
   },
@@ -172,7 +171,7 @@ export const ui = {
     /** Responsive KPI bar — cards wrap on narrow viewports */
     kpiRow: {
       display: 'flex',
-      gap: '12px',
+      gap: tokens.spacing.lg,
       flexWrap: 'wrap',
     } as const,
     /** Individual KPI card — stretches equally, min 140 px before wrapping */
@@ -186,12 +185,12 @@ export const ui = {
       alignItems: 'flex-start',
       justifyContent: 'space-between',
       flexWrap: 'wrap',
-      gap: '12px',
+      gap: tokens.spacing.lg,
     } as const,
     /** Action buttons cluster inside titleRow */
     actions: {
       display: 'flex',
-      gap: '8px',
+      gap: tokens.spacing.smPlus,
       flexWrap: 'wrap',
       flexShrink: 0,
     } as const,
@@ -229,18 +228,18 @@ export const ui = {
   },
   form: {
     label: {
-      fontSize: '12px',
+      fontSize: tokens.fontSize.sm,
       fontWeight: 700,
       color: tokens.colors.textMuted,
       textTransform: 'uppercase',
       letterSpacing: '0.05em'
     },
     help: {
-      fontSize: '12px',
+      fontSize: tokens.fontSize.sm,
       color: tokens.colors.textSecondary
     },
     error: {
-      fontSize: '12px',
+      fontSize: tokens.fontSize.sm,
       color: tokens.colors.error,
       fontWeight: 600
     }

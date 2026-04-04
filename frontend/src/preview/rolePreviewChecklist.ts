@@ -7,7 +7,7 @@ export type RolePreviewChecklist = {
 };
 
 export function buildRolePreviewChecklist(roleCodes: SystemRole[]): RolePreviewChecklist {
-  const profile = buildRoleProfile(roleCodes, roleCodes[0]);
+  const profile = buildRoleProfile(roleCodes);
 
   switch (profile.personaMode) {
     case 'sales':
@@ -18,7 +18,7 @@ export function buildRolePreviewChecklist(roleCodes: SystemRole[]): RolePreviewC
           'Home/My Work hiển thị pipeline, commercial queue và handoff-related cards.',
           'Approvals focus lane commercial; không có quyền approve finance/legal/executive.',
           'Project Workspace mở tab commercial được, nhưng finance/legal chỉ hiện nếu role thật cho phép.',
-          'Pricing/contract CTA hiển thị đúng theo capability sales.',
+          'CTA quản lý chi phí/hợp đồng hiển thị đúng theo capability sales.',
         ],
       };
     case 'project_manager':
@@ -39,7 +39,7 @@ export function buildRolePreviewChecklist(roleCodes: SystemRole[]): RolePreviewC
         items: [
           'Inbox focus department procurement.',
           'Workspace mẫu mở tab procurement và delivery-related sections.',
-          'Có thể thấy line shortage/ETA, nhưng không sửa pricing hay contract commercial.',
+          'Có thể thấy line shortage/ETA, nhưng không sửa quản lý chi phí hay contract commercial.',
           'Approvals lane procurement đúng, lane khác không bật nhầm quyền.',
         ],
       };
@@ -49,7 +49,7 @@ export function buildRolePreviewChecklist(roleCodes: SystemRole[]): RolePreviewC
         description: 'Rà lane finance và bề mặt review tài chính.',
         items: [
           'Approvals focus lane finance, CTA approve chỉ hoạt động theo role accounting.',
-          'Workspace mẫu mở tab finance với cockpit, payment milestones và receivable risk.',
+          'Workspace mẫu mở tab quản lý chi phí với cockpit, payment milestones và receivable risk.',
           'Commercial/procurement editor không hiện như quyền mặc định.',
           'Preview banner luôn nhắc đây là QA focus, không phải nâng quyền.',
         ],

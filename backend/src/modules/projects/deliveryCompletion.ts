@@ -1,4 +1,5 @@
 import { enqueueErpEvent } from '../../../erp-sync';
+import { getDb } from '../../../sqlite-db';
 import { canCompleteDelivery, canStartLogisticsExecution } from '../../shared/workflow/revenueFlow';
 
 type ProjectRepositoryLike = {
@@ -62,6 +63,7 @@ export async function finalizeDeliveryCompletion(input: {
   sourceApprovalId?: string | null;
   createProjectTimelineEvent?: TimelineEventFactory;
 }) {
+  const db = input.db || getDb();
   const ready = await ensureDeliveryCompletionReady(input.projectRepository, input.projectId);
   if (!ready.ok) return ready;
 
@@ -84,7 +86,7 @@ export async function finalizeDeliveryCompletion(input: {
         createdBy: input.actorUserId || null,
       });
     }
-    await enqueueErpEvent(input.db, {
+    await enqueueErpEvent(db, {
       eventType: 'project.delivery_completed',
       entityType: 'Project',
       entityId: input.projectId,

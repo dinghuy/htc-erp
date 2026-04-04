@@ -444,6 +444,19 @@ async function main() {
   });
 
   await run('appendix/inbound/delivery/milestone edit flows refresh baseline, rollup, and timeline', async () => {
+    await seedUser({
+      username: 'pricing.delivery.director',
+      password: 'Director@123',
+      systemRole: 'director',
+      fullName: 'Pricing Delivery Director',
+    });
+    const directorLogin = await login('pricing.delivery.director', 'Director@123');
+    assert.equal(directorLogin.response.status, 200);
+    const directorAuthHeaders = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${directorLogin.body.token}`,
+    };
+
     const createMainContract = await api(`/api/projects/${projectId}/contracts`, {
       method: 'POST',
       headers: authHeaders,
@@ -574,6 +587,21 @@ async function main() {
     });
     assert.equal(createSalesOrder.response.status, 201);
 
+    const createReleaseApproval = await api(`/api/sales-orders/${createSalesOrder.body.salesOrder.id}/release-approval`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ note: 'Xin phe duyet release de mo logistics' }),
+    });
+    assert.equal(createReleaseApproval.response.status, 201);
+
+    const approveRelease = await api(`/api/approval-requests/${createReleaseApproval.body.id}/decision`, {
+      method: 'POST',
+      headers: directorAuthHeaders,
+      body: JSON.stringify({ decision: 'approved' }),
+    });
+    assert.equal(approveRelease.response.status, 200);
+    assert.equal(approveRelease.body.status, 'approved');
+
     const releaseSalesOrder = await api(`/api/sales-orders/${createSalesOrder.body.salesOrder.id}`, {
       method: 'PUT',
       headers: authHeaders,
@@ -582,6 +610,46 @@ async function main() {
     assert.equal(releaseSalesOrder.response.status, 200);
     const workspaceAfterRelease = await api(`/api/projects/${projectId}`, { headers: authHeaders });
     assert.equal(workspaceAfterRelease.body.project?.projectStage || workspaceAfterRelease.body.projectStage, 'order_released');
+
+    const createProcurementCommitmentApproval = await api(`/api/projects/${projectId}/approval-requests`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        requestType: 'procurement_commitment',
+        title: 'Procurement commitment approval',
+        department: 'Procurement',
+        approverRole: 'procurement',
+      }),
+    });
+    assert.equal(createProcurementCommitmentApproval.response.status, 201);
+
+    const approveProcurementCommitment = await api(`/api/approval-requests/${createProcurementCommitmentApproval.body.id}/decision`, {
+      method: 'POST',
+      headers: procurementAuthHeaders,
+      body: JSON.stringify({ decision: 'approved' }),
+    });
+    assert.equal(approveProcurementCommitment.response.status, 200);
+    assert.equal(approveProcurementCommitment.body.status, 'approved');
+
+    const createDeliveryReleaseApproval = await api(`/api/projects/${projectId}/approval-requests`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        requestType: 'delivery_release',
+        title: 'Delivery release approval',
+        department: 'Operations',
+        approverRole: 'director',
+      }),
+    });
+    assert.equal(createDeliveryReleaseApproval.response.status, 201);
+
+    const approveDeliveryRelease = await api(`/api/approval-requests/${createDeliveryReleaseApproval.body.id}/decision`, {
+      method: 'POST',
+      headers: directorAuthHeaders,
+      body: JSON.stringify({ decision: 'approved' }),
+    });
+    assert.equal(approveDeliveryRelease.response.status, 200);
+    assert.equal(approveDeliveryRelease.body.status, 'approved');
 
     const createInbound = await api(`/api/projects/${projectId}/inbound-lines`, {
       method: 'POST',
@@ -658,7 +726,7 @@ async function main() {
       headers: authHeaders,
     });
     assert.equal(finalizeWithoutApprovedRequest.response.status, 409);
-    assert.equal(finalizeWithoutApprovedRequest.body.code, 'DELIVERY_COMPLETION_APPROVAL_REQUIRED');
+    assert.equal(finalizeWithoutApprovedRequest.body.code, 'DELIVERY_COMPLETION_READINESS_BLOCKED');
 
     const approveDeliveryCompletionTooEarly = await api(`/api/approval-requests/${createDeliveryCompletionApproval.body.id}/decision`, {
       method: 'POST',

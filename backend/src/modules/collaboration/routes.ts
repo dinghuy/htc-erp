@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../../../sqlite-db';
+import { createCollaborationRepository } from './repository';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
 
@@ -34,6 +34,55 @@ type RegisterCollaborationRoutesDeps = {
   logAct: (...args: any[]) => Promise<void>;
 };
 
+function decorateSupportTicketRow(ticket: any, options: { isPrivileged: boolean }) {
+  const status = String(ticket?.status || '').trim().toLowerCase();
+  const blockers: string[] = [];
+  if (status === 'open') blockers.push('Chưa có phản hồi kỹ thuật');
+  if (status === 'in_progress') blockers.push('Đang chờ xử lý hoặc xác nhận');
+  return {
+    ...ticket,
+    actionAvailability: {
+      supportTab: 'Ticket',
+      canOpenTicket: true,
+      canManageTicket: options.isPrivileged,
+      primaryActionLabel: options.isPrivileged ? 'Review ticket' : 'Theo dõi ticket',
+      blockers,
+    },
+  };
+}
+
+function getSingleParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function mapThreadRow(row: any) {
+  return {
+    id: row.id,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    title: row.title ?? null,
+    status: row.status || 'active',
+    messageCount: Number(row.messageCount || 0),
+    lastMessageAt: row.lastMessageAt ?? null,
+    createdBy: row.createdBy ?? null,
+    createdAt: row.createdAt ?? null,
+    updatedAt: row.updatedAt ?? null,
+  };
+}
+
+function mapThreadMessageRow(row: any) {
+  return {
+    id: row.id,
+    threadId: row.threadId,
+    authorUserId: row.authorUserId ?? null,
+    authorName: row.authorName ?? null,
+    content: row.content,
+    contentType: row.contentType ?? 'text/plain',
+    createdAt: row.createdAt ?? null,
+    updatedAt: row.updatedAt ?? null,
+  };
+}
+
 export function registerCollaborationRoutes(app: Express, deps: RegisterCollaborationRoutesDeps) {
   const {
     ah,
@@ -49,6 +98,7 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
     createActivity,
     logAct,
   } = deps;
+  const collaborationRepository = createCollaborationRepository();
 
   app.get('/api/activities', ah(async (req: Request, res: Response) => {
     const limit = parseLimitParam(typeof req.query?.limit === 'string' ? req.query.limit : undefined, 20, 200);
@@ -72,43 +122,20 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
   }));
 
   app.get('/api/chat/messages', requireAuth, ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const limit = parseLimitParam((req.query as Record<string, string | undefined>).limit, 50, 200);
-    const rows = await db.all(
-      `SELECT cm.id, cm.userId, cm.content, cm.readAt, cm.createdAt,
-              u.fullName AS userName, u.username
-       FROM ChatMessage cm
-       LEFT JOIN User u ON cm.userId = u.id
-       ORDER BY cm.createdAt DESC, cm.id DESC
-       LIMIT ?`,
-      [limit]
-    );
-    res.json({ items: rows });
+    res.json({ items: await collaborationRepository.listChatMessages(limit) });
   }));
 
   app.post('/api/chat/messages', requireAuth, ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const userId = getCurrentUserId(req);
     const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
     if (!content) return res.status(400).json({ error: 'content is required' });
     const id = uuidv4();
-    await db.run(
-      `INSERT INTO ChatMessage (id, userId, content, readAt) VALUES (?, ?, ?, NULL)`,
-      [id, userId, content]
-    );
-    const row = await db.get(
-      `SELECT cm.id, cm.userId, cm.content, cm.readAt, cm.createdAt,
-              u.fullName AS userName, u.username
-       FROM ChatMessage cm
-       LEFT JOIN User u ON cm.userId = u.id
-       WHERE cm.id = ?`,
-      [id]
-    );
-    res.status(201).json(row);
+    await collaborationRepository.createChatMessage({ id, userId, content });
+    res.status(201).json(await collaborationRepository.findChatMessageById(id));
   }));
 
   app.get('/api/support/tickets', requireAuth, ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const user = (req as any).user || {};
     const userId = getCurrentUserId(req);
     const role = String(user.systemRole || '').toLowerCase();
@@ -117,41 +144,18 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
     const effectiveScope = isPrivileged && requestedScope === 'all' ? 'all' : (isPrivileged && requestedScope !== 'mine' ? 'all' : 'mine');
     const limit = parseLimitParam((req.query as Record<string, string | undefined>).limit, 100, 500);
 
-    const conditions: string[] = [];
-    const params: any[] = [];
-    if (effectiveScope !== 'all') {
-      conditions.push('st.createdBy = ?');
-      params.push(userId);
-    }
+    const items = await collaborationRepository.listSupportTickets({
+      createdBy: effectiveScope === 'all' ? undefined : userId,
+      limit,
+    });
 
-    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const items = await db.all(
-      `SELECT st.id,
-              st.category,
-              st.subject,
-              st.description,
-              st.status,
-              st.responseNote,
-              st.createdBy,
-              creator.fullName AS createdByName,
-              st.updatedBy,
-              updater.fullName AS updatedByName,
-              st.createdAt,
-              st.updatedAt
-       FROM SupportTicket st
-       LEFT JOIN User creator ON st.createdBy = creator.id
-       LEFT JOIN User updater ON st.updatedBy = updater.id
-       ${whereClause}
-       ORDER BY st.createdAt DESC, st.id DESC
-       LIMIT ?`,
-      [...params, limit]
-    );
-
-    res.json({ items, scope: effectiveScope });
+    res.json({
+      items: items.map((item: any) => decorateSupportTicketRow(item, { isPrivileged })),
+      scope: effectiveScope,
+    });
   }));
 
   app.post('/api/support/tickets', requireAuth, ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const category = typeof req.body?.category === 'string' ? req.body.category.trim() : '';
     const subject = typeof req.body?.subject === 'string' ? req.body.subject.trim() : '';
     const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
@@ -167,30 +171,26 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
 
     const createdBy = getCurrentUserId(req);
     const id = uuidv4();
-    await db.run(
-      `INSERT INTO SupportTicket (
-        id, category, subject, description, status, responseNote, createdBy, updatedBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, category.toLowerCase(), subject, description, 'open', null, createdBy, null]
-    );
+    await collaborationRepository.createSupportTicket({
+      id,
+      category: category.toLowerCase(),
+      subject,
+      description,
+      createdBy,
+    });
 
-    const ticket = await getSupportTicketById(db, id);
-    const recipients = await db.all(
-      `SELECT id
-       FROM User
-       WHERE LOWER(systemRole) IN ('admin', 'manager')
-         AND LOWER(COALESCE(accountStatus, 'active')) = 'active'
-         AND id <> ?`,
-      [createdBy]
-    );
+    const ticket = await collaborationRepository.withDb((db) => getSupportTicketById(db, id));
+    const recipients = await collaborationRepository.listSupportTicketRecipients(createdBy);
 
     await Promise.all(
       recipients.map((recipient: any) =>
-        ensureNotification(db, recipient.id, `New support ticket: ${subject}`, {
-          entityType: 'SupportTicket',
-          entityId: id,
-          link: 'Support',
-        })
+        collaborationRepository.withDb((db) =>
+          ensureNotification(db, recipient.id, `New support ticket: ${subject}`, {
+            entityType: 'SupportTicket',
+            entityId: id,
+            link: 'Support',
+          })
+        )
       )
     );
 
@@ -206,13 +206,14 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
       'Support'
     );
 
-    res.status(201).json(ticket);
+    res.status(201).json(decorateSupportTicketRow(ticket, {
+      isPrivileged: ['admin', 'manager'].includes(String((req as any).user?.systemRole || '').toLowerCase()),
+    }));
   }));
 
   app.patch('/api/support/tickets/:id', requireAuth, requireRole('admin', 'manager'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const id = String(req.params.id || '');
-    const ticket = await getSupportTicketById(db, id);
+    const ticket = await collaborationRepository.withDb((db) => getSupportTicketById(db, id));
     if (!ticket) return res.status(404).json({ error: 'Support ticket not found' });
 
     const nextStatus = req.body?.status === undefined ? undefined : normalizeSupportTicketStatus(req.body.status);
@@ -240,69 +241,92 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
       });
     }
 
-    const updates: string[] = ['updatedBy = ?', "updatedAt = datetime('now')"];
-    const params: any[] = [getCurrentUserId(req)];
-    if (nextStatus !== undefined) {
-      updates.push('status = ?');
-      params.push(nextStatus);
-    }
-    if (responseNoteProvided) {
-      updates.push('responseNote = ?');
-      params.push(responseNote);
-    }
-    params.push(id);
-
-    await db.run(`UPDATE SupportTicket SET ${updates.join(', ')} WHERE id = ?`, params);
-    const updated = await getSupportTicketById(db, id);
-    res.json(updated);
+    await collaborationRepository.updateSupportTicketById(id, {
+      updatedBy: getCurrentUserId(req),
+      status: nextStatus,
+      responseNoteProvided,
+      responseNote,
+    });
+    const updated = await collaborationRepository.withDb((db) => getSupportTicketById(db, id));
+    res.json(decorateSupportTicketRow(updated, {
+      isPrivileged: ['admin', 'manager'].includes(String((req as any).user?.systemRole || '').toLowerCase()),
+    }));
   }));
 
   app.get('/api/notifications', requireAuth, ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const userId = getCurrentUserId(req);
     const limit = parseLimitParam((req.query as Record<string, string | undefined>).limit, 50, 200);
     const [items, unreadRow] = await Promise.all([
-      db.all(
-        `SELECT id, userId, content, entityType, entityId, link, readAt, createdAt
-         FROM Notification
-         WHERE userId = ?
-         ORDER BY createdAt DESC, id DESC
-         LIMIT ?`,
-        [userId, limit]
-      ),
-      db.get(
-        `SELECT COUNT(*) AS c
-         FROM Notification
-         WHERE userId = ? AND readAt IS NULL`,
-        [userId]
-      ),
+      collaborationRepository.listNotifications(userId, limit),
+      collaborationRepository.countUnreadNotifications(userId),
     ]);
     res.json({ items, unreadCount: Number((unreadRow as any)?.c ?? 0) });
   }));
 
   app.post('/api/notifications/mark-read', requireAuth, ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const userId = getCurrentUserId(req);
     const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((id: unknown) => typeof id === 'string' && id.trim()) : [];
-
-    let result;
-    if (ids.length > 0) {
-      const placeholders = ids.map(() => '?').join(', ');
-      result = await db.run(
-        `UPDATE Notification
-         SET readAt = COALESCE(readAt, datetime('now'))
-         WHERE userId = ? AND readAt IS NULL AND id IN (${placeholders})`,
-        [userId, ...ids]
-      );
-    } else {
-      result = await db.run(
-        `UPDATE Notification
-         SET readAt = COALESCE(readAt, datetime('now'))
-         WHERE userId = ? AND readAt IS NULL`,
-        [userId]
-      );
-    }
-
+    const result = await collaborationRepository.markNotificationsRead(userId, ids);
     res.json({ success: true, updated: Number((result as any)?.changes ?? 0) });
+  }));
+
+  app.get('/api/v1/threads', requireAuth, ah(async (req: Request, res: Response) => {
+    const limit = parseLimitParam((req.query as Record<string, string | undefined>).limit, 50, 200);
+    const entityType = typeof req.query?.entityType === 'string' ? req.query.entityType.trim() : '';
+    const entityId = typeof req.query?.entityId === 'string' ? req.query.entityId.trim() : '';
+    const items = await collaborationRepository.listEntityThreads({
+      entityType: entityType || undefined,
+      entityId: entityId || undefined,
+      limit,
+    });
+    res.json({ items: items.map(mapThreadRow) });
+  }));
+
+  app.post('/api/v1/threads', requireAuth, ah(async (req: Request, res: Response) => {
+    const entityType = typeof req.body?.entityType === 'string' ? req.body.entityType.trim() : '';
+    const entityId = typeof req.body?.entityId === 'string' ? req.body.entityId.trim() : '';
+    const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+    if (!entityType) return res.status(400).json({ error: 'entityType is required' });
+    if (!entityId) return res.status(400).json({ error: 'entityId is required' });
+
+    const id = uuidv4();
+    await collaborationRepository.createEntityThread({
+      id,
+      entityType,
+      entityId,
+      title: title || null,
+      status: 'active',
+      createdBy: getCurrentUserId(req),
+    });
+    res.status(201).json(mapThreadRow(await collaborationRepository.findEntityThreadById(id)));
+  }));
+
+  app.get('/api/v1/threads/:id/messages', requireAuth, ah(async (req: Request, res: Response) => {
+    const id = getSingleParam(req.params.id);
+    if (!id) return res.status(400).json({ error: 'id is required' });
+    const limit = parseLimitParam((req.query as Record<string, string | undefined>).limit, 100, 500);
+    const thread = await collaborationRepository.findEntityThreadById(id);
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+    const items = await collaborationRepository.listEntityThreadMessages(id, limit);
+    res.json({ items: items.map(mapThreadMessageRow) });
+  }));
+
+  app.post('/api/v1/threads/:id/messages', requireAuth, ah(async (req: Request, res: Response) => {
+    const id = getSingleParam(req.params.id);
+    if (!id) return res.status(400).json({ error: 'id is required' });
+    const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
+    if (!content) return res.status(400).json({ error: 'content is required' });
+    const thread = await collaborationRepository.findEntityThreadById(id);
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const messageId = uuidv4();
+    await collaborationRepository.createEntityThreadMessage({
+      id: messageId,
+      threadId: id,
+      authorUserId: getCurrentUserId(req),
+      content,
+      contentType: typeof req.body?.contentType === 'string' ? req.body.contentType.trim() : 'text/plain',
+    });
+    res.status(201).json(mapThreadMessageRow(await collaborationRepository.findEntityThreadMessageById(messageId)));
   }));
 }

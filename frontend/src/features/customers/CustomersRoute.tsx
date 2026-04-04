@@ -15,21 +15,21 @@ const CUSTOMERS_ROUTE_CONFIG: Record<CustomersRouteName, { view: CustomersView; 
   Accounts: {
     view: 'accounts',
     initialAccountType: 'Customer',
-    fallbackMessage: 'Dang tai khu vuc khach hang...',
+    fallbackMessage: 'Đang tải khu vực khách hàng...',
   },
   Contacts: {
     view: 'contacts',
-    fallbackMessage: 'Dang tai khu vuc lien he...',
+    fallbackMessage: 'Đang tải khu vực liên hệ...',
   },
   Partners: {
     view: 'accounts',
     initialAccountType: 'Partner',
-    fallbackMessage: 'Dang tai khu vuc doi tac...',
+    fallbackMessage: 'Đang tải khu vực đối tác...',
   },
   Suppliers: {
     view: 'accounts',
     initialAccountType: 'Supplier',
-    fallbackMessage: 'Dang tai khu vuc nha cung cap...',
+    fallbackMessage: 'Đang tải khu vực nhà cung cấp...',
   },
 };
 

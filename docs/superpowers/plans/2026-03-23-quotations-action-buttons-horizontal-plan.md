@@ -11,7 +11,7 @@
 ---
 
 ## File Map
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
   - actionButtons container styles
   - button sizing styles (flex/minWidth)
 
@@ -20,7 +20,7 @@
 ### Task 1: Update Action Buttons Layout to Horizontal + Wrap
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
 
 - [ ] **Step 1: Locate actionButtons container**
   - Find the JSX constant `actionButtons` and its outer `<div>` container.
@@ -47,7 +47,7 @@
 ### Task 2: Quick Regression Scan
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
 
 - [ ] **Step 1: Ensure inline style consistency**
   - No new CSS classes or external styles.
@@ -63,3 +63,4 @@
 ## Notes
 - User requested no git commits.
 - No automated tests required; manual UI verification is sufficient.
+

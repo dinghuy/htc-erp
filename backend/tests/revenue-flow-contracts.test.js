@@ -18,6 +18,7 @@ const {
   canStartLogisticsExecution,
   canCompleteDelivery,
   resolveApprovalOwners,
+  resolveHandoffActivation,
 } = require('../src/shared/workflow/revenueFlow.ts');
 const { canUserApproveRequest } = require('../src/shared/auth/permissions.ts');
 
@@ -100,6 +101,51 @@ async function main() {
     assert.deepEqual(resolveApprovalOwners('quotation_commercial', { requireLegalReview: true, requireFinanceReview: true }).optionalApprovers, ['accounting', 'legal']);
     assert.deepEqual(resolveApprovalOwners('delivery_completion', {}).requiredApprovers, ['sales', 'director']);
     assert.deepEqual(resolveApprovalOwners('procurement_commitment', { requireFinanceReview: true }).optionalApprovers, ['accounting']);
+  });
+
+  await run('handoff activation resolves canonical states across the won-quote boundary', async () => {
+    assert.equal(
+      resolveHandoffActivation({
+        quotationId: 'q-1',
+        quotationStatus: 'won',
+        salesOrderId: null,
+        canCreateSalesOrder: true,
+      }).status,
+      'ready_to_create_sales_order',
+    );
+
+    assert.equal(
+      resolveHandoffActivation({
+        quotationId: 'q-1',
+        quotationStatus: 'won',
+        salesOrderId: 'so-1',
+        salesOrderStatus: 'draft',
+        releaseGateStatus: 'pending',
+        canRequestReleaseApproval: false,
+        salesOrderBlockers: ['Sales order release gate must be approved before releasing the order.'],
+      }).status,
+      'awaiting_release_approval',
+    );
+
+    const readyToRelease = resolveHandoffActivation({
+      quotationId: 'q-1',
+      quotationStatus: 'won',
+      salesOrderId: 'so-1',
+      salesOrderStatus: 'draft',
+      releaseGateStatus: 'approved',
+      canReleaseSalesOrder: true,
+    });
+    assert.equal(readyToRelease.status, 'ready_to_release');
+    assert.equal(readyToRelease.nextActionKey, 'release_sales_order');
+
+    const activated = resolveHandoffActivation({
+      quotationId: 'q-1',
+      quotationStatus: 'won',
+      salesOrderId: 'so-1',
+      salesOrderStatus: 'released',
+    });
+    assert.equal(activated.status, 'activated');
+    assert.equal(activated.isActivated, true);
   });
 
   await run('requester cannot self-approve and changes_requested remains actionable', async () => {

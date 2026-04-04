@@ -3,7 +3,7 @@
 ## UX Regression Gate
 
 - Chạy deterministic UX regression suite trước khi UAT tay:
-  - [ux-regression-core.md](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/docs/qa/ux-regression-core.md)
+  - [ux-regression-core.md](./ux-regression-core.md)
 - Xác nhận các flow preview không tạo UX trap:
   - `Mở Settings` vẫn hoạt động khi preview `viewer`
   - `Back to Admin` luôn còn

@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'preact/hooks';
 import { buildRoleProfile, ROLE_LABELS, type CurrentUser } from './auth';
+import { mapApprovalQueuePayload } from './approvalQueueData';
 import { API_BASE } from './config';
 import { consumeNavContext, setNavContext } from './navContext';
+import { buildDocumentThreadSummary } from './projects/documentThreadData';
 import { buildRolePreviewNotice } from './preview/rolePreviewNotice';
 import { requestJsonWithAuth } from './shared/api/client';
 import { canApproveRequest, resolveApprovalLane } from './shared/domain/contracts';
 import { QA_TEST_IDS, approvalActionButtonTestId, approvalCardTestId, approvalLaneButtonTestId } from './testing/testIds';
+import { buildThreadCountIndex } from './threadIndexData';
 import { showNotify } from './Notification';
+import { OverlayModal } from './ui/OverlayModal';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
 import { buildApprovalsActions } from './work/phaseDrivenActions';
@@ -114,6 +118,12 @@ export function Approvals({
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
   const [laneFilter, setLaneFilter] = useState<string>('');
+  const [approvalThreadIndex, setApprovalThreadIndex] = useState<Record<string, { threadId: string | null; messageCount: number }>>({});
+  const [approvalThread, setApprovalThread] = useState<any | null>(null);
+  const [approvalThreadMessages, setApprovalThreadMessages] = useState<any[]>([]);
+  const [approvalThreadDraft, setApprovalThreadDraft] = useState('');
+  const [sendingThread, setSendingThread] = useState(false);
+  const [pendingOpenApprovalId, setPendingOpenApprovalId] = useState<string | null>(null);
 
   const copyByMode: Record<string, { title: string; description: string }> = {
     sales: {
@@ -155,17 +165,38 @@ export function Approvals({
   const load = async () => {
     setLoading(true);
     try {
-      const data = await requestJsonWithAuth<ApprovalsPayload>(
+      const queueData = await requestJsonWithAuth<any>(
         currentUser.token,
-        `${API}/workspace/approvals`,
+        `${API}/v1/approvals/queue`,
         {},
         'Không thể tải approvals',
       );
+      const data = mapApprovalQueuePayload(queueData, copyByMode[profile.personaMode] || copyByMode.viewer);
       setPayload(data);
       setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
+      const threadPayload = await requestJsonWithAuth<any>(
+        currentUser.token,
+        `${API}/v1/threads?entityType=ApprovalRequest&limit=200`,
+        {},
+        'Không thể tải thread index approvals',
+      ).catch(() => ({ items: [] }));
+      setApprovalThreadIndex(buildThreadCountIndex(threadPayload));
       setError('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể tải approvals');
+    } catch (_err) {
+      try {
+        const data = await requestJsonWithAuth<ApprovalsPayload>(
+          currentUser.token,
+          `${API}/workspace/approvals`,
+          {},
+          'Không thể tải approvals',
+        );
+        setPayload(data);
+        setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
+        setApprovalThreadIndex({});
+        setError('');
+      } catch (fallbackError) {
+        setError(fallbackError instanceof Error ? fallbackError.message : 'Không thể tải approvals');
+      }
     } finally {
       setLoading(false);
     }
@@ -175,6 +206,9 @@ export function Approvals({
     const navContext = consumeNavContext('Approvals');
     if (navContext && typeof navContext.filters?.approvalLane === 'string') {
       setLaneFilter(navContext.filters.approvalLane);
+    }
+    if (navContext?.filters?.approvalId && navContext?.filters?.openThread) {
+      setPendingOpenApprovalId(navContext.filters.approvalId);
     }
     void load();
   }, [currentUser.token]);
@@ -188,6 +222,14 @@ export function Approvals({
     ? buildRolePreviewNotice({ screen: 'approvals', previewLabel, approvalLane: laneFilter || undefined })
     : null;
   const phaseActions = buildApprovalsActions(profile.personaMode, laneFilter, payload?.summary);
+
+  useEffect(() => {
+    if (!pendingOpenApprovalId || loading) return;
+    const target = approvals.find((approval) => approval.id === pendingOpenApprovalId);
+    if (!target) return;
+    void openApprovalThread(target);
+    setPendingOpenApprovalId(null);
+  }, [pendingOpenApprovalId, loading, approvals]);
 
   const decide = async (approvalId: string, decision: 'approved' | 'rejected' | 'changes_requested') => {
     setBusyId(approvalId);
@@ -217,6 +259,73 @@ export function Approvals({
     }
   };
 
+  const openApprovalThread = async (approval: ApprovalRecord) => {
+    try {
+      const threadPayload = await requestJsonWithAuth<any>(
+        currentUser.token,
+        `${API}/v1/threads?entityType=ApprovalRequest&entityId=${approval.id}`,
+        {},
+        'Không thể tải thread approval',
+      );
+      const threadId = threadPayload?.items?.[0]?.id;
+      const messagesPayload = threadId
+        ? await requestJsonWithAuth<any>(currentUser.token, `${API}/v1/threads/${threadId}/messages`, {}, 'Không thể tải messages approval')
+        : { items: [] };
+
+      setApprovalThread({
+        approval,
+        threadSummary: buildDocumentThreadSummary({ threadPayload, messagesPayload }),
+      });
+      setApprovalThreadMessages(Array.isArray(messagesPayload?.items) ? messagesPayload.items : []);
+      setApprovalThreadDraft('');
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể tải thread approval', 'error');
+    }
+  };
+
+  const sendApprovalThreadMessage = async () => {
+    const approval = approvalThread?.approval;
+    const content = String(approvalThreadDraft || '').trim();
+    if (!approval?.id || !content) return;
+
+    setSendingThread(true);
+    try {
+      let threadId = approvalThread.threadSummary?.threadId;
+      if (!threadId) {
+        const createdThread = await requestJsonWithAuth<any>(
+          currentUser.token,
+          `${API}/v1/threads`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              entityType: 'ApprovalRequest',
+              entityId: approval.id,
+              title: approval.title || approval.requestType || 'Approval thread',
+            }),
+          },
+          'Không thể tạo thread approval',
+        );
+        threadId = createdThread.id;
+      }
+
+      await requestJsonWithAuth<any>(
+        currentUser.token,
+        `${API}/v1/threads/${threadId}/messages`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ content }),
+        },
+        'Không thể gửi message approval',
+      );
+
+      await openApprovalThread(approval);
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể gửi message approval', 'error');
+    } finally {
+      setSendingThread(false);
+    }
+  };
+
   return (
     <div style={{ display: 'grid', gap: '22px' }}>
       <section style={{ ...ui.card.base, padding: '24px', display: 'grid', gap: '8px' }}>
@@ -225,7 +334,7 @@ export function Approvals({
           {pageCopy.description}
         </p>
         {previewNotice ? (
-          <div style={{ display: 'grid', gap: '6px', padding: '12px 14px', borderRadius: tokens.radius.lg, border: `1px solid ${previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary}`, background: previewNotice.tone === 'warning' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(0, 151, 110, 0.08)' }}>
+          <div style={{ display: 'grid', gap: '6px', padding: '12px 14px', borderRadius: tokens.radius.lg, border: `1px solid ${previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary}`, background: previewNotice.tone === 'warning' ? tokens.colors.warningTint : tokens.colors.infoBg }}>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={previewNotice.tone === 'warning' ? ui.badge.warning : ui.badge.info}>Preview</span>
               <span style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{previewNotice.title}</span>
@@ -285,13 +394,29 @@ export function Approvals({
           <div data-testid={QA_TEST_IDS.approvals.listSection} style={{ display: 'grid', gap: '10px' }}>{filteredApprovals.map((approval) => {
             const lane = approval.actionAvailability?.lane || resolveApprovalLane(approval);
             const isOwner = !approval.approverUserId || approval.approverUserId === currentUser.id;
-            const canApprove = approval.actionAvailability?.canDecide ?? (
-              approval.status === 'pending'
-              && isOwner
-              && canApproveRequest(currentUser.roleCodes, approval, currentUser.systemRole, currentUser.id)
+            const canPreviewDecide = Boolean(
+              currentUser.isRolePreviewActive
+              && currentUser.baseRoleCodes?.includes('admin')
+              && approval.status === 'pending'
+              && canApproveRequest(
+                currentUser.roleCodes,
+                { ...approval, approverUserId: null },
+                currentUser.systemRole,
+                null,
+              ),
             );
-            const availableDecisions = Array.isArray(approval.actionAvailability?.availableDecisions)
+            const canApprove = (
+              approval.actionAvailability?.canDecide ?? (
+                approval.status === 'pending'
+                && isOwner
+                && canApproveRequest(currentUser.roleCodes, approval, currentUser.systemRole, currentUser.id)
+              )
+            ) || canPreviewDecide;
+            const availableDecisionsFromPayload = Array.isArray(approval.actionAvailability?.availableDecisions)
               ? approval.actionAvailability?.availableDecisions
+              : [];
+            const availableDecisions = availableDecisionsFromPayload.length > 0
+              ? availableDecisionsFromPayload
               : (canApprove ? ['rejected', 'changes_requested', 'approved'] : []);
 
             return (
@@ -322,6 +447,10 @@ export function Approvals({
                     {approval.department ? <span style={ui.badge.info}>{approval.department}</span> : null}
                     {approval.requestedByName ? <span style={ui.badge.info}>From {approval.requestedByName}</span> : null}
                     {approval.dueDate ? <span style={ui.badge.neutral}>Due {String(approval.dueDate).slice(0, 10)}</span> : null}
+                    {approvalThreadIndex[approval.id]?.messageCount > 0 ? <span style={ui.badge.info}>{approvalThreadIndex[approval.id].messageCount} thread msg</span> : null}
+                    <button type="button" style={ui.btn.outline as any} onClick={() => void openApprovalThread(approval)}>
+                      {approvalThreadIndex[approval.id]?.threadId ? 'Open thread' : 'Create thread'}
+                    </button>
                   </div>
                   {approval.status === 'pending' ? (
                     canApprove ? (
@@ -354,6 +483,67 @@ export function Approvals({
           })}</div>
         ) : <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Không có approval nào trong queue hoặc lane đang lọc.</div>}
       </section>
+
+      {approvalThread ? (
+        <OverlayModal
+          title={`Approval thread: ${approvalThread.approval?.title || approvalThread.approval?.requestType || approvalThread.approval?.id}`}
+          onClose={() => {
+            setApprovalThread(null);
+            setApprovalThreadMessages([]);
+            setApprovalThreadDraft('');
+          }}
+          maxWidth="900px"
+        >
+          <div style={{ display: 'grid', gap: '14px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={ui.badge.neutral}>Lane {approvalThread.approval?.actionAvailability?.lane || resolveApprovalLane(approvalThread.approval)}</span>
+              <span style={approvalThread.threadSummary?.hasActiveThread ? ui.badge.info : ui.badge.warning}>
+                {approvalThread.threadSummary?.hasActiveThread ? 'Thread active' : 'Chưa có thread'}
+              </span>
+              <span style={ui.badge.neutral}>{approvalThread.threadSummary?.messageCount || 0} messages</span>
+            </div>
+            <div style={{ display: 'grid', gap: '10px', maxHeight: '320px', overflowY: 'auto' }}>
+              {approvalThreadMessages.length > 0 ? approvalThreadMessages.map((message: any) => (
+                <div key={message.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', display: 'grid', gap: '6px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.textPrimary }}>
+                    {message.authorName || message.authorUserId || 'System'}
+                  </div>
+                  <div style={{ fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>
+                    {message.content}
+                  </div>
+                </div>
+              )) : (
+                <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Chưa có tin nhắn nào trong approval thread này.</div>
+              )}
+            </div>
+            <div style={{ display: 'grid', gap: '8px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.textMuted }}>TIN NHẮN MỚI</label>
+              <textarea
+                rows={4}
+                style={{ ...ui.input.base, resize: 'vertical', fontFamily: 'inherit' }}
+                value={approvalThreadDraft}
+                onInput={(event: any) => setApprovalThreadDraft(event.target.value)}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                style={ui.btn.outline as any}
+                onClick={() => {
+                  setApprovalThread(null);
+                  setApprovalThreadMessages([]);
+                  setApprovalThreadDraft('');
+                }}
+              >
+                Đóng
+              </button>
+              <button type="button" style={ui.btn.primary as any} onClick={() => void sendApprovalThreadMessage()}>
+                {sendingThread ? 'Đang gửi...' : 'Gửi vào thread'}
+              </button>
+            </div>
+          </div>
+        </OverlayModal>
+      ) : null}
     </div>
   );
 }

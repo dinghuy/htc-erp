@@ -236,7 +236,7 @@ describe('ganttDerived', () => {
     );
   });
 
-  it('keeps project risk neutral when the project is visible without child rows', () => {
+  it('keeps healthy project/task rows visible inside the wider timeline window', () => {
     const project = makeProject({
       id: 'project-neutral',
       name: 'Neutral Project',
@@ -258,13 +258,20 @@ describe('ganttDerived', () => {
       selectedPresetKey: 'all',
     });
 
-    expect(derived.visibleRows).toEqual([
-      expect.objectContaining({
-        kind: 'project',
-        id: project.id,
-        risk: null,
-      }),
-    ]);
+    expect(derived.visibleRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'project',
+          id: project.id,
+          risk: RiskState.Healthy,
+        }),
+        expect.objectContaining({
+          kind: 'task',
+          id: task.id,
+          risk: RiskState.Healthy,
+        }),
+      ]),
+    );
   });
 
   it('does not count cancelled tasks in overdue or due soon metrics', () => {
@@ -466,11 +473,58 @@ describe('ganttDerived', () => {
         kind: 'task',
         id: spanningTask.id,
         timelineRange: {
-          startIndex: 0,
-          endIndex: 30,
-          span: 31,
+          startIndex: 24,
+          endIndex: 61,
+          span: 38,
         },
       }),
     );
+  });
+
+  it('keeps tasks in the previous month visible inside the 3-month window', () => {
+    const project = makeProject();
+    const previousMonthTask = makeTask({
+      id: 'task-feb',
+      startDate: '2026-02-18',
+      dueDate: '2026-02-24',
+    });
+
+    const derived = buildGanttDerivedState({
+      projects: [project],
+      tasks: [previousMonthTask],
+      selectedMonth: MARCH_2026,
+      today: TODAY,
+      selectedPresetKey: 'all',
+    });
+
+    expect(derived.visibleRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'task', id: previousMonthTask.id }),
+      ]),
+    );
+  });
+
+  it('hides tasks outside the 3-month timeline window', () => {
+    const project = makeProject();
+    const futureTask = makeTask({
+      id: 'task-may',
+      startDate: '2026-05-05',
+      dueDate: '2026-05-10',
+    });
+
+    const derived = buildGanttDerivedState({
+      projects: [project],
+      tasks: [futureTask],
+      selectedMonth: MARCH_2026,
+      today: TODAY,
+      selectedPresetKey: 'all',
+    });
+
+    expect(derived.visibleRows).toEqual([
+      expect.objectContaining({
+        kind: 'project',
+        id: project.id,
+      }),
+    ]);
   });
 });

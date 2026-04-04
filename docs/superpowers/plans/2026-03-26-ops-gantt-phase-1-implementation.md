@@ -12,7 +12,7 @@
 
 ## Implementation Notes
 
-- Scope this plan to `Phase 1` only from the approved spec at [2026-03-26-ops-gantt-hybrid-lens-design.md](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/docs/superpowers/specs/2026-03-26-ops-gantt-hybrid-lens-design.md).
+- Scope this plan to `Phase 1` only from the approved spec at [2026-03-26-ops-gantt-hybrid-lens-design.md](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/htc-erp/docs/superpowers/specs/2026-03-26-ops-gantt-hybrid-lens-design.md).
 - Do not implement owner lens grouping, priority lens grouping, or advanced inline mutation in this plan.
 - The current workspace is not a git repository, so `commit` steps become `checkpoint` steps. Do not invent git commands that cannot run here.
 - Prefer extracting pure helpers and small view components rather than doing a broad visual-system rewrite.
@@ -481,3 +481,4 @@ Check in the running app:
 - [ ] **Step 6: Final checkpoint**
 
 Record a local checkpoint note that Phase 1 is ready for handoff or human review.
+

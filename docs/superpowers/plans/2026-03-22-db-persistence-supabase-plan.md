@@ -11,14 +11,14 @@
 ---
 
 ## File Structure / Ownership
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\sqlite-db.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\sqlite-db.ts`
   - Add DB path resolution (env + fallback)
   - Remove DROP TABLE behavior
   - Seed only when `SEED_DB=true`
   - Optional: add helper to validate DB path
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\.env`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\.env`
   - Add `DB_PATH` and `SEED_DB` documentation comments
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\db-init-smoke.js`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\db-init-smoke.js`
   - Minimal smoke test to validate persistence + seed gating
 
 ---
@@ -26,13 +26,13 @@
 ### Task 1: Add DB_PATH / SEED_DB support in sqlite adapter
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\sqlite-db.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\sqlite-db.ts`
 
 - [ ] **Step 1: Write a failing smoke test (no code changes yet)**
 
 ```js
 // scripts/db-init-smoke.js (initial version, expected to fail until code changes)
-process.env.DB_PATH = 'C:/Users/dinghuy/OneDrive - HUYNH THY GROUP/Antigravity Workspace/crm-app/backend/tmp/test-crm.db';
+process.env.DB_PATH = 'C:/Users/dinghuy/OneDrive - HUYNH THY GROUP/Antigravity Workspace/htc-erp/backend/tmp/test-crm.db';
 process.env.SEED_DB = 'false';
 
 const { initDb, getDb } = require('../sqlite-db');
@@ -56,7 +56,7 @@ const { initDb, getDb } = require('../sqlite-db');
 
 - [ ] **Step 2: Run test to verify it fails with current code**
 
-Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\db-init-smoke.js`
+Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\db-init-smoke.js`
 Expected: FAIL due to dropped tables or missing persistence.
 
 - [ ] **Step 3: Implement DB_PATH/SEED_DB changes**
@@ -80,13 +80,13 @@ if (!fs.existsSync(dbDir)) {
 
 - [ ] **Step 4: Run smoke test to verify it passes**
 
-Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\db-init-smoke.js`
+Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\db-init-smoke.js`
 Expected: PASS with `OK`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\sqlite-db.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\db-init-smoke.js
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\sqlite-db.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\db-init-smoke.js
 git commit -m "feat: persist sqlite via DB_PATH and seed gating"
 ```
 
@@ -95,7 +95,7 @@ git commit -m "feat: persist sqlite via DB_PATH and seed gating"
 ### Task 2: Document env vars for operators
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\.env`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\.env`
 
 - [ ] **Step 1: Write failing test (manual doc check)**
 
@@ -119,7 +119,7 @@ Expected: PASS when both vars are visible and commented.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\.env
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\.env
 git commit -m "docs: add DB_PATH and SEED_DB env hints"
 ```
 
@@ -145,3 +145,5 @@ Expected: N/A
 ## Notes / Constraints
 - This workspace is not a git repository; commits may not be possible. If `git` is unavailable, skip commit steps and report back.
 - The smoke test uses a hardcoded temp path; ensure the temp directory exists or create it in the test.
+
+

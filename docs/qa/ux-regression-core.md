@@ -34,8 +34,8 @@ Runner sẽ ưu tiên reset bằng admin seeded account. Nếu local DB đang �
 
 Stable selectors nằm ở:
 
-- UI contract: [testIds.ts](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/frontend/src/testing/testIds.ts)
-- Browser contract: [selector-contract.mjs](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/frontend/scripts/qa/selector-contract.mjs)
+- UI contract: [testIds.ts](../../frontend/src/testing/testIds.ts)
+- Browser contract: [selector-contract.mjs](../../frontend/scripts/qa/selector-contract.mjs)
 
 Các điểm bắt buộc phải giữ ổn định khi sửa UI:
 
@@ -50,7 +50,7 @@ Các điểm bắt buộc phải giữ ổn định khi sửa UI:
 
 ## Core Journeys
 
-Manifest hiện tại nằm ở [ux-regression.manifest.mjs](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/frontend/scripts/qa/ux-regression.manifest.mjs)
+Manifest hiện tại nằm ở [ux-regression.manifest.mjs](../../frontend/scripts/qa/ux-regression.manifest.mjs)
 
 Coverage vòng đầu:
 
@@ -146,7 +146,7 @@ Artifacts sẽ nằm ở:
 
 Khi local runner bị chặn bởi browser launch trong Codex, dùng runbook riêng:
 
-- [ux-regression-codex-runbook.md](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/docs/qa/ux-regression-codex-runbook.md)
+- [ux-regression-codex-runbook.md](./ux-regression-codex-runbook.md)
 
 Nếu có terminal audit bị treo hoặc cần dọn phiên cũ:
 

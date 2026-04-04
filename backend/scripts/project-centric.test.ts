@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AddressInfo } from 'node:net';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 const backendDir = path.resolve(__dirname, '..');
 const tmpDir = path.join(backendDir, 'tmp');
@@ -32,6 +34,99 @@ async function login(baseUrl: string) {
   });
   assert.equal(res.status, 200, `login failed: ${JSON.stringify(data)}`);
   return data.token;
+}
+
+async function seedUser(baseUrl: string, input: {
+  username: string;
+  password: string;
+  systemRole: string;
+  roleCodes: string[];
+  fullName: string;
+}) {
+  const db = getDb();
+  const passwordHash = await bcrypt.hash(input.password, 10);
+  const userId = uuidv4();
+  await db.run(
+    `INSERT INTO User (
+      id, fullName, gender, email, phone, role, department, status,
+      username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      userId,
+      input.fullName,
+      'male',
+      `${input.username}@example.com`,
+      '',
+      input.systemRole,
+      'Operations',
+      'Active',
+      input.username,
+      passwordHash,
+      input.systemRole,
+      JSON.stringify(input.roleCodes),
+      'active',
+      0,
+      'vi',
+    ],
+  );
+  const auth = await api<{ token: string }>(baseUrl, '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: input.username, password: input.password }),
+  });
+  assert.equal(auth.res.status, 200, `seeded user login failed: ${JSON.stringify(auth.data)}`);
+  return { userId, token: auth.data.token };
+}
+
+function resolveApproverSystemRole(approval: JsonRecord) {
+  const requestType = String(approval.requestType || '').trim().toLowerCase();
+  const department = String(approval.department || '').trim().toLowerCase();
+  const approverRole = String(approval.approverRole || '').trim().toLowerCase();
+
+  if (
+    department === 'finance' ||
+    requestType.includes('finance') ||
+    requestType.includes('payment') ||
+    requestType.includes('invoice') ||
+    requestType.includes('receivable')
+  ) {
+    return 'accounting';
+  }
+
+  if (
+    department === 'legal' ||
+    requestType.includes('legal') ||
+    requestType.includes('contract') ||
+    requestType.includes('clause') ||
+    requestType.includes('deviation')
+  ) {
+    return 'legal';
+  }
+
+  if (
+    department === 'procurement' ||
+    requestType.includes('procurement') ||
+    requestType.includes('supplier') ||
+    requestType.includes('purchase') ||
+    requestType.includes('po-approval')
+  ) {
+    return 'procurement';
+  }
+
+  if (
+    department === 'executive' ||
+    department === 'bod' ||
+    requestType.includes('executive') ||
+    requestType.includes('margin-exception') ||
+    requestType.includes('profit-risk') ||
+    ['director', 'ceo', 'executive'].includes(approverRole)
+  ) {
+    return 'director';
+  }
+
+  if (approverRole === 'sales') return 'sales';
+  if (approverRole === 'manager') return 'project_manager';
+  return approverRole || 'director';
 }
 
 async function main() {
@@ -87,7 +182,9 @@ async function main() {
     assert.equal(createQuotation.data.revisionNo, 1, 'first quotation should start at revision 1');
 
     const projectId = createQuotation.data.projectId;
-    const projectWorkspace = await api<JsonRecord>(baseUrl, `/api/projects/${projectId}`);
+    const projectWorkspace = await api<JsonRecord>(baseUrl, `/api/projects/${projectId}`, {
+      headers: authHeaders,
+    });
     assert.equal(projectWorkspace.res.status, 200, `project detail failed: ${JSON.stringify(projectWorkspace.data)}`);
     assert.equal(projectWorkspace.data.id, projectId);
     assert.equal(projectWorkspace.data.quotationCount, 1);
@@ -160,24 +257,37 @@ async function main() {
       headers: authHeaders,
       body: JSON.stringify({
         ...reviseQuotation.data,
-        status: 'sent',
+        status: 'submitted_for_approval',
         expectedStatus: 'draft',
       }),
     });
     assert.equal(sendRevision.res.status, 200, `send revision failed: ${JSON.stringify(sendRevision.data)}`);
 
-    const acceptRevision = await api<JsonRecord>(baseUrl, `/api/quotations/${reviseQuotation.data.id}`, {
+    const approveRevision = await api<JsonRecord>(baseUrl, `/api/quotations/${reviseQuotation.data.id}`, {
       method: 'PUT',
       headers: authHeaders,
       body: JSON.stringify({
         ...sendRevision.data,
-        status: 'accepted',
-        expectedStatus: 'sent',
+        status: 'approved',
+        expectedStatus: 'submitted_for_approval',
       }),
     });
-    assert.equal(acceptRevision.res.status, 200, `accept revision failed: ${JSON.stringify(acceptRevision.data)}`);
+    assert.equal(approveRevision.res.status, 200, `approve revision failed: ${JSON.stringify(approveRevision.data)}`);
 
-    const projectAfterAccept = await api<JsonRecord>(baseUrl, `/api/projects/${projectId}`);
+    const winRevision = await api<JsonRecord>(baseUrl, `/api/quotations/${reviseQuotation.data.id}`, {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({
+        ...approveRevision.data,
+        status: 'won',
+        expectedStatus: 'approved',
+      }),
+    });
+    assert.equal(winRevision.res.status, 200, `win revision failed: ${JSON.stringify(winRevision.data)}`);
+
+    const projectAfterAccept = await api<JsonRecord>(baseUrl, `/api/projects/${projectId}`, {
+      headers: authHeaders,
+    });
     assert.equal(projectAfterAccept.res.status, 200);
     assert.equal(projectAfterAccept.data.projectStage, 'won');
     assert.equal(projectAfterAccept.data.latestQuotationId, reviseQuotation.data.id);
@@ -185,13 +295,37 @@ async function main() {
     assert.ok(projectAfterAccept.data.openTaskCount >= 1);
     assert.ok(Array.isArray(projectAfterAccept.data.approvals), 'workspace should include approvals');
     assert.ok(Array.isArray(projectAfterAccept.data.documents), 'workspace should include project documents');
+    assert.ok(projectAfterAccept.data.handoffActivation, 'workspace should expose handoff activation');
+    assert.equal(projectAfterAccept.data.handoffActivation.status, 'ready_to_create_sales_order');
+    assert.equal(projectAfterAccept.data.handoffActivation.nextActionKey, 'create_sales_order');
+
+    const handoffReportBefore = await api<JsonRecord>(baseUrl, `/api/reports/handoff-activation`, {
+      headers: authHeaders,
+    });
+    assert.equal(handoffReportBefore.res.status, 200, `handoff report before activation failed: ${JSON.stringify(handoffReportBefore.data)}`);
+    assert.equal(handoffReportBefore.data.summary.totalStarted, 1);
+    assert.equal(handoffReportBefore.data.summary.activated, 0);
+    assert.equal(handoffReportBefore.data.summary.pendingActivation, 1);
 
     const firstApproval = projectAfterAccept.data.approvals[0];
     assert.ok(firstApproval?.id, 'approval request should exist');
+    const approverSystemRole = resolveApproverSystemRole(firstApproval);
+    const approverUsername = `approver_${Date.now()}`;
+    const approverAuth = await seedUser(baseUrl, {
+      username: approverUsername,
+      password: 'Approver@123',
+      systemRole: approverSystemRole,
+      roleCodes: [approverSystemRole],
+      fullName: 'Workflow Approver',
+    });
+    await db.run(`UPDATE ApprovalRequest SET approverUserId = ? WHERE id = ?`, [approverAuth.userId, firstApproval.id]);
 
     const approve = await api<JsonRecord>(baseUrl, `/api/approval-requests/${firstApproval.id}/decision`, {
       method: 'POST',
-      headers: authHeaders,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${approverAuth.token}`,
+      },
       body: JSON.stringify({
         decision: 'approved',
         note: 'Approved in test',
@@ -279,11 +413,27 @@ async function main() {
     assert.ok(Array.isArray(handoff.data.tasks), 'handoff should return delivery tasks');
     assert.ok(handoff.data.tasks.some((t: any) => t.department === 'Warehouse'));
 
-    const projectAfterHandoff = await api<JsonRecord>(baseUrl, `/api/projects/${projectId}`);
+    const projectAfterHandoff = await api<JsonRecord>(baseUrl, `/api/projects/${projectId}`, {
+      headers: authHeaders,
+    });
     assert.equal(projectAfterHandoff.res.status, 200);
-    assert.equal(projectAfterHandoff.data.projectStage, 'delivery');
+    assert.equal(projectAfterHandoff.data.projectStage, 'won');
     assert.ok(Array.isArray(projectAfterHandoff.data.salesOrders), 'workspace should include sales orders');
     assert.ok(projectAfterHandoff.data.salesOrders.length >= 1);
+    assert.ok(projectAfterHandoff.data.handoffActivation, 'workspace should still expose handoff activation after handoff');
+    assert.equal(projectAfterHandoff.data.handoffActivation.status, 'awaiting_release_approval');
+    assert.equal(projectAfterHandoff.data.handoffActivation.nextActionKey, 'request_sales_order_release_approval');
+    assert.equal(projectAfterHandoff.data.handoffActivation.isActivated, false);
+
+    const handoffReportAfter = await api<JsonRecord>(baseUrl, `/api/reports/handoff-activation`, {
+      headers: authHeaders,
+    });
+    assert.equal(handoffReportAfter.res.status, 200, `handoff report after activation failed: ${JSON.stringify(handoffReportAfter.data)}`);
+    assert.equal(handoffReportAfter.data.summary.totalStarted, 1);
+    assert.equal(handoffReportAfter.data.summary.activated, 1);
+    assert.equal(handoffReportAfter.data.summary.withinSla, 1);
+    assert.equal(handoffReportAfter.data.summary.pendingActivation, 0);
+    assert.equal(handoffReportAfter.data.summary.clockMode, 'elapsed_hours');
 
     const deleteApproval = await api<JsonRecord>(baseUrl, `/api/approval-requests/${customApproval.data.id}`, {
       method: 'DELETE',

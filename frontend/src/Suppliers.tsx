@@ -11,6 +11,7 @@ import { FormatActionButton } from './ui/FormatActionButton';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { OverlayModal } from './ui/OverlayModal';
 import { EditIcon, ExportIcon, EyeIcon, HandshakeIcon, ImportIcon, SearchIcon, TrashIcon } from './ui/icons';
+import { SegmentedControl } from './ui/SegmentedControl';
 
 const API = API_BASE;
 
@@ -23,17 +24,6 @@ const S = {
   td: ui.table.td as any,
   input: { ...ui.input.base, transition: 'all 0.2s ease' } as any,
   label: { ...ui.form.label, display: 'block', marginBottom: '8px' } as any,
-  tabBtn: (active: boolean) => ({
-    padding: `${tokens.spacing.md} ${tokens.spacing.xl}`,
-    fontSize: '14px',
-    fontWeight: 700,
-    cursor: 'pointer',
-    background: active ? tokens.colors.primary : 'transparent',
-    color: active ? tokens.colors.textOnPrimary : tokens.colors.textSecondary,
-    border: 'none',
-    borderRadius: tokens.radius.lg,
-    transition: 'all 0.2s ease'
-  }) as any
 };
 
 function parseProductTags(raw: unknown): string[] {
@@ -498,10 +488,15 @@ export function Suppliers({ isMobile, currentUser }: { isMobile?: boolean; curre
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', borderBottom: `1px solid ${tokens.colors.border}`, marginBottom: '4px' }}>
-        <button onClick={() => setActiveTab('Vendors')} style={S.tabBtn(activeTab === 'Vendors')}>Danh sách Nhà cung cấp</button>
-        <button onClick={() => setActiveTab('Quotes')} style={S.tabBtn(activeTab === 'Quotes')}>Báo giá từ Nhà cung cấp</button>
-      </div>
+      <SegmentedControl
+        ariaLabel="Điều hướng mua hàng và nhà cung cấp"
+        options={[
+          { value: 'Vendors', label: 'Danh sách Nhà cung cấp' },
+          { value: 'Quotes', label: 'Báo giá từ Nhà cung cấp' },
+        ]}
+        value={activeTab}
+        onChange={setActiveTab}
+      />
 
       <div style={{ ...S.card, display: 'flex', flexDirection: 'column', gap: '12px', border: `1px solid ${tokens.colors.border}` }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', justifyContent: 'space-between' }}>

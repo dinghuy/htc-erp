@@ -18,8 +18,50 @@ type SalesOrderTransitionInput = {
   quotationStatus: string | null | undefined;
 };
 
+type HandoffActivationInput = {
+  quotationId?: string | null;
+  quotationStatus?: string | null | undefined;
+  salesOrderId?: string | null;
+  salesOrderStatus?: string | null | undefined;
+  releaseGateStatus?: string | null | undefined;
+  canCreateSalesOrder?: boolean;
+  canRequestReleaseApproval?: boolean;
+  canReleaseSalesOrder?: boolean;
+  quotationBlockers?: unknown;
+  salesOrderBlockers?: unknown;
+};
+
+type HandoffActivationStatus =
+  | 'blocked'
+  | 'ready_to_create_sales_order'
+  | 'awaiting_release_approval'
+  | 'ready_to_release'
+  | 'activated';
+
+export type HandoffActivation = {
+  status: HandoffActivationStatus;
+  isActivated: boolean;
+  nextActionKey: 'create_sales_order' | 'request_sales_order_release_approval' | 'release_sales_order' | null;
+  nextActionLabel: string | null;
+  blockers: string[];
+};
+
 function normalizeValue(value: unknown) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function normalizeId(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+}
+
+function normalizeBlockers(value: unknown) {
+  return Array.from(
+    new Set(
+      (Array.isArray(value) ? value : [])
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean),
+    ),
+  );
 }
 
 export function normalizeLegacyQuotationStatus(value: unknown) {
@@ -71,6 +113,64 @@ export function canTransitionSalesOrderStatus(input: SalesOrderTransitionInput):
 export function canStartLogisticsExecution(status: unknown) {
   const normalized = normalizeValue(status);
   return normalized === 'released' || normalized === 'locked_for_execution';
+}
+
+export function resolveHandoffActivation(input: HandoffActivationInput): HandoffActivation {
+  const quotationId = normalizeId(input.quotationId);
+  const salesOrderId = normalizeId(input.salesOrderId);
+  const salesOrderStatus = normalizeValue(input.salesOrderStatus);
+  const releaseGateStatus = normalizeValue(input.releaseGateStatus) || 'not_requested';
+  const quotationBlockers = normalizeBlockers(input.quotationBlockers);
+  const salesOrderBlockers = normalizeBlockers(input.salesOrderBlockers);
+  const activated = canStartLogisticsExecution(salesOrderStatus);
+
+  if (activated) {
+    return {
+      status: 'activated',
+      isActivated: true,
+      nextActionKey: null,
+      nextActionLabel: null,
+      blockers: [],
+    };
+  }
+
+  if (Boolean(input.canCreateSalesOrder) && quotationId && !salesOrderId) {
+    return {
+      status: 'ready_to_create_sales_order',
+      isActivated: false,
+      nextActionKey: 'create_sales_order',
+      nextActionLabel: 'Tạo sales order',
+      blockers: quotationBlockers,
+    };
+  }
+
+  if (salesOrderId && (Boolean(input.canReleaseSalesOrder) || releaseGateStatus === 'approved')) {
+    return {
+      status: 'ready_to_release',
+      isActivated: false,
+      nextActionKey: Boolean(input.canReleaseSalesOrder) ? 'release_sales_order' : null,
+      nextActionLabel: Boolean(input.canReleaseSalesOrder) ? 'Phát hành sales order' : null,
+      blockers: salesOrderBlockers,
+    };
+  }
+
+  if (salesOrderId) {
+    return {
+      status: 'awaiting_release_approval',
+      isActivated: false,
+      nextActionKey: Boolean(input.canRequestReleaseApproval) ? 'request_sales_order_release_approval' : null,
+      nextActionLabel: Boolean(input.canRequestReleaseApproval) ? 'Tạo phê duyệt release sales order' : null,
+      blockers: salesOrderBlockers,
+    };
+  }
+
+  return {
+    status: 'blocked',
+    isActivated: false,
+    nextActionKey: null,
+    nextActionLabel: null,
+    blockers: quotationBlockers.length ? quotationBlockers : salesOrderBlockers,
+  };
 }
 
 export function canCompleteDelivery(statuses: unknown[]): WorkflowTransitionResult {

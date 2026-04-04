@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { getDb } from '../../../sqlite-db';
+import { createProjectRepository } from './repository';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
 
@@ -32,18 +32,18 @@ export function registerProjectWorkflowRoutes(app: Express, deps: RegisterProjec
     createApprovalRequestsFromTemplate,
     createProjectDocumentsFromTemplate,
   } = deps;
+  const projectRepository = createProjectRepository();
 
   app.post('/api/projects/:id/task-templates', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const project = await db.get('SELECT * FROM Project WHERE id = ?', [projectId]);
+    const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
     const quotationId = typeof req.body?.quotationId === 'string' && req.body.quotationId.trim() ? req.body.quotationId.trim() : null;
-    const quotation = quotationId ? await db.get('SELECT * FROM Quotation WHERE id = ?', [quotationId]) : null;
+    const quotation = quotationId ? await projectRepository.findQuotationById(quotationId) : null;
     const templateKey = typeof req.body?.templateKey === 'string' && req.body.templateKey.trim()
       ? req.body.templateKey.trim()
       : 'quotation-sent';
-    const tasks = await createProjectTasksFromTemplate(db, {
+    const tasks = await createProjectTasksFromTemplate(null, {
       projectId,
       templateKey,
       quotation,
@@ -54,9 +54,8 @@ export function registerProjectWorkflowRoutes(app: Express, deps: RegisterProjec
   }));
 
   app.post('/api/projects/:id/workflow-pack', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const project = await db.get('SELECT * FROM Project WHERE id = ?', [projectId]);
+    const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
     const packKey = typeof req.body?.packKey === 'string' && req.body.packKey.trim()
       ? req.body.packKey.trim()
@@ -64,26 +63,26 @@ export function registerProjectWorkflowRoutes(app: Express, deps: RegisterProjec
     const pack = WORKFLOW_PACK_LIBRARY[packKey];
     if (!pack) return res.status(400).json({ error: 'Unknown workflow pack' });
     const quotationId = typeof req.body?.quotationId === 'string' && req.body.quotationId.trim() ? req.body.quotationId.trim() : null;
-    const quotation = quotationId ? await db.get('SELECT * FROM Quotation WHERE id = ?', [quotationId]) : null;
+    const quotation = quotationId ? await projectRepository.findQuotationById(quotationId) : null;
     const actorUserId = getCurrentUserId(req);
 
     const taskGroups = await Promise.all(
       pack.taskTemplateKeys.map(templateKey =>
-        createProjectTasksFromTemplate(db, { projectId, templateKey, quotation, actorUserId })
+        createProjectTasksFromTemplate(null, { projectId, templateKey, quotation, actorUserId })
       )
     );
     const approvalGroups = await Promise.all(
       pack.approvalTemplateKeys.map(templateKey =>
-        createApprovalRequestsFromTemplate(db, { projectId, templateKey, quotation, actorUserId })
+        createApprovalRequestsFromTemplate(null, { projectId, templateKey, quotation, actorUserId })
       )
     );
-    const documents = await createProjectDocumentsFromTemplate(db, {
+    const documents = await createProjectDocumentsFromTemplate(null, {
       projectId,
       templateKey: pack.documentTemplateKey,
       quotation,
     });
     if (pack.projectStage) {
-      await db.run(`UPDATE Project SET projectStage = ?, updatedAt = datetime('now') WHERE id = ?`, [pack.projectStage, projectId]);
+      await projectRepository.updateProjectStageById(projectId, pack.projectStage);
     }
     res.status(201).json({
       projectId,

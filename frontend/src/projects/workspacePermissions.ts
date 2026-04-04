@@ -1,5 +1,5 @@
 import type { ProjectWorkspaceTabKey } from '../shared/domain/contracts';
-import { canPerformAction } from '../shared/domain/contracts';
+import { canPerformAction, normalizeRoleCodes } from '../shared/domain/contracts';
 
 export type WorkspaceActionAccess = {
   canEditCommercial: boolean;
@@ -18,7 +18,12 @@ export type WorkspacePreviewNotice = {
 };
 
 export function buildWorkspaceActionAccess(roleCodes: unknown, legacyRole?: unknown): WorkspaceActionAccess {
-  const canEditCommercial = canPerformAction(roleCodes, 'edit_commercial', legacyRole);
+  const normalizedRoles = normalizeRoleCodes(roleCodes, legacyRole);
+  const isPureProjectManager =
+    normalizedRoles.includes('project_manager') &&
+    !normalizedRoles.includes('sales') &&
+    !normalizedRoles.includes('admin');
+  const canEditCommercial = canPerformAction(normalizedRoles, 'edit_commercial', legacyRole) && !isPureProjectManager;
   const canEditProcurement = canPerformAction(roleCodes, 'edit_procurement', legacyRole);
   const canEditTimeline = canPerformAction(roleCodes, 'edit_execution', legacyRole);
 
@@ -54,23 +59,23 @@ export function buildWorkspacePreviewNotice(
       return {
         readOnly: true,
         tone: 'warning',
-        title: `Preview read-only: ${previewName}`,
-        message: `Tab ${tab} đang mở ở chế độ xem. Action ghi dữ liệu bị khóa vì capability hiện tại không cho phép chỉnh tab này.`,
+        title: `Preview chỉ xem: ${previewName}`,
+        message: `Tab ${tab} đang mở ở chế độ xem (read-only). Hành động ghi dữ liệu bị khóa vì capability hiện tại không cho phép chỉnh tab này.`,
       };
     }
 
     return {
       readOnly: false,
       tone: 'info',
-      title: `Preview active: ${previewName}`,
-      message: `Tab ${tab} đang được kiểm thử bằng đúng capability hiện tại của role preview. Bạn chỉ thấy và thao tác được những action lane này cho phép.`,
+      title: `Preview đang hoạt động: ${previewName}`,
+      message: `Tab ${tab} đang được kiểm thử bằng đúng capability hiện tại của role preview. Bạn chỉ thấy và thao tác được những hành động mà làn này cho phép.`,
     };
   }
 
   return {
     readOnly: true,
     tone: 'info',
-    title: `Preview review mode: ${previewName}`,
-    message: `Tab ${tab} là bề mặt review hoặc cockpit trong role preview hiện tại. Admin vẫn không được nâng quyền business chỉ vì đang preview.`,
+    title: `Preview chế độ rà soát: ${previewName}`,
+    message: `Tab ${tab} là bề mặt rà soát hoặc cockpit trong role preview hiện tại. Admin vẫn không được nâng quyền nghiệp vụ chỉ vì đang preview.`,
   };
 }

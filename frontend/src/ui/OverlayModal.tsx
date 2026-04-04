@@ -19,6 +19,7 @@ type OverlayModalProps = {
   placement?: 'center' | 'right';
   closeButtonTestId?: string;
   closeOnBackdrop?: boolean;
+  closeButtonAriaLabel?: string;
 };
 
 export function OverlayModal({
@@ -32,6 +33,7 @@ export function OverlayModal({
   placement,
   closeButtonTestId,
   closeOnBackdrop = true,
+  closeButtonAriaLabel = 'Đóng',
 }: OverlayModalProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -180,7 +182,7 @@ export function OverlayModal({
             overflow: 'hidden',
             borderRadius: isDrawer ? '28px' : ui.modal.shell.borderRadius,
             background: isDrawer
-              ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(17, 24, 39, 0.98) 100%)'
+              ? tokens.surface.panelGradient
               : ui.modal.shell.background,
             boxShadow: isDrawer ? tokens.overlay.modalShadow : ui.modal.shell.boxShadow,
           }}
@@ -193,7 +195,7 @@ export function OverlayModal({
               gap: '12px',
               padding: isDrawer ? '22px 24px 20px' : '20px 24px',
               borderBottom: `1px solid ${tokens.colors.border}`,
-              background: isDrawer ? 'rgba(15, 23, 42, 0.84)' : tokens.colors.background,
+              background: isDrawer ? tokens.surface.drawerHeader : tokens.colors.background,
             }}
           >
             <div style={{ minWidth: 0, display: 'grid', gap: subtitle ? '6px' : 0 }}>
@@ -223,7 +225,8 @@ export function OverlayModal({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={closeButtonAriaLabel}
+              title={closeButtonAriaLabel}
               ref={closeButtonRef}
               data-testid={closeButtonTestId}
               style={{
@@ -231,7 +234,7 @@ export function OverlayModal({
                 height: '40px',
                 flexShrink: 0,
                 borderRadius: '999px',
-                background: isDrawer ? 'rgba(148, 163, 184, 0.08)' : 'transparent',
+                background: isDrawer ? tokens.colors.surfaceSubtle : 'transparent',
                 border: isDrawer ? `1px solid ${tokens.colors.border}` : 'none',
                 color: 'inherit',
                 fontSize: '24px',

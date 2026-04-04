@@ -7,6 +7,7 @@ import { requestJsonWithAuth } from './shared/api/client';
 import { QA_TEST_IDS } from './testing/testIds';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
+import { buildInboxProjectWorkspaceNavigation } from './work/inboxNavigation';
 
 type InboxPayload = {
   persona?: {
@@ -147,7 +148,7 @@ export function Inbox({ currentUser, onNavigate }: { currentUser: CurrentUser; o
           {pageCopy.description}
         </p>
         {previewNotice ? (
-          <div style={{ display: 'grid', gap: '6px', padding: '12px 14px', borderRadius: tokens.radius.lg, border: `1px solid ${previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary}`, background: previewNotice.tone === 'warning' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(0, 151, 110, 0.08)' }}>
+          <div style={{ display: 'grid', gap: '6px', padding: '12px 14px', borderRadius: tokens.radius.lg, border: `1px solid ${previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary}`, background: previewNotice.tone === 'warning' ? tokens.colors.warningTint : tokens.colors.infoBg }}>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={previewNotice.tone === 'warning' ? ui.badge.warning : ui.badge.info}>Preview</span>
               <span style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{previewNotice.title}</span>
@@ -203,13 +204,10 @@ export function Inbox({ currentUser, onNavigate }: { currentUser: CurrentUser; o
                     type="button"
                     style={ui.btn.outline as any}
                     onClick={() => {
-                      setNavContext({
-                        route: 'Projects',
-                        entityType: 'Project',
-                        entityId: item.projectId,
-                        filters: item.actionAvailability?.workspaceTab ? { workspaceTab: item.actionAvailability.workspaceTab } : undefined,
-                      });
-                      onNavigate?.('Projects');
+                      const target = buildInboxProjectWorkspaceNavigation(item);
+                      if (!target) return;
+                      setNavContext(target.navContext);
+                      onNavigate?.(target.route);
                     }}
                   >
                     {item.actionAvailability?.primaryActionLabel || 'Mở workspace'}

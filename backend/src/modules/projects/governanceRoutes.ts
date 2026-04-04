@@ -1,7 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { enqueueErpEvent } from '../../../erp-sync';
-import { getDb } from '../../../sqlite-db';
 import type { AuthenticatedRequest } from '../../shared/auth/httpAuth';
 import { canUserApproveRequest, resolveApprovalActingCapability } from '../../shared/auth/permissions';
 import { normalizeRoleCodes } from '../../shared/auth/roles';
@@ -60,14 +59,13 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
   const EDITABLE_APPROVAL_STATUSES = new Set(['pending', 'cancelled']);
 
   app.post('/api/projects/:id/approval-requests', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const project = await db.get('SELECT id FROM Project WHERE id = ?', [projectId]);
+    const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
     const quotationId = typeof req.body?.quotationId === 'string' && req.body.quotationId.trim() ? req.body.quotationId.trim() : null;
     if (quotationId) {
-      const quote = await db.get('SELECT id FROM Quotation WHERE id = ? AND projectId = ?', [quotationId, projectId]);
+      const quote = await projectRepository.findQuotationByIdForProject(quotationId, projectId);
       if (!quote) return res.status(400).json({ error: 'Quotation does not belong to this project' });
     }
 
@@ -86,34 +84,28 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
       return res.status(400).json({ error: 'Approval requests must be created in pending status' });
     }
 
-    await db.run(
-      `INSERT INTO ApprovalRequest (
-        id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        projectId,
-        quotationId,
-        requestType,
-        title,
-        department,
-        getCurrentUserId(req) || null,
-        approverRole,
-        approverUserId,
-        'pending',
-        dueDate,
-        note,
-      ]
-    );
-    const row = await db.get(`SELECT * FROM ApprovalRequest WHERE id = ?`, [id]);
+    await projectRepository.insertApprovalRequest({
+      id,
+      projectId,
+      quotationId,
+      requestType,
+      title,
+      department,
+      requestedBy: getCurrentUserId(req) || null,
+      approverRole,
+      approverUserId,
+      status: 'pending',
+      dueDate,
+      note,
+    });
+    const row = await projectRepository.findApprovalRequestById(id);
     await logAct('Create approval request', `${title} (${requestType})`, 'Project', '🧾', '#f8fafc', '#475569', projectId, 'Project');
     res.status(201).json(row);
   }));
 
   app.put('/api/approval-requests/:id', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const approvalId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const approval = await db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [approvalId]);
+    const approval = await projectRepository.findApprovalRequestById(approvalId);
     if (!approval) return res.status(404).json({ error: 'Approval request not found' });
 
     const title = typeof req.body?.title === 'string' && req.body.title.trim() ? req.body.title.trim() : approval.title;
@@ -129,16 +121,18 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     }
     const status = requestedStatus || approval.status;
 
-    await db.run(
-      `UPDATE ApprovalRequest
-       SET requestType = ?, title = ?, department = ?, approverRole = ?, approverUserId = ?, status = ?, dueDate = ?, note = ?,
-           decidedAt = CASE WHEN ? = 'pending' THEN NULL ELSE decidedAt END,
-           decidedBy = CASE WHEN ? = 'pending' THEN NULL ELSE decidedBy END,
-           updatedAt = datetime('now')
-       WHERE id = ?`,
-      [requestType, title, department || null, approverRole || null, approverUserId, status, dueDate, note || null, status, status, approvalId]
-    );
-    const updated = await db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [approvalId]);
+    await projectRepository.updateApprovalRequestById({
+      id: approvalId,
+      requestType,
+      title,
+      department,
+      approverRole,
+      approverUserId,
+      status,
+      dueDate,
+      note,
+    });
+    const updated = await projectRepository.findApprovalRequestById(approvalId);
     if (approval.projectId) {
       await logAct('Update approval request', `${title} (${requestType})`, 'Project', '📝', '#f8fafc', '#475569', approval.projectId, 'Project');
     }
@@ -146,9 +140,8 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
   }));
 
   app.post('/api/approval-requests/:id/decision', requireAuth, ah(async (req: AuthenticatedRequest, res: Response) => {
-    const db = getDb();
     const approvalId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const approval = await db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [approvalId]);
+    const approval = await projectRepository.findApprovalRequestById(approvalId);
     if (!approval) return res.status(404).json({ error: 'Approval request not found' });
     if (!canUserApproveRequest(req.user, approval)) {
       return res.status(403).json({ error: 'Không có quyền phê duyệt approval này' });
@@ -164,17 +157,18 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
       }
     }
     const quotationBefore = approval?.quotationId
-      ? await db.get('SELECT id, status, projectId FROM Quotation WHERE id = ?', [approval.quotationId])
+      ? await projectRepository.findQuotationById(approval.quotationId)
       : null;
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
-    await db.run(
-      `UPDATE ApprovalRequest
-       SET status = ?, note = ?, decidedAt = ?, decidedBy = ?, updatedAt = datetime('now')
-       WHERE id = ?`,
-      [decision, note || approval.note || null, new Date().toISOString(), getCurrentUserId(req) || null, approvalId]
-    );
-    const updated = await db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [approvalId]);
-    await handleQbuApprovalDecision(db, updated);
+    await projectRepository.decideApprovalRequestById({
+      id: approvalId,
+      status: decision,
+      note: note || approval.note || null,
+      decidedAt: new Date().toISOString(),
+      decidedBy: getCurrentUserId(req) || null,
+    });
+    const updated = await projectRepository.findApprovalRequestById(approvalId);
+    await projectRepository.withDb((db: any) => handleQbuApprovalDecision(db, updated));
     if (updated?.quotationId && updated?.requestType === 'quotation_commercial') {
       const quotationStatus =
         decision === 'approved'
@@ -182,32 +176,34 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
           : decision === 'changes_requested'
             ? 'revision_required'
             : 'rejected';
-      await db.run(`UPDATE Quotation SET status = ?, updatedAt = datetime('now') WHERE id = ?`, [quotationStatus, updated.quotationId]);
+      await projectRepository.updateQuotationStatusById(updated.quotationId, quotationStatus);
       if (updated.projectId) {
         const nextProjectStage = quotationStatus === 'approved'
           ? 'commercial_approved'
           : quotationStatus === 'revision_required'
             ? 'negotiating'
             : 'lost';
-        await db.run(`UPDATE Project SET projectStage = ?, updatedAt = datetime('now') WHERE id = ?`, [nextProjectStage, updated.projectId]);
+        await projectRepository.updateProjectStageById(updated.projectId, nextProjectStage);
       }
       if (decision === 'approved' && quotationBefore && quotationBefore.status !== 'approved') {
-        await enqueueErpEvent(db, {
-          eventType: 'quotation.status_changed',
-          entityType: 'Quotation',
-          entityId: updated.quotationId,
-          payload: {
-            quotationId: updated.quotationId,
-            fromStatus: quotationBefore.status,
-            toStatus: 'approved',
-            sourceApprovalId: updated.id,
-          },
-        });
+        await projectRepository.withDb((db: any) =>
+          enqueueErpEvent(db, {
+            eventType: 'quotation.status_changed',
+            entityType: 'Quotation',
+            entityId: updated.quotationId,
+            payload: {
+              quotationId: updated.quotationId,
+              fromStatus: quotationBefore.status,
+              toStatus: 'approved',
+              sourceApprovalId: updated.id,
+            },
+          })
+        );
       }
     }
     if (updated?.projectId && updated?.requestType === 'delivery_completion' && decision === 'approved') {
       const completion = await finalizeDeliveryCompletion({
-        db,
+        db: null,
         projectRepository,
         projectId: updated.projectId,
         actorUserId: getCurrentUserId(req) || null,
@@ -244,11 +240,10 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
   }));
 
   app.delete('/api/approval-requests/:id', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const approvalId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const approval = await db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [approvalId]);
+    const approval = await projectRepository.findApprovalRequestById(approvalId);
     if (!approval) return res.status(404).json({ error: 'Approval request not found' });
-    await db.run('DELETE FROM ApprovalRequest WHERE id = ?', [approvalId]);
+    await projectRepository.deleteApprovalRequestById(approvalId);
     if (approval.projectId) {
       await logAct('Delete approval request', `${approval.title || approval.requestType}`, 'Project', '🗑️', '#fef2f2', '#b91c1c', approval.projectId, 'Project');
     }
@@ -256,14 +251,13 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
   }));
 
   app.post('/api/projects/:id/project-documents', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const project = await db.get('SELECT id FROM Project WHERE id = ?', [projectId]);
+    const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
     const quotationId = typeof req.body?.quotationId === 'string' && req.body.quotationId.trim() ? req.body.quotationId.trim() : null;
     if (quotationId) {
-      const quote = await db.get('SELECT id FROM Quotation WHERE id = ? AND projectId = ?', [quotationId, projectId]);
+      const quote = await projectRepository.findQuotationByIdForProject(quotationId, projectId);
       if (!quote) return res.status(400).json({ error: 'Quotation does not belong to this project' });
     }
 
@@ -280,21 +274,27 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : null;
     const receivedAt = status === 'received' || status === 'approved' ? new Date().toISOString() : null;
 
-    await db.run(
-      `INSERT INTO ProjectDocument (
-        id, projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note, receivedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note, receivedAt]
-    );
-    const row = await db.get(`SELECT * FROM ProjectDocument WHERE id = ?`, [id]);
+    await projectRepository.insertProjectDocument({
+      id,
+      projectId,
+      quotationId,
+      documentCode,
+      documentName,
+      category,
+      department,
+      status,
+      requiredAtStage,
+      note,
+      receivedAt,
+    });
+    const row = await projectRepository.findProjectDocumentById(id);
     await logAct('Create project document', `${documentCode} - ${documentName}`, 'Project', '📎', '#f8fafc', '#0369a1', projectId, 'Project');
     res.status(201).json(row);
   }));
 
   app.patch('/api/project-documents/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const document = await db.get('SELECT * FROM ProjectDocument WHERE id = ?', [documentId]);
+    const document = await projectRepository.findProjectDocumentById(documentId);
     if (!document) return res.status(404).json({ error: 'Project document not found' });
     const allowedStatuses = new Set(['missing', 'requested', 'received', 'approved']);
     const status = typeof req.body?.status === 'string' && allowedStatuses.has(req.body.status.trim()) ? req.body.status.trim() : document.status;
@@ -307,13 +307,19 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     const receivedAt = status === 'received' || status === 'approved'
       ? (typeof req.body?.receivedAt === 'string' && req.body.receivedAt.trim() ? req.body.receivedAt.trim() : new Date().toISOString())
       : (typeof req.body?.receivedAt === 'string' ? (req.body.receivedAt.trim() || null) : null);
-    await db.run(
-      `UPDATE ProjectDocument
-       SET documentCode = ?, documentName = ?, category = ?, department = ?, status = ?, requiredAtStage = ?, note = ?, receivedAt = ?, updatedAt = datetime('now')
-       WHERE id = ?`,
-      [documentCode, documentName, category || null, department || null, status, requiredAtStage || null, note || null, receivedAt, documentId]
-    );
-    const updated = await db.get('SELECT * FROM ProjectDocument WHERE id = ?', [documentId]);
+    await projectRepository.updateProjectDocumentById({
+      id: documentId,
+      documentCode,
+      documentName,
+      category,
+      department,
+      status,
+      requiredAtStage,
+      note,
+      receivedAt,
+      quotationId: document.quotationId,
+    });
+    const updated = await projectRepository.findProjectDocumentById(documentId);
     if (document.projectId) {
       await logAct('Update project document', `${updated.documentCode} - ${updated.documentName}`, 'Project', '📎', '#f8fafc', '#0369a1', document.projectId, 'Project');
     }
@@ -321,11 +327,10 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
   }));
 
   app.delete('/api/project-documents/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const document = await db.get('SELECT * FROM ProjectDocument WHERE id = ?', [documentId]);
+    const document = await projectRepository.findProjectDocumentById(documentId);
     if (!document) return res.status(404).json({ error: 'Project document not found' });
-    await db.run('DELETE FROM ProjectDocument WHERE id = ?', [documentId]);
+    await projectRepository.deleteProjectDocumentById(documentId);
     if (document.projectId) {
       await logAct('Delete project document', `${document.documentCode} - ${document.documentName}`, 'Project', '🗑️', '#fef2f2', '#b91c1c', document.projectId, 'Project');
     }
@@ -333,14 +338,13 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
   }));
 
   app.post('/api/projects/:id/handoff', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const actorUserId = getCurrentUserId(req);
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const project = await db.get('SELECT * FROM Project WHERE id = ?', [projectId]);
+    const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
     const quotation = await resolveProjectHandoffQuotation(
-      db,
+      null,
       projectId,
       typeof req.body?.quotationId === 'string' && req.body.quotationId.trim() ? req.body.quotationId.trim() : null
     );
@@ -349,16 +353,33 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
       return res.status(400).json({ error: 'Project handoff requires a won or winning quotation' });
     }
 
-    await markWinningQuotation(db, quotation.id, projectId, true);
-    const salesOrderResult = await createSalesOrderFromQuotation(db, quotation.id);
-    const tasks = await createProjectTasksFromTemplate(db, {
+    await projectRepository.withDb((db: any) => markWinningQuotation(db, quotation.id, projectId, true));
+    const salesOrderResult = await createSalesOrderFromQuotation(null, quotation.id);
+    const tasks = await createProjectTasksFromTemplate(null, {
       projectId,
       templateKey: 'delivery-handoff',
       quotation,
       actorUserId,
       requestedAssigneeId: req.body?.assigneeId,
     });
-    const handoffProject = await db.get('SELECT projectStage FROM Project WHERE id = ?', [projectId]);
+    if (salesOrderResult.salesOrder?.id) {
+      await createProjectTimelineEvent(null, {
+        projectId,
+        eventType: 'handoff_activated',
+        title: 'Handoff activated',
+        description: `Sales order ${salesOrderResult.salesOrder.orderNumber || salesOrderResult.salesOrder.id} was created from the winning quotation.`,
+        eventDate: new Date().toISOString(),
+        entityType: 'SalesOrder',
+        entityId: salesOrderResult.salesOrder.id,
+        payload: {
+          quotationId: quotation.id,
+          salesOrderId: salesOrderResult.salesOrder.id,
+          source: 'project_handoff',
+        },
+        createdBy: actorUserId || null,
+      });
+    }
+    const handoffProject = await projectRepository.findProjectSummaryById(projectId);
     await logAct(
       'Project handoff to delivery',
       `${project.name || project.code || projectId} -> ${salesOrderResult.salesOrder?.orderNumber || 'sales order'}`,

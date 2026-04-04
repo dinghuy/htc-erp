@@ -14,6 +14,7 @@ import { DetailField, DetailGrid, DetailModal, DetailSection } from './ui/detail
 import { EntitySummaryCard, FilterToolbar, PageHero, PageSectionHeader, StatusChipRow } from './ui/patterns';
 import { CompassIcon, EditIcon, EyeIcon, TrashIcon } from './ui/icons';
 import { ConfirmDialog } from './ui/ConfirmDialog';
+import { SegmentedControl } from './ui/SegmentedControl';
 import { buildProjectRoleView } from './projects/projectRoleViews';
 const ProjectWorkspaceHubModal = lazy(async () => {
   const module = await import('./projects/ProjectWorkspaceHub');
@@ -149,7 +150,7 @@ function statusBadgeStyle(status?: string): any {
   };
   switch (status) {
     case 'active':
-      return { ...base, background: '#e8f4fd', color: tokens.colors.primary };
+      return { ...base, background: tokens.colors.infoAccentBg, color: tokens.colors.primary };
     case 'completed':
       return { ...base, ...ui.badge.success };
     case 'paused':
@@ -175,7 +176,7 @@ function projectStageBadgeStyle(stage?: string): any {
     case 'lost':
       return { ...base, ...ui.badge.error };
     case 'delivery':
-      return { ...base, background: '#ede9fe', color: '#6d28d9' };
+      return { ...base, background: tokens.colors.violetStrongBg, color: tokens.colors.violetStrongText };
     default:
       return { ...base, ...ui.badge.info };
   }
@@ -685,6 +686,8 @@ export function Projects({
   const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [workspaceProjectId, setWorkspaceProjectId] = useState<string | null>(null);
   const [workspaceInitialTab, setWorkspaceInitialTab] = useState<ProjectWorkspaceTabKey | undefined>(undefined);
+  const [workspaceFocusDocumentId, setWorkspaceFocusDocumentId] = useState<string | undefined>(undefined);
+  const [workspaceOpenThread, setWorkspaceOpenThread] = useState(false);
   const roleProfile = useMemo(() => buildRoleProfile(currentUser.roleCodes, currentUser.systemRole), [currentUser.roleCodes, currentUser.systemRole]);
   const canManageProjectShell = canPerformAction(currentUser.roleCodes, 'edit_project_shell', currentUser.systemRole);
   const canDeleteProject = canPerformAction(currentUser.roleCodes, 'edit_project_shell', currentUser.systemRole)
@@ -693,6 +696,8 @@ export function Projects({
   const openProjectWorkspace = (project: any, fallbackTab?: ProjectWorkspaceTabKey) => {
     setWorkspaceProjectId(project.id);
     setWorkspaceInitialTab(fallbackTab || resolveProjectActionAvailability(project).workspaceTab);
+    setWorkspaceFocusDocumentId(undefined);
+    setWorkspaceOpenThread(false);
   };
 
   const loadData = async () => {
@@ -715,6 +720,8 @@ export function Projects({
         if (navCtx.filters?.accountId) setAccountFilter(navCtx.filters.accountId);
         if (typeof navCtx.filters?.overdue === 'boolean') setOverdueOnly(navCtx.filters.overdue);
         if (navCtx.filters?.workspaceTab) setWorkspaceInitialTab(navCtx.filters.workspaceTab as ProjectWorkspaceTabKey);
+        if (navCtx.filters?.documentId) setWorkspaceFocusDocumentId(navCtx.filters.documentId);
+        setWorkspaceOpenThread(Boolean(navCtx.filters?.openThread));
         if (navCtx.filters?.status && STATUS_TABS.some((tab) => tab.key === navCtx.filters?.status)) {
           setStatusFilter(navCtx.filters.status as 'all' | ProjectStatus);
         }
@@ -893,31 +900,16 @@ export function Projects({
           title="Thanh lọc dự án"
           description="Giữ một bộ lọc gọn để xác định trạng thái, giai đoạn, người phụ trách và hàng đợi ưu tiên trước khi đi vào từng dự án."
         />
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          {STATUS_TABS.map((tab) => {
-            const active = statusFilter === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setStatusFilter(tab.key)}
-                style={{
-                  padding: `${tokens.spacing.md} ${tokens.spacing.xl}`,
-                  borderRadius: tokens.radius.lg,
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 800,
-                  background: active ? tokens.colors.primary : 'transparent',
-                  color: active ? tokens.colors.textOnPrimary : tokens.colors.textSecondary,
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedControl
+          ariaLabel="Lọc trạng thái dự án"
+          wrap
+          options={STATUS_TABS.map((tab) => ({
+            value: tab.key,
+            label: tab.label,
+          }))}
+          value={statusFilter}
+          onChange={setStatusFilter}
+        />
         <FilterToolbar
           controls={[
             {
@@ -1178,11 +1170,17 @@ export function Projects({
             onClose={() => {
               setWorkspaceProjectId(null);
               setWorkspaceInitialTab(undefined);
+              setWorkspaceFocusDocumentId(undefined);
+              setWorkspaceOpenThread(false);
             }}
             onNavigate={onNavigate}
+            focusDocumentId={workspaceFocusDocumentId}
+            openDocumentThreadOnMount={workspaceOpenThread}
             onUnavailable={async (projectId) => {
               if (workspaceProjectId === projectId) setWorkspaceProjectId(null);
               setWorkspaceInitialTab(undefined);
+              setWorkspaceFocusDocumentId(undefined);
+              setWorkspaceOpenThread(false);
               await loadData();
             }}
           />

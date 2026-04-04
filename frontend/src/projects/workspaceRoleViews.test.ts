@@ -80,4 +80,47 @@ describe('workspace role views', () => {
     expect(summary.groupedByDepartment.Finance).toEqual({ total: 2, missing: 1, approved: 1 });
     expect(summary.groupedByDepartment.Legal).toEqual({ total: 1, missing: 1, approved: 0 });
   });
+
+  it('surfaces review-state and thread coverage for project documents', () => {
+    const summary = buildDocumentWorkspaceSummary({
+      workspace: {
+        documents: [
+          {
+            id: 'doc-1',
+            department: 'Legal',
+            status: 'requested',
+            reviewStatus: 'changes_requested',
+            threadId: 'thread-1',
+            threadMessageCount: 3,
+          },
+          {
+            id: 'doc-2',
+            department: 'Operations',
+            status: 'approved',
+            reviewStatus: 'approved',
+            threadId: 'thread-2',
+            threadMessageCount: 1,
+          },
+          {
+            id: 'doc-3',
+            department: 'Finance',
+            status: 'missing',
+            reviewStatus: 'draft',
+            threadId: null,
+            threadMessageCount: 0,
+          },
+        ],
+      },
+    });
+
+    expect(summary.reviewStateCounts).toEqual({
+      draft: 1,
+      in_review: 0,
+      approved: 1,
+      changes_requested: 1,
+      archived: 0,
+    });
+    expect(summary.documentsWithThreads).toBe(2);
+    expect(summary.totalThreadMessages).toBe(4);
+  });
 });

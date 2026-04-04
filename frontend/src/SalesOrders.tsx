@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { API_BASE } from './config';
 import { fetchWithAuth, type CurrentUser } from './auth';
 import { consumeNavContext, setNavContext } from './navContext';
+import { buildProjectWorkspaceNavigation, buildSalesQuotationNavigation } from './shared/workflow/workflowNavigation';
 import { OverlayModal } from './ui/OverlayModal';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
@@ -428,25 +429,16 @@ export function SalesOrders({
           row={selectedOrder}
           onClose={() => setSelectedOrder(null)}
           onOpenQuotation={() => {
-            if (!selectedOrder.quotationId) return;
-            setNavContext({
-              route: 'Sales',
-              entityType: 'Quotation',
-              entityId: selectedOrder.quotationId,
-              autoOpenEdit: true,
-              filters: { quotationId: selectedOrder.quotationId },
-            });
-            onNavigate?.('Sales');
+            const target = buildSalesQuotationNavigation(selectedOrder.quotationId);
+            if (!target) return;
+            setNavContext(target.navContext);
+            onNavigate?.(target.route);
           }}
           onOpenProject={() => {
-            if (!selectedOrder.projectId) return;
-            setNavContext({
-              route: 'Projects',
-              entityType: 'Project',
-              entityId: selectedOrder.projectId,
-              filters: { projectId: selectedOrder.projectId },
-            });
-            onNavigate?.('Projects');
+            const target = buildProjectWorkspaceNavigation(selectedOrder.projectId, null);
+            if (!target) return;
+            setNavContext(target.navContext);
+            onNavigate?.(target.route);
           }}
         />
       )}
@@ -700,15 +692,10 @@ export function SalesOrders({
                         style={{ ...ui.btn.outline, padding: '8px 10px', fontSize: '12px' }}
                         disabled={!row.actionAvailability?.canOpenQuotation}
                         onClick={() => {
-                          if (!row.quotationId) return;
-                          setNavContext({
-                            route: 'Sales',
-                            entityType: 'Quotation',
-                            entityId: row.quotationId,
-                            autoOpenEdit: true,
-                            filters: { quotationId: row.quotationId },
-                          });
-                          onNavigate?.('Sales');
+                          const target = buildSalesQuotationNavigation(row.quotationId);
+                          if (!target) return;
+                          setNavContext(target.navContext);
+                          onNavigate?.(target.route);
                         }}
                       >
                         Báo giá

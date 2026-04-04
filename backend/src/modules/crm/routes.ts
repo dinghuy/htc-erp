@@ -1,8 +1,8 @@
 import type { Express, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { parse } from 'csv-parse/sync';
-import { getDb } from '../../../sqlite-db';
 import { normalizeGender } from '../../../gender';
+import { createCrmRepository } from './repository';
+import { createImportReport, parseTabularRowsFromFile } from '../../shared/imports/tabular';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
 
@@ -16,6 +16,10 @@ type RegisterCrmRoutesDeps = {
   logAct: (...args: any[]) => Promise<void>;
 };
 
+function routeParam(value: string | string[]) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
   const {
     ah,
@@ -26,186 +30,205 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
     mapGenderRecords,
     logAct,
   } = deps;
+  const crmRepository = createCrmRepository();
 
   app.get('/api/accounts', ah(async (req: Request, res: Response) => {
-    const { type } = req.query;
-    const rows = type
-      ? await getDb().all('SELECT * FROM Account WHERE accountType = ? ORDER BY createdAt DESC', type)
-      : await getDb().all('SELECT * FROM Account ORDER BY createdAt DESC');
-    res.json(rows);
+    res.json(await crmRepository.listAccounts(req.query.type));
   }));
 
   app.get('/api/accounts/:id', ah(async (req: Request, res: Response) => {
-    const row = await getDb().get('SELECT * FROM Account WHERE id = ?', req.params.id);
+    const row = await crmRepository.findAccountById(routeParam(req.params.id));
     if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(row);
   }));
 
   app.post('/api/accounts', ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const id = uuidv4();
     const { companyName, region, industry, website, taxCode, address, assignedTo, status = 'active', accountType = 'Customer', code, shortName, description, tag, country } = req.body;
-    await db.run(
-      `INSERT INTO Account (id, companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country]
-    );
+    await crmRepository.insertAccount({ id, companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country });
     await logAct('Tạo khách hàng mới', `Đã thêm ${companyName} vào danh sách ${accountType}`, 'Account', '🏢', '#e0f2fe', '#0284c7', id, 'Account');
-    res.status(201).json(await db.get('SELECT * FROM Account WHERE id = ?', id));
+    res.status(201).json(await crmRepository.findAccountById(id));
   }));
 
   app.put('/api/accounts/:id', ah(async (req: Request, res: Response) => {
-    const db = getDb();
+    const accountId = routeParam(req.params.id);
     const { companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country } = req.body;
-    await db.run(
-      `UPDATE Account SET companyName=?, region=?, industry=?, website=?, taxCode=?, address=?, assignedTo=?, status=?, accountType=?, code=?, shortName=?, description=?, tag=?, country=? WHERE id=?`,
-      [companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country, req.params.id]
-    );
-    res.json(await db.get('SELECT * FROM Account WHERE id = ?', req.params.id));
+    await crmRepository.updateAccountById(accountId, { companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country });
+    res.json(await crmRepository.findAccountById(accountId));
   }));
 
   app.delete('/api/accounts/:id', ah(async (req: Request, res: Response) => {
-    await getDb().run('DELETE FROM Account WHERE id = ?', req.params.id);
+    await crmRepository.deleteAccountById(routeParam(req.params.id));
     res.json({ success: true });
   }));
 
   app.post('/api/accounts/import', requireAuth, requireRole('admin', 'manager'), upload.single('file'), ah(async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const records = parse(req.file.buffer.toString('utf-8'), { columns: true, skip_empty_lines: true, trim: true });
-    const db = getDb();
-    let inserted = 0;
-    let skipped = 0;
-    for (const row of records as any[]) {
+    const rows = parseTabularRowsFromFile(req.file);
+    const report = createImportReport(rows.length);
+
+    for (const row of rows) {
+      const companyName = row.values.companyName || row.values['Tên công ty'] || row.values['Công ty'] || '';
+      if (!companyName.trim()) {
+        report.errors += 1;
+        report.rows.push({
+          rowNumber: row.rowNumber,
+          key: null,
+          action: 'error',
+          messages: ['Thiếu tên công ty'],
+        });
+        continue;
+      }
+
       try {
         const id = uuidv4();
-        const accountType = (row.accountType || row['Phân loại'] || row['Loại'] || 'Customer').trim();
-        const status = row.status || row['Trạng thái'] || 'active';
-        await db.run(
-          `INSERT INTO Account (id, companyName, region, industry, website, taxCode, address, status, accountType, code, shortName, description, tag, country)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            row.companyName || row['Tên công ty'] || row['Công ty'] || '',
-            row.region || row['Khu vực'] || '',
-            row.industry || row['Lĩnh vực'] || '',
-            row.website || row['Website'] || '',
-            row.taxCode || row['Mã số thuế'] || row['MST'] || '',
-            row.address || row['Địa chỉ'] || '',
-            status,
-            accountType || 'Customer',
-            row.code || row['Mã'] || '',
-            row.shortName || row['Tên viết tắt'] || '',
-            row.description || row['Mô tả'] || '',
-            row.tag || row['Ngành hàng'] || '',
-            row.country || row['Quốc gia'] || '',
-          ]
-        );
-        inserted++;
-      } catch {
-        skipped++;
+        const accountType = (row.values.accountType || row.values['Phân loại'] || row.values['Loại'] || 'Customer').trim();
+        const status = row.values.status || row.values['Trạng thái'] || 'active';
+        await crmRepository.insertAccount({
+          id,
+          companyName,
+          region: row.values.region || row.values['Khu vực'] || '',
+          industry: row.values.industry || row.values['Lĩnh vực'] || '',
+          website: row.values.website || row.values['Website'] || '',
+          taxCode: row.values.taxCode || row.values['Mã số thuế'] || row.values.MST || '',
+          address: row.values.address || row.values['Địa chỉ'] || '',
+          status,
+          accountType: accountType || 'Customer',
+          code: row.values.code || row.values['Mã'] || '',
+          shortName: row.values.shortName || row.values['Tên viết tắt'] || '',
+          description: row.values.description || row.values['Mô tả'] || '',
+          tag: row.values.tag || row.values['Ngành hàng'] || '',
+          country: row.values.country || row.values['Quốc gia'] || '',
+        });
+
+        report.created += 1;
+        report.rows.push({
+          rowNumber: row.rowNumber,
+          key: companyName.trim(),
+          action: 'created',
+          messages: ['Đã tạo account mới'],
+        });
+      } catch (error: any) {
+        report.errors += 1;
+        report.rows.push({
+          rowNumber: row.rowNumber,
+          key: companyName.trim(),
+          action: 'error',
+          messages: [error?.message || 'Không thể import account'],
+        });
       }
     }
-    res.json({ inserted, skipped, total: (records as any[]).length });
+
+    res.json(report);
   }));
 
   app.get('/api/contacts', ah(async (req: Request, res: Response) => {
-    const { accountId } = req.query;
-    const rows = accountId
-      ? await getDb().all('SELECT * FROM Contact WHERE accountId = ?', accountId)
-      : await getDb().all('SELECT * FROM Contact');
-    res.json(mapGenderRecords(rows));
+    res.json(mapGenderRecords(await crmRepository.listContacts(req.query.accountId)));
   }));
 
   app.post('/api/contacts', ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const id = uuidv4();
     const { accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact = false } = req.body;
     const normalizedGender = normalizeGender(gender);
-    await db.run(
-      `INSERT INTO Contact (id, accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, accountId, lastName, firstName, department, jobTitle, normalizedGender, email, phone, isPrimaryContact ? 1 : 0]
-    );
-    res.status(201).json(mapGenderRecord(await db.get('SELECT * FROM Contact WHERE id = ?', id)));
+    await crmRepository.insertContact({ id, accountId, lastName, firstName, department, jobTitle, gender: normalizedGender, email, phone, isPrimaryContact: isPrimaryContact ? 1 : 0 });
+    res.status(201).json(mapGenderRecord(await crmRepository.findContactById(id)));
   }));
 
   app.put('/api/contacts/:id', ah(async (req: Request, res: Response) => {
-    const db = getDb();
+    const contactId = routeParam(req.params.id);
     const { lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact } = req.body;
     const normalizedGender = normalizeGender(gender);
-    await db.run(
-      `UPDATE Contact SET lastName=?, firstName=?, department=?, jobTitle=?, gender=?, email=?, phone=?, isPrimaryContact=? WHERE id=?`,
-      [lastName, firstName, department, jobTitle, normalizedGender, email, phone, isPrimaryContact ? 1 : 0, req.params.id]
-    );
-    res.json(mapGenderRecord(await db.get('SELECT * FROM Contact WHERE id = ?', req.params.id)));
+    await crmRepository.updateContactById(contactId, { lastName, firstName, department, jobTitle, gender: normalizedGender, email, phone, isPrimaryContact: isPrimaryContact ? 1 : 0 });
+    res.json(mapGenderRecord(await crmRepository.findContactById(contactId)));
   }));
 
   app.delete('/api/contacts/:id', ah(async (req: Request, res: Response) => {
-    await getDb().run('DELETE FROM Contact WHERE id = ?', req.params.id);
+    await crmRepository.deleteContactById(routeParam(req.params.id));
     res.json({ success: true });
   }));
 
   app.get('/api/leads', ah(async (_req: Request, res: Response) => {
-    res.json(await getDb().all('SELECT * FROM Lead ORDER BY createdAt DESC'));
+    res.json(await crmRepository.listLeads());
   }));
 
   app.get('/api/leads/:id', ah(async (req: Request, res: Response) => {
-    const row = await getDb().get('SELECT * FROM Lead WHERE id = ?', req.params.id);
+    const row = await crmRepository.findLeadById(routeParam(req.params.id));
     if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(row);
   }));
 
   app.post('/api/leads', ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const id = uuidv4();
     const { companyName, contactName, email, phone, status = 'New', source } = req.body;
-    await db.run(
-      `INSERT INTO Lead (id, companyName, contactName, email, phone, status, source) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, companyName, contactName, email, phone, status, source]
-    );
+    await crmRepository.insertLead({ id, companyName, contactName, email, phone, status, source });
     await logAct('Tạo Lead mới', `Khách tiềm năng: ${companyName}`, 'Lead', '🎯', '#fce7f3', '#db2777', id, 'Lead');
-    res.status(201).json(await db.get('SELECT * FROM Lead WHERE id = ?', id));
+    res.status(201).json(await crmRepository.findLeadById(id));
   }));
 
   app.put('/api/leads/:id', ah(async (req: Request, res: Response) => {
-    const db = getDb();
+    const leadId = routeParam(req.params.id);
     const { companyName, contactName, email, phone, status, source } = req.body;
-    await db.run(
-      `UPDATE Lead SET companyName=?, contactName=?, email=?, phone=?, status=?, source=? WHERE id=?`,
-      [companyName, contactName, email, phone, status, source, req.params.id]
-    );
-    res.json(await db.get('SELECT * FROM Lead WHERE id = ?', req.params.id));
+    await crmRepository.updateLeadById(leadId, { companyName, contactName, email, phone, status, source });
+    res.json(await crmRepository.findLeadById(leadId));
   }));
 
   app.delete('/api/leads/:id', ah(async (req: Request, res: Response) => {
-    await getDb().run('DELETE FROM Lead WHERE id = ?', req.params.id);
+    await crmRepository.deleteLeadById(routeParam(req.params.id));
     res.json({ success: true });
   }));
 
   app.post('/api/leads/import', requireAuth, requireRole('admin', 'manager'), upload.single('file'), ah(async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const records = parse(req.file.buffer.toString('utf-8'), { columns: true, skip_empty_lines: true, trim: true });
-    const db = getDb();
-    let inserted = 0;
-    let skipped = 0;
-    for (const row of records as any[]) {
+    const rows = parseTabularRowsFromFile(req.file);
+    const report = createImportReport(rows.length);
+
+    for (const row of rows) {
+      const companyName = row.values.companyName || row.values['Công ty'] || '';
+      const contactName = row.values.contactName || row.values['Liên hệ'] || '';
+      const messages: string[] = [];
+      if (!companyName.trim()) messages.push('Thiếu tên công ty');
+      if (!contactName.trim()) messages.push('Thiếu người liên hệ');
+
+      if (messages.length > 0) {
+        report.errors += 1;
+        report.rows.push({
+          rowNumber: row.rowNumber,
+          key: companyName.trim() || null,
+          action: 'error',
+          messages,
+        });
+        continue;
+      }
+
       try {
-        await db.run(
-          `INSERT INTO Lead (id, companyName, contactName, email, phone, status, source) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [
-            uuidv4(),
-            row.companyName || row['Công ty'] || '',
-            row.contactName || row['Liên hệ'] || '',
-            row.email || '',
-            row.phone || '',
-            row.status || row['Trạng thái'] || 'New',
-            row.source || row['Nguồn'] || 'CSV Import',
-          ]
-        );
-        inserted++;
-      } catch {
-        skipped++;
+        await crmRepository.insertLead({
+          id: uuidv4(),
+          companyName,
+          contactName,
+          email: row.values.email || '',
+          phone: row.values.phone || '',
+          status: row.values.status || row.values['Trạng thái'] || 'New',
+          source: row.values.source || row.values['Nguồn'] || 'CSV/XLSX Import',
+        });
+
+        report.created += 1;
+        report.rows.push({
+          rowNumber: row.rowNumber,
+          key: companyName.trim(),
+          action: 'created',
+          messages: ['Đã tạo lead mới'],
+        });
+      } catch (error: any) {
+        report.errors += 1;
+        report.rows.push({
+          rowNumber: row.rowNumber,
+          key: companyName.trim(),
+          action: 'error',
+          messages: [error?.message || 'Không thể import lead'],
+        });
       }
     }
-    res.json({ inserted, skipped, total: records.length });
+
+    res.json(report);
   }));
 }

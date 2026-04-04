@@ -8,6 +8,7 @@ import { resolveApprovalLane } from './shared/domain/contracts';
 import { QA_TEST_IDS } from './testing/testIds';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
+import { buildMyWorkApprovalQueueNavigation, buildMyWorkProjectWorkspaceNavigation } from './work/myWorkNavigation';
 import { buildMyWorkActions } from './work/phaseDrivenActions';
 
 type MyWorkPayload = {
@@ -56,7 +57,18 @@ type MyWorkPayload = {
       availableDecisions?: string[];
     } | null;
   }>;
-  projects?: any[];
+  projects?: Array<any & {
+    handoffActivation?: {
+      status?: string | null;
+      isActivated?: boolean;
+      nextActionKey?: string | null;
+      nextActionLabel?: string | null;
+      blockers?: string[] | null;
+    } | null;
+    actionAvailability?: {
+      blockers?: string[] | null;
+    } | null;
+  }>;
 };
 
 const API = API_BASE;
@@ -112,6 +124,23 @@ function ActionBar({
       ))}
     </section>
   );
+}
+
+function handoffBadge(status?: string | null) {
+  switch (String(status || '').trim().toLowerCase()) {
+    case 'ready_to_create_sales_order':
+      return { label: 'Sẵn sàng tạo SO', style: ui.badge.info };
+    case 'awaiting_release_approval':
+      return { label: 'Chờ duyệt release', style: ui.badge.warning };
+    case 'ready_to_release':
+      return { label: 'Sẵn sàng release', style: ui.badge.success };
+    case 'activated':
+      return { label: 'Handoff đã kích hoạt', style: ui.badge.success };
+    case 'blocked':
+      return { label: 'Handoff bị chặn', style: ui.badge.error };
+    default:
+      return { label: 'Chưa rõ trạng thái', style: ui.badge.neutral };
+  }
 }
 
 export function MyWork({
@@ -314,14 +343,10 @@ export function MyWork({
   const phaseActions = buildMyWorkActions(profile.personaMode, payload?.summary, workFocus);
 
   const openProjectWorkspace = (projectId?: string | null, workspaceTab?: string | null) => {
-    if (!projectId) return;
-    setNavContext({
-      route: 'Projects',
-      entityType: 'Project',
-      entityId: projectId,
-      filters: workspaceTab ? { workspaceTab } : undefined,
-    });
-    onNavigate?.('Projects');
+    const target = buildMyWorkProjectWorkspaceNavigation(projectId, workspaceTab);
+    if (!target) return;
+    setNavContext(target.navContext);
+    onNavigate?.(target.route);
   };
 
   return (
@@ -334,7 +359,7 @@ export function MyWork({
           </p>
         </div>
         {previewNotice ? (
-          <div style={{ display: 'grid', gap: '6px', padding: '12px 14px', borderRadius: tokens.radius.lg, border: `1px solid ${previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary}`, background: previewNotice.tone === 'warning' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(0, 151, 110, 0.08)' }}>
+          <div style={{ display: 'grid', gap: '6px', padding: '12px 14px', borderRadius: tokens.radius.lg, border: `1px solid ${previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary}`, background: previewNotice.tone === 'warning' ? tokens.colors.warningTint : tokens.colors.infoBg }}>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={previewNotice.tone === 'warning' ? ui.badge.warning : ui.badge.info}>Preview</span>
               <span style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{previewNotice.title}</span>
@@ -416,6 +441,62 @@ export function MyWork({
       </Section>
       </div>
 
+      {Array.isArray(payload?.projects) && payload.projects.length ? (
+        <Section
+          title="Handoff trạng thái"
+          description="Các project nổi bật đang ở ranh giới từ quotation thắng sang execution. Phần này chỉ dùng backend handoff state."
+          action={<button type="button" style={ui.btn.outline as any} onClick={() => onNavigate?.('Projects')}>Mở Projects</button>}
+        >
+          <div style={{ display: 'grid', gap: '10px' }}>
+            {payload.projects.map((project) => {
+              const badge = handoffBadge(project.handoffActivation?.status);
+              const blockers = Array.isArray(project.handoffActivation?.blockers) ? project.handoffActivation?.blockers?.filter(Boolean) : [];
+              const workspaceTab =
+                project.handoffActivation?.status === 'activated'
+                  ? 'timeline'
+                  : project.handoffActivation?.status === 'blocked' && Number(project.missingDocumentCount || 0) > 0
+                    ? 'documents'
+                    : 'commercial';
+
+              return (
+                <div key={project.projectId} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>
+                        {project.projectCode ? `${project.projectCode} · ` : ''}{project.projectName || 'No project'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, marginTop: '4px' }}>
+                        {project.accountName || 'Chưa có account'} · Giai đoạn {project.projectStage || 'new'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={badge.style}>{badge.label}</span>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '12px', color: tokens.colors.textSecondary }}>
+                    {project.handoffActivation?.nextActionLabel || 'Rà trạng thái handoff'}
+                  </div>
+                  {blockers.length ? (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: tokens.colors.textSecondary }}>
+                      {blockers[0]}
+                    </div>
+                  ) : null}
+                  <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      style={ui.btn.outline as any}
+                      onClick={() => openProjectWorkspace(project.projectId, workspaceTab)}
+                    >
+                      {project.handoffActivation?.nextActionLabel || 'Mở workspace'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      ) : null}
+
       <div data-testid={QA_TEST_IDS.myWork.approvalsSection}>
       <Section title={pageCopy.approvalTitle} description={pageCopy.approvalDescription} action={<button type="button" style={ui.btn.outline as any} onClick={() => onNavigate?.('Approvals')}>Mở Approvals</button>}>
         {loading ? <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Đang tải approvals...</div> : filteredApprovals.length ? (
@@ -439,14 +520,23 @@ export function MyWork({
                     type="button"
                     style={ui.btn.outline as any}
                     onClick={() => {
-                      setNavContext({
-                        route: 'Approvals',
-                        filters: approval.actionAvailability?.lane ? { approvalLane: approval.actionAvailability.lane } : undefined,
-                      });
-                      onNavigate?.('Approvals');
+                      const target = buildMyWorkApprovalQueueNavigation(approval.actionAvailability?.lane);
+                      setNavContext(target.navContext);
+                      onNavigate?.(target.route);
                     }}
                   >
                     {approval.actionAvailability?.canDecide ? 'Mở lane để quyết định' : 'Mở approval queue'}
+                  </button>
+                  <button
+                    type="button"
+                    style={ui.btn.outline as any}
+                    onClick={() => {
+                      const target = buildMyWorkApprovalQueueNavigation(approval.actionAvailability?.lane, approval.id, true);
+                      setNavContext(target.navContext);
+                      onNavigate?.(target.route);
+                    }}
+                  >
+                    Mở approval thread
                   </button>
                   {approval.projectId ? (
                     <button

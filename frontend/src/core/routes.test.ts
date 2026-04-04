@@ -10,8 +10,8 @@ describe('routes', () => {
     expect(resolveProtectedRoute('Users', ['Home', 'Projects'])).toBe('Home');
   });
 
-  it('keeps pricing as a first-class route', () => {
+  it('falls back when a removed route is requested', () => {
     expect(normalizeRoute('Pricing')).toBe('Pricing');
-    expect(resolveProtectedRoute('Pricing', ['Home', 'Pricing'])).toBe('Pricing');
+    expect(resolveProtectedRoute('Pricing', ['Home', 'Projects'])).toBe('Home');
   });
 });

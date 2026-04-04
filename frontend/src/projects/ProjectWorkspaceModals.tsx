@@ -260,8 +260,50 @@ export function DocumentChecklistEditorModal({ value, onChange, onClose, onSave,
         </div>
         <div><label style={S.label}>NGÀY NHẬN</label><input type="date" style={S.input} value={value.receivedAt || ''} onInput={(e: any) => onChange({ ...value, receivedAt: e.target.value })} /></div>
         <div><label style={S.label}>GHI CHÚ</label><textarea rows={3} style={{ ...S.input, resize: 'vertical', fontFamily: 'inherit' }} value={value.note || ''} onInput={(e: any) => onChange({ ...value, note: e.target.value })} /></div>
+        <div style={{ height: '1px', background: tokens.colors.border, margin: '4px 0' }} />
+        <div style={{ display: 'grid', gap: '14px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Review state</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <div><label style={S.label}>TRẠNG THÁI REVIEW</label><select style={S.input} value={value.reviewStatus || 'draft'} onChange={(e: any) => onChange({ ...value, reviewStatus: e.target.value })}><option value="draft">Draft</option><option value="in_review">In review</option><option value="approved">Approved</option><option value="changes_requested">Changes requested</option><option value="archived">Archived</option></select></div>
+            <div><label style={S.label}>REVIEWER USER ID</label><input style={S.input} value={value.reviewerUserId || ''} onInput={(e: any) => onChange({ ...value, reviewerUserId: e.target.value })} /></div>
+          </div>
+          <div><label style={S.label}>REVIEW NOTE</label><textarea rows={3} style={{ ...S.input, resize: 'vertical', fontFamily: 'inherit' }} value={value.reviewNote || ''} onInput={(e: any) => onChange({ ...value, reviewNote: e.target.value })} /></div>
+          <div><label style={S.label}>STORAGE KEY</label><input style={S.input} value={value.storageKey || ''} onInput={(e: any) => onChange({ ...value, storageKey: e.target.value })} /></div>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: '8px', marginTop: '24px', justifyContent: 'flex-end', borderTop: `1px solid ${tokens.colors.border}`, paddingTop: '20px' }}><button onClick={onClose} style={S.btnOutline}>Hủy</button><button onClick={onSave} style={S.btnPrimary}>{saving ? 'Đang lưu...' : (isEdit ? 'Cập nhật checklist' : 'Lưu checklist')}</button></div>
+    </Modal>
+  );
+}
+
+export function DocumentThreadModal({ document, threadSummary, messages, draft, onDraftChange, onSend, onClose, sending }: any) {
+  return (
+    <Modal title={`Thread hồ sơ: ${document?.documentName || document?.documentCode || document?.id || 'Document'}`} onClose={onClose}>
+      <div style={{ display: 'grid', gap: '14px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={ui.badge.neutral}>Review {document?.reviewStatus || 'draft'}</span>
+          <span style={threadSummary?.hasActiveThread ? ui.badge.info : ui.badge.warning}>
+            {threadSummary?.hasActiveThread ? 'Thread active' : 'Chưa có thread'}
+          </span>
+          <span style={ui.badge.neutral}>{threadSummary?.messageCount || 0} messages</span>
+        </div>
+        <div style={{ display: 'grid', gap: '10px', maxHeight: '320px', overflowY: 'auto' }}>
+          {Array.isArray(messages) && messages.length > 0 ? messages.map((message: any) => (
+            <div key={message.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', display: 'grid', gap: '6px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.textPrimary }}>{message.authorName || message.authorUserId || 'System'}</div>
+              <div style={{ fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>{message.content}</div>
+            </div>
+          )) : <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Chưa có tin nhắn nào trong thread này.</div>}
+        </div>
+        <div style={{ display: 'grid', gap: '8px' }}>
+          <label style={S.label}>TIN NHẮN MỚI</label>
+          <textarea rows={4} style={{ ...S.input, resize: 'vertical', fontFamily: 'inherit' }} value={draft} onInput={(e: any) => onDraftChange(e.target.value)} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '24px', justifyContent: 'flex-end', borderTop: `1px solid ${tokens.colors.border}`, paddingTop: '20px' }}>
+        <button onClick={onClose} style={S.btnOutline}>Đóng</button>
+        <button onClick={onSend} style={S.btnPrimary}>{sending ? 'Đang gửi...' : 'Gửi vào thread'}</button>
+      </div>
     </Modal>
   );
 }

@@ -15,7 +15,7 @@ export function ReportsRoute({
   currentUser: CurrentUser;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai bao cao...">
+    <FeatureRouteShell fallbackMessage="Đang tải báo cáo...">
       <ReportsScreen isMobile={isMobile} currentUser={currentUser} />
     </FeatureRouteShell>
   );

@@ -1,120 +1,205 @@
 # Execution Backlog: Core Revenue Flow
 
-## Context Snapshot (2026-03-26)
+## Context Snapshot (2026-04-01)
 
-- Git repo exists at `crm-app` and root `.gitignore` already excludes common runtime artifacts.
-- Phase 0 documentation baseline is present: product spec, architecture, ADR, API catalog, runbooks, UAT checklist, AI task template.
-- Backend has modular folders under `backend/src/modules` and `backend/src/shared`.
-- Frontend is in mixed mode: legacy screen files plus feature-oriented folders under `frontend/src/features`.
-- CI exists at `.github/workflows/ci.yml` but currently misses migration/seed-smoke/repo-hygiene enforcement from the roadmap.
+- Git repo exists at `htc-erp` and active docs now route through `docs/index.md`.
+- Phase 0 documentation baseline is present: product spec, architecture, ADRs, API catalog, runbooks, UAT checklist, UX audit docs, and AI task template.
+- Backend has moved further toward modular boundaries, with shared contracts, ERP outbox normalization, explicit bootstrap files, and a bounded quotations reference module.
+- Frontend remains hybrid: several core areas resolve through `features/*`, but the application shell still mounts a mix of feature routes and legacy screen entry files.
+- CI already enforces repo hygiene and backend smoke checks, so the active backlog must distinguish completed items from remaining convergence work.
+
+## Status Legend
+
+- `done`: acceptance criteria are met and evidence exists in code, tests, CI, or docs.
+- `partial`: meaningful implementation exists, but one or more acceptance criteria remain open or are not yet fully documented.
+- `planned`: still relevant, but not yet implemented to the required acceptance level.
+- `archived`: no longer active and should not drive current delivery.
 
 ## Prioritized Task List (Top 10)
 
 1. `P0-CI-01` Enforce repository hygiene in CI
+Status:
+- `done`
 Acceptance criteria:
 - CI fails if tracked files match runtime artifacts (`*.db`, `*.log`, `dist/`, `node_modules/`, `tmp/`, cache files).
 - Check runs on every push/PR.
 - Rule is documented in release gate docs.
+Evidence:
+- `.github/workflows/ci.yml`
+- `scripts/ci/check-repo-hygiene.mjs`
+- `docs/process/release-gate.md`
 Ownership:
 - `.github/workflows/ci.yml`
 - `scripts/ci/check-repo-hygiene.mjs` (new)
 - `docs/process/release-gate.md`
 
 2. `P0-CI-02` Add backend migration and DB-init smoke checks into CI
+Status:
+- `done`
 Acceptance criteria:
 - CI runs `npm run smoke:migration` and `npm run smoke:db-init` in backend job.
 - Failing migration/init blocks merge.
+Evidence:
+- `.github/workflows/ci.yml`
+- `backend/package.json`
 Ownership:
 - `.github/workflows/ci.yml`
 - `backend/package.json`
 
 3. `P0-PROC-01` Standardize AI task intake with mandatory template usage
+Status:
+- `partial`
 Acceptance criteria:
 - Every new task doc references `docs/ai/task-template.md`.
 - DoR/DoD and UAT links are required fields.
+Evidence:
+- `docs/ai/task-template.md`
+- `docs/process/definition-of-ready.md`
+- `docs/process/definition-of-done.md`
+- `docs/index.md`
+Open gaps:
+- The template and process docs exist, but they do not yet force explicit DoR/DoD/UAT link fields in the task template itself.
 Ownership:
 - `docs/ai/task-template.md`
 - `docs/process/definition-of-ready.md`
 - `docs/process/definition-of-done.md`
 
 4. `P1-DOM-01` Lock canonical enums and role/permission matrix in shared contracts
+Status:
+- `done`
 Acceptance criteria:
 - Canonical enum values are defined once in backend shared contracts.
 - Frontend contract mirrors are explicitly synchronized.
 - Added tests assert expected enum value sets for core flow statuses.
+Evidence:
+- `backend/src/shared/contracts/domain.ts`
+- `frontend/src/shared/domain/generatedContracts.ts`
+- `frontend/src/shared/domain/contracts.ts`
+- `backend/tests/revenue-flow-contracts.test.js`
 Ownership:
 - `backend/src/shared/contracts/domain.ts`
 - `frontend/src/shared/domain/contracts.ts`
 - `backend/tests/*` and/or `frontend/src/**/__tests__/*` (new/updated)
 
 5. `P1-API-01` Publish endpoint ownership map for core flow (`/api/v1/*`)
+Status:
+- `done`
 Acceptance criteria:
 - API catalog maps each core endpoint to owning module and route file.
 - Deprecated/legacy endpoints are tagged with migration status.
+Evidence:
+- `docs/api/api-catalog.md`
+- `backend/src/modules/platform/apiV1Aliases.ts`
+- `backend/src/modules/quotations/registerRoutes.ts`
 Ownership:
 - `docs/api/api-catalog.md`
 - `backend/src/modules/**/routes.ts`
 
 6. `P1-SCOPE-01` Put non-core modules into maintenance-only mode
+Status:
+- `partial`
 Acceptance criteria:
 - Route/nav exposure for non-core modules is feature-gated or clearly marked maintenance-only.
 - No new feature work starts in non-core modules during Phase 1.
+Evidence:
+- `docs/product/product-spec.md`
+- `frontend/src/shared/domain/contracts.ts`
+- `frontend/src/app.tsx`
+Open gaps:
+- Product scope is documented, but navigation and module exposure still include non-core surfaces as active application routes.
 Ownership:
 - `frontend/src/core/routes.ts`
 - `frontend/src/features/**`
 - `docs/product/product-spec.md`
 
 7. `P2-BE-01` Enforce module boundary pattern in one pilot domain (`quotations`)
+Status:
+- `partial`
 Acceptance criteria:
 - `quotations` module follows `route -> validator/schema -> service -> repository -> mapper`.
 - No business rule remains in route handlers for pilot scope.
 - Existing behavior/tests remain green.
+Evidence:
+- `backend/src/modules/quotations/*`
+- `backend/tests/route-boundary-guard.test.js`
+- `docs/architecture/overview.md`
+- `docs/api/api-catalog.md`
+Open gaps:
+- The quotations module structure exists and is the backend reference pattern, but some route handlers still reach into persistence directly during mutation flows.
 Ownership:
 - `backend/src/modules/quotations/*`
 - `backend/tests/*`
 
 8. `P2-BE-02` Separate DB bootstrap from seed/demo logic
+Status:
+- `done`
 Acceptance criteria:
 - Application startup path performs schema/init only.
 - Seed data runs only from explicit scripts/commands.
 - CI can run init/migration without side-effect seed writes.
+Evidence:
+- `backend/src/bootstrap/startServer.ts`
+- `backend/sqlite-db.ts`
+- `backend/scripts/db-seed.js`
+- `backend/scripts/db-init-smoke.js`
+- `.github/workflows/ci.yml`
 Ownership:
 - `backend/src/bootstrap/*`
 - `backend/scripts/*`
 - `backend/src/app.ts`
 
 9. `P3-ERP-01` Harden ERP outbox with idempotency + retry + dead-letter visibility
+Status:
+- `partial`
 Acceptance criteria:
 - Outbox status transitions are explicit and auditable.
 - Retry policy and max attempts are enforced.
 - Failed events are queryable as dead-letter candidates.
+Evidence:
+- `backend/src/modules/erp/outboxContract.ts`
+- `backend/src/modules/erp/repository.ts`
+- `backend/src/modules/erp/service.ts`
+- `docs/api/erp-outbox-contract.md`
+- `docs/adr/ADR-0003-erp-outbox-state-model.md`
+Open gaps:
+- Normalized status model, retry thresholds, and dead-letter query surfaces exist, but full closure still depends on broader auditability and end-to-end ERP workflow confirmation.
 Ownership:
 - `backend/src/modules/erp/*`
 - `docs/api/erp-outbox-contract.md`
 - `docs/runbooks/*`
 
 10. `P4-FE-01` Complete frontend feature-shell migration for core flow screens
+Status:
+- `partial`
 Acceptance criteria:
 - Leads, Accounts/Customers, Quotations, Projects, Tasks, Approval-related views resolve through feature routes.
 - Legacy monolithic screens are either removed from navigation or wrapped by feature route adapters.
+Evidence:
+- `frontend/src/app.tsx`
+- `frontend/src/features/{customers,quotations,projects,tasks,admin,event-log}/*`
+- `frontend/src/shared/domain/contracts.ts`
+Open gaps:
+- Core feature routes are present for several areas, but legacy screen entry files are still mounted directly in the main application shell.
 Ownership:
 - `frontend/src/core/routes.ts`
 - `frontend/src/features/{customers,quotations,projects,tasks,admin,event-log}/*`
 - `frontend/src/*.tsx` (legacy route entry files)
 
-## First 3 Tasks To Execute Today
+## Current Execution Order
 
-1. `P0-CI-01` repository hygiene CI gate.
-2. `P0-CI-02` backend migration/db-init smoke in CI.
-3. `P2-BE-01` quotations module pilot refactor boundary design (start with folder + interface skeleton, then move one route flow).
+1. `P0-PROC-01` Standardize AI task intake with mandatory template usage.
+2. `P1-SCOPE-01` Put non-core modules into maintenance-only mode.
+3. `P4-FE-01` Complete frontend feature-shell migration for core flow screens.
+4. `P2-BE-01` Finish quotations route boundary cleanup.
+5. `P3-ERP-01` Close ERP outbox auditability gaps and confirm runbook coverage.
 
 ## Suggested Subagent Boundaries
 
-- Agent A (CI/Process): `.github/workflows/ci.yml`, `scripts/ci/*`, docs in `docs/process/*`.
-- Agent B (Backend contracts): `backend/src/shared/contracts/*`, backend enum/status tests.
-- Agent C (Backend quotations pilot): `backend/src/modules/quotations/*` only.
-- Agent D (Frontend routing scope): `frontend/src/core/routes.ts`, `frontend/src/features/*` routing exports.
-- Agent E (ERP outbox hardening): `backend/src/modules/erp/*`, `docs/api/erp-outbox-contract.md`.
+- Agent A (Docs/process): `docs/index.md`, `docs/process/*`, `docs/qa/*`.
+- Agent B (Canonical docs/contracts): `docs/{product,architecture,domain,api}/*`, `backend/src/shared/contracts/*`.
+- Agent C (Backend quotations cleanup): `backend/src/modules/quotations/*` only.
+- Agent D (Frontend shell migration): `frontend/src/app.tsx`, `frontend/src/core/routes.ts`, `frontend/src/features/*`.
+- Agent E (ERP outbox closure): `backend/src/modules/erp/*`, `docs/api/erp-outbox-contract.md`, relevant runbooks.
 
 ## Merge Safety Rules
 

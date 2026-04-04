@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { tokens } from './ui/tokens';
+import { ui } from './ui/styles';
 import { loadSession } from './auth';
 import { type Locale, translate } from './i18n';
 import { AlertCircleIcon, CheckCircle2Icon, InfoIcon } from './ui/icons';
@@ -32,18 +33,21 @@ export function NotificationContainer() {
 
   return (
     <div style={{
-      position: 'fixed', top: '24px', right: '24px', zIndex: 1000,
-      display: 'flex', flexDirection: 'column', gap: '12px', pointerEvents: 'none'
-    }}>
+      position: 'fixed', top: '24px', right: '24px', zIndex: tokens.zIndex.toast,
+      display: 'flex', flexDirection: 'column', gap: '12px', pointerEvents: 'none',
+      width: 'min(360px, calc(100vw - 48px))',
+      maxWidth: 'calc(100vw - 48px)'
+    }} aria-live="polite" aria-atomic="true">
       {notifs.map((n) => (
-        <div key={n.id} style={{
+        <div key={n.id} role="status" style={{
           background: n.type === 'error' ? tokens.colors.badgeBgError : (n.type === 'success' ? tokens.colors.badgeBgSuccess : tokens.colors.surface),
           color: n.type === 'error' ? tokens.colors.error : (n.type === 'success' ? tokens.colors.success : tokens.colors.textPrimary),
           border: `1px solid ${n.type === 'error' ? tokens.colors.error : (n.type === 'success' ? tokens.colors.success : tokens.colors.border)}`,
-          padding: '16px 20px', borderRadius: tokens.radius.lg, boxShadow: tokens.shadow.md,
+          padding: '16px 20px', borderRadius: tokens.radius.lg,
           display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'auto',
-          minWidth: '300px', animation: 'slideIn 0.3s ease-out forwards',
-          fontWeight: 700, fontSize: '14px', backdropFilter: 'blur(8px)'
+          width: '100%', maxWidth: '100%', animation: 'slideIn 0.24s ease-out forwards',
+          fontWeight: 700, fontSize: '14px',
+          ...ui.overlay.toast
         }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
             {n.type === 'error'
@@ -55,7 +59,7 @@ export function NotificationContainer() {
           {n.msg}
           <style>{`
             @keyframes slideIn {
-              from { transform: translateX(110%); opacity: 0; }
+              from { transform: translateX(24px); opacity: 0; }
               to { transform: translateX(0); opacity: 1; }
             }
           `}</style>

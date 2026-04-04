@@ -17,7 +17,7 @@ export function OpsStaffRoute({
   onNavigate?: (route: string) => void;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai hieu suat nhan su...">
+    <FeatureRouteShell fallbackMessage="Đang tải hiệu suất nhân sự...">
       <StaffPerformanceScreen isMobile={isMobile} currentUser={currentUser} onNavigate={onNavigate} />
     </FeatureRouteShell>
   );

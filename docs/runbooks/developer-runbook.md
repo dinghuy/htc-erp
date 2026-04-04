@@ -12,6 +12,7 @@
 1. Read the relevant spec and task template.
 2. Identify the owning module.
 3. Confirm the verification commands for that module.
+4. For UI work, read `docs/runbooks/ui-theme-principles.md` before changing colors, surfaces, or overlays.
 
 ## Before Merging
 

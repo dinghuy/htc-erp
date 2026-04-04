@@ -4,12 +4,18 @@ import { showNotify } from './Notification';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
 import { canEdit, canDelete, fetchWithAuth } from './auth';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 import { OverlayModal } from './ui/OverlayModal';
 import { consumeNavContext } from './navContext';
 import { useI18n } from './i18n';
 import { BuildingIcon, CheckCircle2Icon, EditIcon, ExportIcon, EyeIcon, HistoryIcon, ImportIcon, MailIcon, NoteIcon, PlusIcon, SearchIcon, SheetIcon, TrashIcon, UserIcon } from './ui/icons';
 import { renderActivityIcon } from './ui/activityIcon';
 import { GENDER_OPTIONS, getGenderLabel, normalizeGender } from './gender';
+import { normalizeImportReport, buildImportSummary } from './shared/imports/importReport';
+import { buildTabularFileUrl } from './shared/imports/tabularFiles';
+import { FormatActionButton } from './ui/FormatActionButton';
+import { PageHeader } from './ui/PageHeader';
+import { SegmentedControl } from './ui/SegmentedControl';
 
 const API = API_BASE;
 
@@ -626,6 +632,7 @@ export function Customers({
   const [editingCon, setEditingCon] = useState<any>(null);
   const [loggingAcc, setLoggingAcc] = useState<any>(null);
   const [loggingCon, setLoggingCon] = useState<any>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [viewingAcc, setViewingAcc] = useState<any>(null);
   const [viewingCon, setViewingCon] = useState<any>(null);
   const [viewingHistoryAcc, setViewingHistoryAcc] = useState<any>(null);
@@ -716,18 +723,50 @@ export function Customers({
      const file = e.target.files[0]; if (!file) return;
      const formData = new FormData(); formData.append('file', file);
      setLoading(true);
-     const res = await fetchWithAuth(token, `${API}/accounts/import`, { method: 'POST', body: formData });
-     const result = await res.json();
-     showNotify(`Đã nhập xong: ${result.inserted} bản ghi mới.`, 'success'); loadData();
+     try {
+       const res = await fetchWithAuth(token, `${API}/accounts/import`, { method: 'POST', body: formData });
+       const result = await res.json();
+       if (!res.ok) throw new Error(result?.error || 'Không thể import dữ liệu');
+       showNotify(buildImportSummary(normalizeImportReport(result)), result?.errors > 0 ? 'info' : 'success');
+       loadData();
+     } catch (error: any) {
+       showNotify(error?.message || 'Không thể import dữ liệu', 'error');
+     } finally {
+       setLoading(false);
+       if (e?.target) e.target.value = '';
+     }
   };
 
-  const exportData = () => {
+  const exportData = (format: 'csv' | 'xlsx') => {
     const type = activeTab === 'accounts' ? 'accounts' : 'contacts';
-    window.open(`${API}/${type}/export`, '_blank');
+    window.open(buildTabularFileUrl(`${API}/${type}/export`, format), '_blank');
   };
 
-  const deleteAccount = async (id: string) => { if (confirm('Xóa?')) { await fetchWithAuth(token, `${API}/accounts/${id}`, { method: 'DELETE' }); loadData(); } };
-  const deleteContact = async (id: string) => { if (confirm('Xóa?')) { await fetchWithAuth(token, `${API}/contacts/${id}`, { method: 'DELETE' }); loadData(); } };
+  const downloadTemplate = (format: 'csv' | 'xlsx') => {
+    const type = activeTab === 'accounts' ? 'accounts' : 'contacts';
+    window.open(buildTabularFileUrl(`${API}/template/${type}`, format), '_blank');
+  };
+
+  const deleteAccount = async (id: string) => {
+    setConfirmState({
+      message: 'Xóa account này?',
+      onConfirm: async () => {
+        setConfirmState(null);
+        await fetchWithAuth(token, `${API}/accounts/${id}`, { method: 'DELETE' });
+        loadData();
+      },
+    });
+  };
+  const deleteContact = async (id: string) => {
+    setConfirmState({
+      message: 'Xóa contact này?',
+      onConfirm: async () => {
+        setConfirmState(null);
+        await fetchWithAuth(token, `${API}/contacts/${id}`, { method: 'DELETE' });
+        loadData();
+      },
+    });
+  };
   const handleIndustryTagClick = (tag: string) => {
     setAccountSearch((prev) => (prev.trim().toLowerCase() === tag.toLowerCase() ? '' : tag));
   };
@@ -738,6 +777,7 @@ export function Customers({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
       {showAddAcc && <AddAccountModal onClose={() => setShowAddAcc(false)} onSaved={loadData} token={token} defaultAccountType={selectedAccountType} />}
       {editingAcc && <EditAccountModal account={editingAcc} onClose={() => setEditingAcc(null)} onSaved={loadData} token={token} />}
       {showAddCon && <AddContactModal accounts={accounts} onClose={() => setShowAddCon(false)} onSaved={loadData} token={token} />}
@@ -795,80 +835,58 @@ export function Customers({
       {loggingCon && <LogEventModal entityId={loggingCon.id} entityType="Contact" entityName={`${loggingCon.lastName} ${loggingCon.firstName}`} onClose={() => setLoggingCon(null)} onSaved={() => {}} token={token} />}
       {viewingHistoryAcc && <HistoryModal entityId={viewingHistoryAcc.id} entityName={viewingHistoryAcc.companyName} onClose={() => setViewingHistoryAcc(null)} />}
       {viewingHistoryCon && <HistoryModal entityId={viewingHistoryCon.id} entityName={`${viewingHistoryCon.lastName} ${viewingHistoryCon.firstName}`} onClose={() => setViewingHistoryCon(null)} />}
-      <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImport} accept=".csv" />
+      <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImport} accept=".csv,.xlsx" />
 
       {/* Mini Dashboard */}
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-        <div style={S.kpiCard}>
+      <div style={ui.page.kpiRow}>
+        <div style={{ ...S.kpiCard, ...ui.page.kpiCard }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>{t('sales.customers.kpi.total_accounts')}</span>
           <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.totalAccounts}</span>
         </div>
-        <div style={{...S.kpiCard, borderLeft: `4px solid ${tokens.colors.info}`}}>
+        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, borderLeft: `4px solid ${tokens.colors.info}` }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.info, textTransform: 'uppercase' }}>{t('sales.customers.kpi.customers')}</span>
           <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.customers}</span>
         </div>
-        <div style={{...S.kpiCard, borderLeft: `4px solid ${tokens.colors.warning}`}}>
+        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, borderLeft: `4px solid ${tokens.colors.warning}` }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.warning, textTransform: 'uppercase' }}>{t('sales.customers.kpi.suppliers')}</span>
           <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.suppliers}</span>
         </div>
-        <div style={{...S.kpiCard, borderLeft: `4px solid ${tokens.colors.primary}`}}>
+        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, borderLeft: `4px solid ${tokens.colors.primary}` }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.primary, textTransform: 'uppercase' }}>Đối tác</span>
           <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.partners}</span>
         </div>
-        <div style={{...S.kpiCard, borderLeft: `4px solid ${tokens.colors.success}`}}>
+        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, borderLeft: `4px solid ${tokens.colors.success}` }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.success, textTransform: 'uppercase' }}>{t('sales.customers.kpi.total_contacts')}</span>
           <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.totalContacts}</span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0 }}>
-             {activeTab === 'accounts'
-               ? <><BuildingIcon size={22} strokeWidth={2} /> {ACCOUNT_TYPE_META[selectedAccountType].label}</>
-               : <><UserIcon size={22} strokeWidth={2} /> {t('sales.customers.title.contacts')}</>}
-          </h2>
-          <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0' }}>
-            {activeTab === 'accounts'
-              ? ACCOUNT_TYPE_META[selectedAccountType].description
-              : t('sales.customers.subtitle.contacts')}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '10px', ...(isMobile ? { overflowX: 'auto', maxWidth: '100%', flexWrap: 'nowrap', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' } : {}) }}>
-           <button style={S.btnOutline} onClick={() => window.open(`${API}/template/${activeTab === 'accounts' ? 'accounts' : 'contacts'}`)}><SheetIcon size={16} strokeWidth={2} /> {t('common.csv_template')}</button>
-           {userCanEdit && activeTab === 'accounts' && <button style={S.btnOutline} onClick={() => fileInputRef.current?.click()}><ImportIcon size={16} strokeWidth={2} /> {t('common.csv_import')}</button>}
-           <button style={S.btnOutline} onClick={exportData}><ExportIcon size={16} strokeWidth={2} /> {t('common.csv_export')}</button>
-           {userCanEdit && <button style={S.btnPrimary} onClick={() => activeTab === 'accounts' ? setShowAddAcc(true) : setShowAddCon(true)}>
-             <PlusIcon size={16} strokeWidth={2} /> {activeTab === 'accounts' ? `Thêm ${ACCOUNT_TYPE_META[selectedAccountType].label}` : t('sales.customers.action.add_contact')}
-            </button>}
-        </div>
-      </div>
+      <PageHeader
+        title={activeTab === 'accounts' ? ACCOUNT_TYPE_META[selectedAccountType].label : t('sales.customers.title.contacts')}
+        icon={activeTab === 'accounts' ? <BuildingIcon size={22} strokeWidth={2} /> : <UserIcon size={22} strokeWidth={2} />}
+        subtitle={activeTab === 'accounts' ? ACCOUNT_TYPE_META[selectedAccountType].description : t('sales.customers.subtitle.contacts')}
+        actions={<>
+          <FormatActionButton label={t('common.import_template')} icon={SheetIcon} buttonStyle={S.btnOutline} onSelect={downloadTemplate} />
+          {userCanEdit && activeTab === 'accounts' && <button style={S.btnOutline} onClick={() => fileInputRef.current?.click()}><ImportIcon size={16} strokeWidth={2} /> {t('common.import_file')}</button>}
+          <FormatActionButton label={t('common.export_data')} icon={ExportIcon} buttonStyle={S.btnOutline} onSelect={exportData} />
+          {userCanEdit && <button style={S.btnPrimary} onClick={() => activeTab === 'accounts' ? setShowAddAcc(true) : setShowAddCon(true)}>
+            <PlusIcon size={16} strokeWidth={2} /> {activeTab === 'accounts' ? `Thêm ${ACCOUNT_TYPE_META[selectedAccountType].label}` : t('sales.customers.action.add_contact')}
+          </button>}
+        </>}
+      />
 
       {activeTab === 'accounts' && (
-        <div style={{ ...S.card, display: 'flex', gap: '10px', flexWrap: 'wrap', border: `1px solid ${tokens.colors.border}` }}>
-          {(Object.keys(ACCOUNT_TYPE_META) as AccountTypeFilter[]).map((type) => {
-            const active = selectedAccountType === type;
-            return (
-              <button
-                key={type}
-                onClick={() => handleAccountTypeChange(type)}
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: tokens.radius.lg,
-                  border: `1px solid ${active ? tokens.colors.primary : tokens.colors.border}`,
-                  background: active ? tokens.colors.badgeBgSuccess : tokens.colors.surface,
-                  color: active ? tokens.colors.primary : tokens.colors.textSecondary,
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {ACCOUNT_TYPE_META[type].label}
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedControl
+          ariaLabel="Phân loại doanh nghiệp"
+          size="sm"
+          wrap
+          options={(Object.keys(ACCOUNT_TYPE_META) as AccountTypeFilter[]).map((type) => ({
+            value: type,
+            label: ACCOUNT_TYPE_META[type].label,
+          }))}
+          value={selectedAccountType}
+          onChange={handleAccountTypeChange}
+        />
       )}
 
       <div style={{ ...S.card, display: 'flex', flexDirection: 'column', gap: '12px', border: `1px solid ${tokens.colors.border}` }}>

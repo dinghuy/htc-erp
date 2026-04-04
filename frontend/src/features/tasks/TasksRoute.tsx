@@ -17,7 +17,7 @@ export function TasksRoute({
   onNavigate?: (route: string) => void;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai khu vuc cong viec...">
+    <FeatureRouteShell fallbackMessage="Đang tải khu vực công việc...">
       <TasksScreen isMobile={isMobile} currentUser={currentUser} onNavigate={onNavigate} />
     </FeatureRouteShell>
   );

@@ -1,11 +1,11 @@
 ---
 name: app-delivery-orchestrator
-description: Use when app work spans issue context, product/spec docs, Figma design context, and browser verification across Linear, Notion, Figma, and Playwright.
+description: Use when htc-erp work spans issue context, product/spec docs, Figma design context, and browser verification across Linear, Notion, Figma, and Playwright.
 ---
 
 # App Delivery Orchestrator
 
-Use this skill for any app work in this repo when the task spans planning, design, implementation context, and UI verification.
+Use this as the default delivery entrypoint for `htc-erp` when the task spans planning, design, implementation context, and UI verification.
 
 Read these only when needed:
 - `references/server-map.md`
@@ -27,8 +27,9 @@ Do not activate for pure internal code edits that do not need external context.
 1. Identify whether the user needs issue context, requirements, design context, or browser verification.
 2. Pull only the MCP context required for the current step.
 3. Respect precedence from `references/server-map.md`.
-4. Synthesize the work before editing code.
-5. If auth is missing, stop and name the login needed.
+4. Treat `Linear` as execution state and `Notion` as requirements/evidence when both exist.
+5. Synthesize the bounded work before editing code.
+6. If auth is missing, stop and name the login needed.
 
 ## Server Order
 
@@ -43,3 +44,5 @@ Do not activate for pure internal code edits that do not need external context.
 - If `Linear` and `Notion` both exist, use `Linear` for workflow state and `Notion` for requirements.
 - If a `Figma` link exists, inspect it before proposing UI changes.
 - If runtime behavior is in question, use `Playwright` instead of guessing.
+- Keep plain Codex for one-file or tightly bounded edits that do not need external delivery context.
+- Reserve heavier OMX flows such as `$team` for work that cleanly splits into frontend, backend, and verification lanes.

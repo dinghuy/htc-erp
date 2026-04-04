@@ -1,11 +1,13 @@
 ---
 name: crm-delivery-orchestrator
-description: Use for the Huynh Thy CRM App when requests involve issue delivery, specs, PRDs, release/UAT updates, design-to-code, or browser verification across Linear, Notion, Figma, and Playwright.
+description: Use only when handling legacy crm-app references or migrating old delivery workflows that still mention crm-app, Linear, Notion, Figma, or Playwright.
 ---
 
-# CRM Delivery Orchestrator
+# Legacy CRM Delivery Orchestrator
 
-Use this skill for project delivery work in `crm-app` that spans planning, design, implementation context, and UI verification.
+This is a compatibility skill for historical `crm-app` references.
+
+Do not use this as the default delivery entrypoint for `htc-erp`. Use `app-delivery-orchestrator` instead for active project work.
 
 Read these only when needed:
 - `references/server-map.md` for source-of-truth and server precedence
@@ -15,12 +17,13 @@ Read these only when needed:
 ## Trigger Cues
 
 Activate when the request mentions any of:
+- migrating or auditing historical `crm-app` skill usage
 - issue, task, PRD, spec, plan, release, UAT, handoff
 - Linear, Notion, Figma, Playwright
 - sync task, implement from spec, verify UI
 - URLs or identifiers from those tools
 
-Do not activate for pure internal code edits with no external context need.
+Do not activate for normal `htc-erp` delivery work or for pure internal code edits with no external context need.
 
 ## Workflow
 
@@ -33,6 +36,11 @@ Do not activate for pure internal code edits with no external context need.
 3. Respect source-of-truth precedence from `references/server-map.md`.
 4. Synthesize a bounded implementation or review task before writing code.
 5. If auth is missing, stop and tell the user which MCP login is needed.
+
+## Migration Rule
+
+- If the request is for active `htc-erp` work, redirect to `app-delivery-orchestrator`.
+- Use this skill only to interpret or clean up historical `crm-app` references, prompts, or legacy docs.
 
 ## Server Order
 
@@ -55,6 +63,6 @@ Do not activate for pure internal code edits with no external context need.
 
 ## Project Guardrails
 
-- Default project is `crm-app`.
-- Treat `Notion` and `Linear` as the primary PM/docs stack for this project.
+- Historical project context is `crm-app`.
+- Active project context is not `crm-app`; redirect active work to `app-delivery-orchestrator`.
 - Keep human approval enabled for any write-capable MCP action.

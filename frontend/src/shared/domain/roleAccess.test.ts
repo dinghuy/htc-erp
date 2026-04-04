@@ -22,13 +22,15 @@ describe('role access composition', () => {
   it('lets PM inherit the combined commercial + execution surface', () => {
     const profile = buildRoleProfile(['sales', 'project_manager']);
 
-    expect(profile.personaMode).toBe('sales');
-    expect(profile.primaryRole).toBe('sales');
+    expect(profile.personaMode).toBe('project_manager');
+    expect(profile.primaryRole).toBe('project_manager');
     expect(profile.allowedModules).toContain('Home');
     expect(profile.allowedModules).toContain('My Work');
     expect(profile.allowedModules).toContain('Inbox');
     expect(profile.allowedModules).toContain('Approvals');
     expect(canAccessModule(profile, 'Projects')).toBe(true);
+    expect(canAccessModule(profile, 'Sales')).toBe(true);
+    expect(canAccessModule(profile, 'Ops Overview')).toBe(true);
     expect(canAccessModule(profile, 'Users')).toBe(false);
   });
 
@@ -52,7 +54,12 @@ describe('role access composition', () => {
     expect(ROLE_MODULE_ACCESS.admin).toContain('Users');
     expect(ROLE_MODULE_ACCESS.sales).toContain('Leads');
     expect(ROLE_MODULE_ACCESS.project_manager).toContain('Ops Overview');
-    expect(ROLE_MODULE_ACCESS.project_manager).toContain('Pricing');
+    expect(ROLE_MODULE_ACCESS.project_manager).not.toContain('Pricing');
+    expect(ROLE_MODULE_ACCESS.sales).not.toContain('Users');
+    expect(ROLE_MODULE_ACCESS.sales).not.toContain('Support');
+    expect(ROLE_MODULE_ACCESS.project_manager).not.toContain('Leads');
+    expect(ROLE_MODULE_ACCESS.director).not.toContain('Users');
+    expect(ROLE_MODULE_ACCESS.viewer).toContain('Support');
     expect(ROLE_WORKSPACE_TABS.accounting).toContain('finance');
     expect(ROLE_WORKSPACE_TABS.legal).toContain('legal');
     expect(ROLE_ACTION_PERMISSIONS.admin).toContain('manage_settings');
@@ -60,6 +67,12 @@ describe('role access composition', () => {
     expect(ROLE_ACTION_PERMISSIONS.project_manager).toContain('edit_execution');
     expect(ROLE_ACTION_PERMISSIONS.project_manager).toContain('edit_commercial');
     expect(ROLE_ACTION_PERMISSIONS.procurement).toContain('edit_procurement');
+  });
+
+  it('keeps finance as the only cost-management tab with the new label', () => {
+    const accountingTabs = getProjectWorkspaceTabsForRoles(['accounting']);
+    expect(accountingTabs.find((tab) => tab.key === 'finance')).toMatchObject({ label: 'Quản lý chi phí' });
+    expect(accountingTabs.map((tab) => tab.key)).not.toContain('pricing');
   });
 
   it('keeps admin system-only for business approvals by default', () => {
@@ -115,6 +128,34 @@ describe('role access composition', () => {
 
     expect(canApproveRequest(['procurement'], procurementApproval)).toBe(true);
     expect(canApproveRequest(['project_manager'], procurementApproval)).toBe(false);
+  });
+
+  it('keeps handoff-bridging mixed roles inside the commercial lane only', () => {
+    const commercialApproval = {
+      id: 'comm-1',
+      requestType: 'quotation_commercial',
+      department: 'Sales',
+      approverRole: 'sales',
+      status: 'pending',
+    };
+    const financeApproval = {
+      id: 'fin-3',
+      requestType: 'payment-milestone',
+      department: 'Finance',
+      approverRole: 'accounting',
+      status: 'pending',
+    };
+    const legalApproval = {
+      id: 'leg-3',
+      requestType: 'contract-review',
+      department: 'Legal',
+      approverRole: 'legal',
+      status: 'pending',
+    };
+
+    expect(canApproveRequest(['sales', 'project_manager'], commercialApproval)).toBe(true);
+    expect(canApproveRequest(['sales', 'project_manager'], financeApproval)).toBe(false);
+    expect(canApproveRequest(['sales', 'project_manager'], legalApproval)).toBe(false);
   });
 
   it('blocks self-approval and mismatched assignee in the frontend gate helper', () => {

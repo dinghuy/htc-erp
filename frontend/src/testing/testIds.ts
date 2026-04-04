@@ -19,6 +19,10 @@ export function previewPresetTestId(presetKey: string) {
   return `role-preview-preset-${slugify(presetKey)}`;
 }
 
+export function settingsPreviewPresetTestId(presetKey: string) {
+  return `settings-role-preview-preset-${slugify(presetKey)}`;
+}
+
 export function projectCardTestId(projectId: string) {
   return `project-card-${slugify(projectId)}`;
 }

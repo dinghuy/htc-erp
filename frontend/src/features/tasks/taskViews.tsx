@@ -1,4 +1,5 @@
 import { ui } from '../../ui/styles';
+import { OverlayPortal, getOverlayContainerStyle } from '../../ui/overlay';
 import { tokens } from '../../ui/tokens';
 import { CloseIcon } from '../../ui/icons';
 import {
@@ -20,6 +21,8 @@ import {
   type UiTaskStatus,
   type DrawerMode,
 } from './taskDomain';
+import type { TaskWorkHubSummary } from './taskWorkHubData';
+import { groupTasks, type TaskGroupBy } from './taskGrouping';
 
 const S = {
   input: { ...ui.input.base, transition: 'all 0.2s ease' } as any,
@@ -32,6 +35,7 @@ const S = {
   label: { ...ui.form.label, display: 'block', marginBottom: '8px' } as any,
   card: ui.card.base as any,
 };
+const F = tokens.fontSize;
 
 function ProgressBar({ value }: { value: number }) {
   const safeValue = Math.min(100, Math.max(0, Number(value || 0)));
@@ -42,7 +46,7 @@ function ProgressBar({ value }: { value: number }) {
         height: '8px',
         borderRadius: '999px',
         overflow: 'hidden',
-        background: '#e7ebef',
+        background: tokens.colors.progressTrack,
       }}
     >
       <div
@@ -50,7 +54,7 @@ function ProgressBar({ value }: { value: number }) {
           width: `${safeValue}%`,
           height: '100%',
           borderRadius: '999px',
-          background: safeValue >= 100 ? '#2563eb' : tokens.colors.primary,
+          background: safeValue >= 100 ? tokens.colors.progressComplete : tokens.colors.primary,
         }}
       />
     </div>
@@ -67,7 +71,7 @@ export function StatusBadge({ status }: { status: UiTaskStatus }) {
         gap: '6px',
         padding: '4px 10px',
         borderRadius: '999px',
-        fontSize: '11px',
+        fontSize: F.xs,
         fontWeight: 800,
         background: meta.soft,
         color: meta.accent,
@@ -88,7 +92,7 @@ export function PriorityBadge({ priority }: { priority: TaskPriority }) {
         alignItems: 'center',
         padding: '4px 10px',
         borderRadius: '999px',
-        fontSize: '11px',
+        fontSize: F.xs,
         fontWeight: 800,
         background: meta.soft,
         color: meta.accent,
@@ -110,7 +114,7 @@ export function SurfaceTab({ active, label, onClick }: { active: boolean; label:
         cursor: 'pointer',
         borderRadius: tokens.radius.lg,
         padding: '10px 16px',
-        fontSize: '13px',
+        fontSize: F.md,
         fontWeight: 700,
         background: active ? tokens.colors.primary : tokens.colors.background,
         color: active ? tokens.colors.textOnPrimary : tokens.colors.textSecondary,
@@ -163,9 +167,9 @@ export function MetricTile({
         </div>
       </div>
       <div>
-        <div style={{ fontSize: '26px', fontWeight: 900, lineHeight: 1, color: tokens.colors.textPrimary }}>{value}</div>
-        <div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.textPrimary, marginTop: '10px' }}>{label}</div>
-        <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, marginTop: '6px', lineHeight: 1.45 }}>{note}</div>
+        <div style={{ fontSize: F.displayMd, fontWeight: 900, lineHeight: 1, color: tokens.colors.textPrimary }}>{value}</div>
+        <div style={{ fontSize: F.base, fontWeight: 800, color: tokens.colors.textPrimary, marginTop: '10px' }}>{label}</div>
+        <div style={{ fontSize: F.sm, color: tokens.colors.textSecondary, marginTop: '6px', lineHeight: 1.45 }}>{note}</div>
       </div>
     </div>
   );
@@ -177,20 +181,26 @@ export function KanbanBoard({
   hoveredStatus,
   updatingTaskId,
   canDrag,
+  selectedTaskIds = [],
   onDragStart,
   onHoverStatus,
   onDropStatus,
   onOpenTask,
+  onToggleTaskSelection,
+  onOpenWorkflow,
 }: {
   tasks: TaskRecord[];
   draggingTaskId: string;
   hoveredStatus: UiTaskStatus | '';
   updatingTaskId: string;
   canDrag: boolean;
+  selectedTaskIds?: string[];
   onDragStart: (taskId: string) => void;
   onHoverStatus: (status: UiTaskStatus | '') => void;
   onDropStatus: (status: UiTaskStatus) => void;
   onOpenTask: (task: TaskRecord) => void;
+  onToggleTaskSelection?: (taskId: string, checked: boolean) => void;
+  onOpenWorkflow: (task: TaskRecord) => void;
 }) {
   const columns = (Object.keys(UI_STATUS_META) as UiTaskStatus[]).map((status) => ({
     key: status,
@@ -222,52 +232,129 @@ export function KanbanBoard({
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
             <StatusBadge status={column.key} />
-            <span style={{ fontSize: '12px', fontWeight: 800, color: column.meta.accent }}>
+            <span style={{ fontSize: F.sm, fontWeight: 800, color: column.meta.accent }}>
               {hoveredStatus === column.key && draggingTaskId ? 'Thả vào đây' : column.tasks.length}
             </span>
           </div>
           {column.tasks.length === 0 ? (
-            <div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>Kéo công việc vào đây để cập nhật trạng thái.</div>
+            <div style={{ fontSize: F.sm, color: tokens.colors.textMuted }}>Kéo công việc vào đây để cập nhật trạng thái.</div>
           ) : (
-            column.tasks.map((task) => (
-              <button
-                className="planner-interactive"
-                key={task.id}
-                draggable={canDrag}
-                onDragStart={() => onDragStart(task.id)}
-                onDragEnd={() => onHoverStatus('')}
-                onClick={() => onOpenTask(task)}
-                aria-label={`Mở thẻ kanban ${task.name}`}
-                style={{
-                  border: draggingTaskId === task.id ? `2px solid ${tokens.colors.primary}` : 'none',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  borderRadius: '16px',
-                  padding: '14px',
-                  background: tokens.colors.surface,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                  boxShadow: '0 10px 22px rgba(15, 23, 42, 0.06)',
-                  opacity: draggingTaskId === task.id ? 0.45 : updatingTaskId === task.id ? 0.72 : 1,
-                }}
-              >
-                <div style={{ fontSize: '14px', fontWeight: 900, color: tokens.colors.textPrimary }}>{task.name}</div>
-                <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>
-                  {task.projectName || 'Chưa gắn dự án'} • {task.assigneeName || 'Chưa phân công'}
-                </div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <PriorityBadge priority={normalizePriority(task.priority)} />
-                  {isBlocked(task) ? (
-                    <span style={{ padding: '4px 10px', borderRadius: '999px', background: '#fdecea', color: '#b42318', fontSize: '11px', fontWeight: 800 }}>
-                      Blocked
-                    </span>
+            column.tasks.map((task) => {
+              const isSelected = selectedTaskIds.includes(task.id);
+
+              return (
+                <div
+                  className="planner-interactive"
+                  key={task.id}
+                  role="button"
+                  tabIndex={0}
+                  draggable={canDrag}
+                  onDragStart={() => onDragStart(task.id)}
+                  onDragEnd={() => onHoverStatus('')}
+                  onClick={() => onOpenTask(task)}
+                  onKeyDown={(event: any) => {
+                    if (event.target !== event.currentTarget) {
+                      return;
+                    }
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onOpenTask(task);
+                    }
+                  }}
+                  aria-label={`Mở thẻ kanban ${task.name}`}
+                  style={{
+                    border: draggingTaskId === task.id ? `2px solid ${tokens.colors.primary}` : `1px solid ${isSelected ? column.meta.accent : tokens.colors.border}`,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    borderRadius: '16px',
+                    padding: '14px',
+                    background: tokens.colors.surface,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    boxShadow: isSelected
+                      ? `0 0 0 3px ${column.meta.soft}, 0 10px 22px rgba(15, 23, 42, 0.06)`
+                      : '0 10px 22px rgba(15, 23, 42, 0.06)',
+                    opacity: draggingTaskId === task.id ? 0.45 : updatingTaskId === task.id ? 0.72 : 1,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: F.base, fontWeight: 900, color: tokens.colors.textPrimary }}>{task.name}</div>
+                      <div style={{ marginTop: '4px', fontSize: F.sm, color: tokens.colors.textSecondary }}>
+                        {task.projectName || 'Chưa gắn dự án'} • {task.assigneeName || 'Chưa phân công'}
+                      </div>
+                    </div>
+                    <label
+                      onClick={(event: any) => event.stopPropagation()}
+                      onMouseDown={(event: any) => event.stopPropagation()}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: F.xs,
+                        fontWeight: 800,
+                        color: isSelected ? column.meta.accent : tokens.colors.textSecondary,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        aria-label={`Chọn công việc ${task.name}`}
+                        onClick={(event: any) => event.stopPropagation()}
+                        onKeyDown={(event: any) => event.stopPropagation()}
+                        onChange={(event: any) => onToggleTaskSelection?.(task.id, Boolean(event.target.checked))}
+                        style={{ accentColor: tokens.colors.primary }}
+                      />
+                      Chọn
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <PriorityBadge priority={normalizePriority(task.priority)} />
+                    {task.actionAvailability?.workspaceTab ? (
+                      <span style={{ padding: '4px 10px', borderRadius: '999px', background: tokens.colors.taskTabBg, color: tokens.colors.taskTabText, fontSize: F.xs, fontWeight: 800 }}>
+                        Tab {task.actionAvailability.workspaceTab}
+                      </span>
+                    ) : null}
+                    {isBlocked(task) ? (
+                      <span style={{ padding: '4px 10px', borderRadius: '999px', background: tokens.colors.taskBlockedBg, color: tokens.colors.taskBlockedText, fontSize: F.xs, fontWeight: 800 }}>
+                        Blocked
+                      </span>
+                    ) : null}
+                  </div>
+                  <div style={{ fontSize: F.sm, color: tokens.colors.textSecondary }}>Hạn chót: {formatDate(taskDueDate(task))}</div>
+                  {task.actionAvailability?.blockers?.[0] ? (
+                    <div style={{ fontSize: F.sm, color: tokens.colors.warningStrong, fontWeight: 700 }}>
+                      {task.actionAvailability.blockers[0]}
+                    </div>
                   ) : null}
+                  {(task.actionAvailability?.canOpenProject || task.actionAvailability?.canOpenQuotation) ? (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onOpenWorkflow(task);
+                        }}
+                        onKeyDown={(event: any) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onOpenWorkflow(task);
+                          }
+                        }}
+                        style={{ ...S.btnGhost, padding: '8px 10px', fontSize: F.sm, cursor: 'pointer' }}
+                      >
+                        {task.actionAvailability?.primaryActionLabel || 'Mở workflow'}
+                      </span>
+                    </div>
+                  ) : null}
+                  {updatingTaskId === task.id ? <div style={{ fontSize: F.xs, fontWeight: 800, color: tokens.colors.primary }}>Đang cập nhật...</div> : null}
                 </div>
-                <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>Hạn chót: {formatDate(taskDueDate(task))}</div>
-                {updatingTaskId === task.id ? <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.primary }}>Đang cập nhật...</div> : null}
-              </button>
-            ))
+              );
+            })
           )}
         </div>
       ))}
@@ -277,68 +364,200 @@ export function KanbanBoard({
 
 export function TaskList({
   tasks,
+  groupBy = 'none',
   isMobile,
+  selectedTaskIds = [],
+  onToggleTask,
+  onToggleAllTasks,
+  canReorderProjectTasks = false,
+  onMoveProjectTask,
   onOpenTask,
+  onOpenWorkflow,
 }: {
   tasks: TaskRecord[];
+  groupBy?: TaskGroupBy;
   isMobile?: boolean;
+  selectedTaskIds?: string[];
+  onToggleTask?: (taskId: string, checked: boolean) => void;
+  onToggleAllTasks?: (checked: boolean) => void;
+  canReorderProjectTasks?: boolean;
+  onMoveProjectTask?: (taskId: string, direction: 'up' | 'down') => void;
   onOpenTask: (task: TaskRecord) => void;
+  onOpenWorkflow: (task: TaskRecord) => void;
 }) {
+  const sections = groupTasks(tasks, groupBy);
+  const allSelected = tasks.length > 0 && tasks.every((task) => selectedTaskIds.includes(task.id));
+
   if (isMobile) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {tasks.map((task) => (
-          <button
-            key={task.id}
-            onClick={() => onOpenTask(task)}
-            aria-label={`Mở công việc ${task.name}`}
-            style={{ ...S.card, padding: '16px', border: 'none', textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 900, color: tokens.colors.textPrimary }}>{task.name}</div>
-              <PriorityBadge priority={normalizePriority(task.priority)} />
-            </div>
-            <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>{task.projectName || 'Chưa gắn dự án'}</div>
-            <StatusBadge status={normalizeTaskStatus(task.status)} />
-            <ProgressBar value={Number(task.completionPct || 0)} />
-          </button>
+        {sections.map((section) => (
+          <div key={section.key} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {groupBy !== 'none' ? <div style={{ fontSize: F.sm, fontWeight: 900, color: tokens.colors.textPrimary }}>{section.label} · {section.tasks.length}</div> : null}
+            {section.tasks.map((task) => (
+              <button
+                key={task.id}
+                onClick={() => onOpenTask(task)}
+                aria-label={`Mở công việc ${task.name}`}
+                style={{ ...S.card, padding: '16px', border: 'none', textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                  <div style={{ fontSize: F.base, fontWeight: 900, color: tokens.colors.textPrimary }}>{task.name}</div>
+                  <PriorityBadge priority={normalizePriority(task.priority)} />
+                </div>
+                <div style={{ fontSize: F.sm, color: tokens.colors.textSecondary }}>{task.projectName || 'Chưa gắn dự án'}</div>
+                {(Number(task.subtaskCount || 0) > 0 || Number(task.checklistCount || 0) > 0) ? (
+                  <div style={{ fontSize: F.xs, color: tokens.colors.textMuted }}>
+                    Rollup {Number(task.rollupCompletionPct ?? 0)}% · {Number(task.completedSubtaskCount || 0)}/{Number(task.subtaskCount || 0)} subtasks · {Number(task.checklistCompletedCount || 0)}/{Number(task.checklistCount || 0)} checklist
+                  </div>
+                ) : null}
+                {task.actionAvailability?.workspaceTab ? (
+                  <div style={{ fontSize: F.xs, fontWeight: 800, color: tokens.colors.taskTabText }}>
+                    Tab {task.actionAvailability.workspaceTab}
+                  </div>
+                ) : null}
+                <StatusBadge status={normalizeTaskStatus(task.status)} />
+                <ProgressBar value={Number(task.completionPct || 0)} />
+                {(task.actionAvailability?.canOpenProject || task.actionAvailability?.canOpenQuotation) ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenWorkflow(task);
+                    }}
+                    onKeyDown={(event: any) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onOpenWorkflow(task);
+                      }
+                    }}
+                    style={{ ...S.btnGhost, alignSelf: 'flex-start', padding: '8px 10px', fontSize: F.sm, cursor: 'pointer' }}
+                  >
+                    {task.actionAvailability?.primaryActionLabel || 'Mở workflow'}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
     );
   }
 
   return (
-    <div style={{ ...S.card, overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            {['Công việc', 'Project', 'Owner', 'Trạng thái', 'Ưu tiên', 'Hạn chót', 'Tiến độ'].map((header) => (
-              <th key={header} style={ui.table.thStatic as any}>{header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.map((task) => (
-            <tr key={task.id} onClick={() => onOpenTask(task)} style={{ cursor: 'pointer' }} aria-label={`Mở công việc ${task.name}`}>
-              <td style={ui.table.td as any}>
-                <div style={{ fontWeight: 800 }}>{task.name}</div>
-                <div style={{ marginTop: '4px', fontSize: '12px', color: tokens.colors.textSecondary }}>{task.description || 'Không có mô tả ngắn'}</div>
-              </td>
-              <td style={ui.table.td as any}>{task.projectName || 'Chưa gắn'}</td>
-              <td style={ui.table.td as any}>{task.assigneeName || 'Chưa phân công'}</td>
-              <td style={ui.table.td as any}><StatusBadge status={normalizeTaskStatus(task.status)} /></td>
-              <td style={ui.table.td as any}><PriorityBadge priority={normalizePriority(task.priority)} /></td>
-              <td style={ui.table.td as any}>{formatDate(taskDueDate(task))}</td>
-              <td style={ui.table.td as any}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 800 }}>{Number(task.completionPct || 0)}%</span>
-                  <ProgressBar value={Number(task.completionPct || 0)} />
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div style={{ display: 'grid', gap: '14px' }}>
+      {sections.map((section) => (
+        <div key={section.key} style={{ ...S.card, overflow: 'hidden' }}>
+          {groupBy !== 'none' ? (
+            <div style={{ padding: '14px 16px', borderBottom: `1px solid ${tokens.colors.border}`, fontSize: F.sm, fontWeight: 900, color: tokens.colors.textPrimary }}>
+              {section.label} · {section.tasks.length}
+            </div>
+          ) : null}
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={ui.table.thStatic as any}>
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(event: any) => onToggleAllTasks?.(Boolean(event.target.checked))}
+                  />
+                </th>
+                {['Công việc', 'Project', 'Owner', 'Trạng thái', 'Ưu tiên', 'Hạn chót', 'Tiến độ'].map((header) => (
+                  <th key={header} style={ui.table.thStatic as any}>{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {section.tasks.map((task, index) => (
+                <tr key={task.id} onClick={() => onOpenTask(task)} style={{ cursor: 'pointer' }} aria-label={`Mở công việc ${task.name}`}>
+                  <td style={ui.table.td as any}>
+                    <input
+                      type="checkbox"
+                      checked={selectedTaskIds.includes(task.id)}
+                      onClick={(event: any) => event.stopPropagation()}
+                      onChange={(event: any) => onToggleTask?.(task.id, Boolean(event.target.checked))}
+                    />
+                  </td>
+                  <td style={ui.table.td as any}>
+                    <div style={{ fontWeight: 800, paddingLeft: `${Number((task as any).depth || 0) * 18}px` }}>
+                      {Number((task as any).depth || 0) > 0 ? '↳ ' : ''}
+                    {task.name}
+                  </div>
+                  <div style={{ marginTop: '4px', fontSize: F.sm, color: tokens.colors.textSecondary }}>{task.description || 'Không có mô tả ngắn'}</div>
+                  {(Number(task.subtaskCount || 0) > 0 || Number(task.checklistCount || 0) > 0) ? (
+                    <div style={{ marginTop: '4px', fontSize: F.xs, color: tokens.colors.textMuted }}>
+                      Rollup {Number(task.rollupCompletionPct ?? 0)}% · {Number(task.completedSubtaskCount || 0)}/{Number(task.subtaskCount || 0)} subtasks · {Number(task.checklistCompletedCount || 0)}/{Number(task.checklistCount || 0)} checklist
+                    </div>
+                  ) : null}
+                  {task.actionAvailability?.workspaceTab ? (
+                      <div style={{ marginTop: '6px', fontSize: F.xs, fontWeight: 800, color: tokens.colors.taskTabText }}>
+                        Tab {task.actionAvailability.workspaceTab}
+                      </div>
+                    ) : null}
+                    {task.actionAvailability?.blockers?.[0] ? (
+                      <div style={{ marginTop: '6px', fontSize: F.sm, color: tokens.colors.warningStrong, fontWeight: 700 }}>
+                        {task.actionAvailability.blockers[0]}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td style={ui.table.td as any}>{task.projectName || 'Chưa gắn'}</td>
+                  <td style={ui.table.td as any}>{task.assigneeName || 'Chưa phân công'}</td>
+                  <td style={ui.table.td as any}><StatusBadge status={normalizeTaskStatus(task.status)} /></td>
+                  <td style={ui.table.td as any}><PriorityBadge priority={normalizePriority(task.priority)} /></td>
+                  <td style={ui.table.td as any}>{formatDate(taskDueDate(task))}</td>
+                  <td style={ui.table.td as any}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <span style={{ fontSize: F.sm, fontWeight: 800 }}>{Number(task.completionPct || 0)}%</span>
+                      <ProgressBar value={Number(task.completionPct || 0)} />
+                      {canReorderProjectTasks && !task.parentTaskId ? (
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onMoveProjectTask?.(task.id, 'up');
+                            }}
+                            style={{ ...S.btnGhost, alignSelf: 'flex-start', padding: '4px 8px', fontSize: F.xs }}
+                            disabled={index === 0}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onMoveProjectTask?.(task.id, 'down');
+                            }}
+                            style={{ ...S.btnGhost, alignSelf: 'flex-start', padding: '4px 8px', fontSize: F.xs }}
+                            disabled={index === section.tasks.length - 1}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      ) : null}
+                      {(task.actionAvailability?.canOpenProject || task.actionAvailability?.canOpenQuotation) ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenWorkflow(task);
+                          }}
+                          style={{ ...S.btnGhost, alignSelf: 'flex-start', padding: '6px 10px', fontSize: F.sm }}
+                        >
+                          {task.actionAvailability?.primaryActionLabel || 'Mở workflow'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
     </div>
   );
 }
@@ -356,7 +575,7 @@ function Field({
     <div>
       <label style={S.label}>{label}</label>
       {children}
-      {help ? <div style={{ marginTop: '6px', fontSize: '12px', color: tokens.colors.textMuted }}>{help}</div> : null}
+      {help ? <div style={{ marginTop: '6px', fontSize: F.sm, color: tokens.colors.textMuted }}>{help}</div> : null}
     </div>
   );
 }
@@ -375,6 +594,37 @@ export function TaskDrawer({
   accounts,
   leads,
   quotations,
+  workHubSummary,
+  checklistItems,
+  checklistDraft,
+  checklistEditingId,
+  checklistEditingTitle,
+  onChecklistDraftChange,
+  onAddChecklistItem,
+  onToggleChecklistItem,
+  onDeleteChecklistItem,
+  onStartChecklistEdit,
+  onChecklistEditingTitleChange,
+  onSaveChecklistItem,
+  onCancelChecklistEdit,
+  subtasks,
+  subtaskDraft,
+  subtaskEditingId,
+  subtaskEditingTitle,
+  onSubtaskDraftChange,
+  onAddSubtask,
+  onMoveSubtask,
+  onDeleteSubtask,
+  onStartSubtaskEdit,
+  onSubtaskEditingTitleChange,
+  onSaveSubtask,
+  onCancelSubtaskEdit,
+  threadMessages,
+  threadDraft,
+  onThreadDraftChange,
+  onOpenThread,
+  onSendThreadMessage,
+  sendingThreadMessage,
   onChange,
   onToggleAdvanced,
   onClose,
@@ -395,6 +645,37 @@ export function TaskDrawer({
   accounts: any[];
   leads: any[];
   quotations: any[];
+  workHubSummary?: TaskWorkHubSummary | null;
+  checklistItems?: any[];
+  checklistDraft?: string;
+  checklistEditingId?: string;
+  checklistEditingTitle?: string;
+  onChecklistDraftChange?: (value: string) => void;
+  onAddChecklistItem?: () => void;
+  onToggleChecklistItem?: (item: any, done: boolean) => void;
+  onDeleteChecklistItem?: (itemId: string) => void;
+  onStartChecklistEdit?: (item: any) => void;
+  onChecklistEditingTitleChange?: (value: string) => void;
+  onSaveChecklistItem?: () => void;
+  onCancelChecklistEdit?: () => void;
+  subtasks?: TaskRecord[];
+  subtaskDraft?: string;
+  subtaskEditingId?: string;
+  subtaskEditingTitle?: string;
+  onSubtaskDraftChange?: (value: string) => void;
+  onAddSubtask?: () => void;
+  onMoveSubtask?: (taskId: string, direction: 'up' | 'down') => void;
+  onDeleteSubtask?: (taskId: string) => void;
+  onStartSubtaskEdit?: (task: TaskRecord) => void;
+  onSubtaskEditingTitleChange?: (value: string) => void;
+  onSaveSubtask?: () => void;
+  onCancelSubtaskEdit?: () => void;
+  threadMessages?: any[];
+  threadDraft?: string;
+  onThreadDraftChange?: (value: string) => void;
+  onOpenThread?: () => void;
+  onSendThreadMessage?: () => void;
+  sendingThreadMessage?: boolean;
   onChange: (next: TaskFormState) => void;
   onToggleAdvanced: () => void;
   onClose: () => void;
@@ -406,36 +687,45 @@ export function TaskDrawer({
   const disabled = !canEditTask || saving;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(15, 23, 42, 0.45)' }} />
-      <div
-        style={{
-          position: 'relative',
-          width: 'min(520px, 100vw)',
-          height: '100%',
-          background: tokens.colors.surface,
-          borderLeft: `1px solid ${tokens.colors.border}`,
-          boxShadow: '-18px 0 40px rgba(15, 23, 42, 0.16)',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
+    <OverlayPortal>
+      <div style={getOverlayContainerStyle('drawer', { padding: '0', alignItems: 'stretch', justifyContent: 'flex-end' })}>
+        <div
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: tokens.overlay.softBackdrop,
+            backdropFilter: `blur(${tokens.overlay.backdropBlur})`,
+            WebkitBackdropFilter: `blur(${tokens.overlay.backdropBlur})`,
+          }}
+        />
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            width: 'min(520px, 100vw)',
+            height: '100%',
+            ...ui.overlay.drawer,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
         <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${tokens.colors.border}`, display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
           <div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ padding: '6px 10px', borderRadius: '999px', background: '#eefbf4', color: tokens.colors.primary, fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>
+              <span style={{ padding: '6px 10px', borderRadius: '999px', background: tokens.colors.surfaceSuccessSoft, color: tokens.colors.primary, fontSize: F.xs, fontWeight: 800, textTransform: 'uppercase' }}>
                 {mode === 'create' ? 'Quick Add' : 'Task Drawer'}
               </span>
               {!canEditTask ? (
-                <span style={{ padding: '6px 10px', borderRadius: '999px', background: '#eef2f6', color: tokens.colors.textSecondary, fontSize: '11px', fontWeight: 800 }}>
+                <span style={{ padding: '6px 10px', borderRadius: '999px', background: tokens.colors.surfaceSubtle, color: tokens.colors.textSecondary, fontSize: F.xs, fontWeight: 800 }}>
                   Read only
                 </span>
               ) : null}
             </div>
-            <div style={{ marginTop: '10px', fontSize: '20px', fontWeight: 900, color: tokens.colors.textPrimary }}>
+            <div style={{ marginTop: '10px', fontSize: F.title, fontWeight: 900, color: tokens.colors.textPrimary }}>
               {mode === 'create' ? 'Tạo công việc mới' : form.name || 'Chi tiết công việc'}
             </div>
-            <div style={{ marginTop: '6px', fontSize: '13px', color: tokens.colors.textSecondary }}>
+            <div style={{ marginTop: '6px', fontSize: F.md, color: tokens.colors.textSecondary }}>
               Cập nhật nhanh trạng thái, ưu tiên, lịch và các liên kết vận hành ngay trong cùng màn hình.
             </div>
           </div>
@@ -449,6 +739,154 @@ export function TaskDrawer({
             <div className="planner-chip"><strong>Quick edit</strong><span>{form.uiStatus === 'complete' ? 'Hoàn tất' : 'Đang mở'}</span></div>
             <div className="planner-chip"><strong>Context</strong><span>{form.projectId ? 'Theo project' : 'Chưa gắn project'}</span></div>
           </div>
+
+          {workHubSummary ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ ...S.card, padding: '14px', display: 'grid', gap: '6px' }}>
+                <div style={{ fontSize: F.sm, fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Work Hub</div>
+                <div style={{ fontSize: F.lg, fontWeight: 900, color: tokens.colors.textPrimary }}>
+                  {workHubSummary.dependencyCount} dependencies
+                </div>
+                <div style={{ fontSize: F.sm, color: tokens.colors.textSecondary }}>
+                  {workHubSummary.blockedByCount} blocker trực tiếp từ task khác
+                </div>
+              </div>
+              <div style={{ ...S.card, padding: '14px', display: 'grid', gap: '6px' }}>
+                <div style={{ fontSize: F.sm, fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Worklogs</div>
+                <div style={{ fontSize: F.lg, fontWeight: 900, color: tokens.colors.textPrimary }}>
+                  {Math.round((workHubSummary.totalLoggedMinutes / 60) * 10) / 10}h
+                </div>
+                <div style={{ fontSize: F.sm, color: tokens.colors.textSecondary }}>
+                  {workHubSummary.worklogCount} bản ghi · {workHubSummary.latestWorklog?.summary || 'Chưa có worklog'}
+                </div>
+              </div>
+              <div style={{ ...S.card, padding: '14px', display: 'grid', gap: '6px' }}>
+                <div style={{ fontSize: F.sm, fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Checklist</div>
+                <div style={{ fontSize: F.lg, fontWeight: 900, color: tokens.colors.textPrimary }}>
+                  {workHubSummary.checklistCompletedCount}/{workHubSummary.checklistCount}
+                </div>
+                <div style={{ fontSize: F.sm, color: tokens.colors.textSecondary }}>
+                  Checklist item đã hoàn tất trên task này
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {Array.isArray(checklistItems) ? (
+            <div style={{ ...S.card, padding: '14px', display: 'grid', gap: '10px' }}>
+              <div style={{ fontSize: F.sm, fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Task checklist</div>
+              {checklistItems.length === 0 ? <div style={{ fontSize: F.sm, color: tokens.colors.textSecondary }}>Chưa có checklist item nào.</div> : (
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {checklistItems.map((item: any) => (
+                    <div key={item.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '10px', alignItems: 'start', border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '10px 12px' }}>
+                      <input type="checkbox" checked={Boolean(item.doneAt)} onChange={(event: any) => onToggleChecklistItem?.(item, Boolean(event.target.checked))} />
+                      <div>
+                        {checklistEditingId === item.id ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '6px' }}>
+                            <input style={S.input} value={checklistEditingTitle || ''} onInput={(event: any) => onChecklistEditingTitleChange?.(event.target.value)} />
+                            <button type="button" onClick={onSaveChecklistItem} style={{ ...S.btnOutline, padding: '4px 8px', fontSize: F.xs }}>Lưu</button>
+                            <button type="button" onClick={onCancelChecklistEdit} style={{ ...S.btnGhost, padding: '4px 8px', fontSize: F.xs }}>Hủy</button>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: F.sm, fontWeight: 800, color: tokens.colors.textPrimary, textDecoration: item.doneAt ? 'line-through' : 'none' }}>{item.title}</div>
+                        )}
+                        {item.description ? <div style={{ marginTop: '4px', fontSize: F.sm, color: tokens.colors.textSecondary }}>{item.description}</div> : null}
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button type="button" onClick={() => onStartChecklistEdit?.(item)} style={{ ...S.btnGhost, padding: '4px 8px', fontSize: F.xs }}>Sửa</button>
+                        <button type="button" onClick={() => onDeleteChecklistItem?.(item.id)} style={{ ...S.btnGhost, padding: '4px 8px', fontSize: F.xs }}>Xóa</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {onChecklistDraftChange && onAddChecklistItem ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
+                  <input style={S.input} value={checklistDraft || ''} placeholder="Thêm checklist item..." onInput={(event: any) => onChecklistDraftChange(event.target.value)} />
+                  <button onClick={onAddChecklistItem} style={S.btnOutline}>Thêm</button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {Array.isArray(subtasks) ? (
+            <div style={{ ...S.card, padding: '14px', display: 'grid', gap: '10px' }}>
+              <div style={{ fontSize: F.sm, fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Subtasks</div>
+              {subtasks.length === 0 ? <div style={{ fontSize: F.sm, color: tokens.colors.textSecondary }}>Chưa có subtask nào.</div> : (
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {subtasks.map((task, index) => (
+                    <div key={task.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {subtaskEditingId === task.id ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '6px', flex: 1 }}>
+                            <input style={S.input} value={subtaskEditingTitle || ''} onInput={(event: any) => onSubtaskEditingTitleChange?.(event.target.value)} />
+                            <button type="button" onClick={onSaveSubtask} style={{ ...S.btnOutline, padding: '4px 8px', fontSize: F.xs }}>Lưu</button>
+                            <button type="button" onClick={onCancelSubtaskEdit} style={{ ...S.btnGhost, padding: '4px 8px', fontSize: F.xs }}>Hủy</button>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: F.sm, fontWeight: 800, color: tokens.colors.textPrimary }}>{task.name}</div>
+                        )}
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          {onMoveSubtask ? (
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <button type="button" style={{ ...S.btnGhost, padding: '4px 8px', fontSize: F.xs }} disabled={index === 0} onClick={() => onMoveSubtask(task.id, 'up')}>↑</button>
+                              <button type="button" style={{ ...S.btnGhost, padding: '4px 8px', fontSize: F.xs }} disabled={index === subtasks.length - 1} onClick={() => onMoveSubtask(task.id, 'down')}>↓</button>
+                            </div>
+                          ) : null}
+                          <button type="button" onClick={() => onStartSubtaskEdit?.(task)} style={{ ...S.btnGhost, padding: '4px 8px', fontSize: F.xs }}>Sửa</button>
+                          <button type="button" onClick={() => onDeleteSubtask?.(task.id)} style={{ ...S.btnGhost, padding: '4px 8px', fontSize: F.xs }}>Xóa</button>
+                          <StatusBadge status={normalizeTaskStatus(task.status)} />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '4px', fontSize: F.sm, color: tokens.colors.textSecondary }}>
+                        {task.assigneeName || 'Chưa phân công'} · {task.taskType || 'subtask'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {onSubtaskDraftChange && onAddSubtask ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '8px' }}>
+                  <input style={S.input} value={subtaskDraft || ''} placeholder="Thêm subtask..." onInput={(event: any) => onSubtaskDraftChange(event.target.value)} />
+                  <button onClick={onAddSubtask} style={S.btnOutline}>Tạo</button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {workHubSummary ? (
+            <div style={{ ...S.card, padding: '14px', display: 'grid', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: F.sm, fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Task thread</div>
+                  <div style={{ fontSize: F.base, fontWeight: 800, color: tokens.colors.textPrimary }}>
+                    {workHubSummary.hasActiveThread ? 'Đang hoạt động' : 'Chưa tạo thread'}
+                  </div>
+                </div>
+                <button onClick={onOpenThread} style={S.btnOutline}>
+                  {workHubSummary.threadId ? 'Mở thread' : 'Tạo thread'}
+                </button>
+              </div>
+              {Array.isArray(threadMessages) && threadMessages.length > 0 ? (
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {threadMessages.slice(0, 2).map((message: any) => (
+                    <div key={message.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '10px 12px' }}>
+                      <div style={{ fontSize: F.xs, fontWeight: 800, color: tokens.colors.textPrimary }}>{message.authorName || message.authorUserId || 'System'}</div>
+                      <div style={{ marginTop: '4px', fontSize: F.sm, color: tokens.colors.textSecondary }}>{message.content}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {onThreadDraftChange && onSendThreadMessage ? (
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  <textarea rows={3} style={{ ...S.textarea, fontFamily: 'inherit' }} value={threadDraft || ''} onInput={(event: any) => onThreadDraftChange(event.target.value)} />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={onSendThreadMessage} style={S.btnPrimary}>{sendingThreadMessage ? 'Đang gửi...' : 'Gửi thread message'}</button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <Field label="Tên công việc">
@@ -473,7 +911,7 @@ export function TaskDrawer({
                 {users.map((user) => <option key={user.id} value={user.id}>{user.fullName || user.username}</option>)}
               </select>
               {userLoadWarning ? (
-                <div style={{ marginTop: '6px', fontSize: '12px', color: tokens.colors.warning, fontWeight: 700 }}>
+                <div style={{ marginTop: '6px', fontSize: F.sm, color: tokens.colors.warning, fontWeight: 700 }}>
                   {userLoadWarning}
                 </div>
               ) : null}
@@ -522,8 +960,8 @@ export function TaskDrawer({
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 900, color: tokens.colors.textPrimary }}>Thông tin nâng cao</div>
-              <div style={{ marginTop: '4px', fontSize: '12px', color: tokens.colors.textSecondary }}>
+              <div style={{ fontSize: F.base, fontWeight: 900, color: tokens.colors.textPrimary }}>Thông tin nâng cao</div>
+              <div style={{ marginTop: '4px', fontSize: F.sm, color: tokens.colors.textSecondary }}>
                 taskType, department, account/lead/quotation và đầu ra bàn giao.
               </div>
             </div>
@@ -590,8 +1028,8 @@ export function TaskDrawer({
             {canEditTask ? <button onClick={onSave} style={S.btnPrimary}>{saving ? 'Đang lưu...' : 'Lưu thay đổi'}</button> : null}
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }
-

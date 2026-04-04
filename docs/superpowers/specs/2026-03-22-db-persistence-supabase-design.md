@@ -1,7 +1,7 @@
 # DB Persistence and Supabase Readiness Design
 
 Date: 2026-03-22
-Project: crm-app (backend)
+Project: htc-erp (backend)
 Owner: Codex + User
 
 ## Summary
@@ -57,3 +57,4 @@ Stabilize SQLite persistence by moving DB path to an environment variable and re
 ## Rollout
 - Implement changes in backend only.
 - Update environment docs for `DB_PATH` and `SEED_DB`.
+

@@ -9,13 +9,19 @@
     "build": "tsc -b && vite build --configLoader native",
     "build:ux:runbook": "node ./scripts/qa/render-codex-runbook.mjs",
     "preview": "vite preview --configLoader native",
-    "test": "node ./scripts/run-vitest-sandbox.mjs",
+    "test": "npm run test:core",
+    "test:all": "npm run test:core && npm run test:noncore",
+    "test:core": "node ./scripts/run-vitest-sandbox.mjs --exclude src/products/** --exclude src/shared/uploads/**",
+    "test:noncore": "node ./scripts/run-vitest-sandbox.mjs src/products/productMedia.test.ts src/products/productFormPresentation.test.ts src/products/importReport.test.ts src/products/assetUploadState.test.ts src/products/imageUploadBatch.test.ts src/shared/uploads/videoUpload.test.ts",
     "test:ux:contracts": "node ./scripts/run-vitest-sandbox.mjs src/qa/uxAuditContracts.test.ts src/qa/uxRegressionExecution.test.ts",
     "typecheck": "tsc -b",
+    "sync:contracts": "node ../scripts/sync-shared-contracts.mjs",
     "test:ux:audit": "node ./scripts/qa/run-ux-audit.mjs",
     "test:ux:audit:headed": "set QA_HEADLESS=0&& node ./scripts/qa/run-ux-audit.mjs"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.10",
+    "@ffmpeg/util": "^0.12.1",
     "lucide-preact": "^1.0.1",
     "preact": "^10.29.0"
   },

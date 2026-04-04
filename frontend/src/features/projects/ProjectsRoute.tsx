@@ -17,7 +17,7 @@ export function ProjectsRoute({
   onNavigate?: (route: string) => void;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai workspace du an...">
+    <FeatureRouteShell fallbackMessage="Đang tải workspace dự án...">
       <ProjectsScreen isMobile={isMobile} currentUser={currentUser} onNavigate={onNavigate} />
     </FeatureRouteShell>
   );

@@ -1,12 +1,16 @@
 import { API_BASE } from './config';
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { showNotify } from './Notification';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 import { OverlayModal } from './ui/OverlayModal';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
 import { canEdit, canDelete, fetchWithAuth } from './auth';
 import { consumeNavContext } from './navContext';
 import { useI18n } from './i18n';
+import { normalizeImportReport, buildImportSummary } from './shared/imports/importReport';
+import { buildTabularFileUrl } from './shared/imports/tabularFiles';
+import { FormatActionButton } from './ui/FormatActionButton';
 import {
   EditIcon,
   ExportIcon,
@@ -207,6 +211,7 @@ export function Leads({ isMobile, currentUser }: { isMobile?: boolean; currentUs
   const [editingLead, setEditingLead] = useState<any>(null);
   const [loggingLead, setLoggingLead] = useState<any>(null);
   const [viewingLead, setViewingLead] = useState<any>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [mobileStage, setMobileStage] = useState<'All' | string>('All');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -281,10 +286,14 @@ export function Leads({ isMobile, currentUser }: { isMobile?: boolean; currentUs
   }, [filteredLeads, isMobile, mobileStage]);
 
   const deleteLead = async (id: string) => {
-    if (confirm('Xác nhận xóa Lead này?')) {
-      setLeads(prev => prev.filter((l: any) => l.id !== id));
-      await fetchWithAuth(token, `${API}/leads/${id}`, { method: 'DELETE' });
-    }
+    setConfirmState({
+      message: 'Xác nhận xóa Lead này?',
+      onConfirm: async () => {
+        setConfirmState(null);
+        setLeads(prev => prev.filter((l: any) => l.id !== id));
+        await fetchWithAuth(token, `${API}/leads/${id}`, { method: 'DELETE' });
+      },
+    });
   };
 
   const handleDrop = async (e: any, newStatus: string) => {
@@ -307,17 +316,24 @@ export function Leads({ isMobile, currentUser }: { isMobile?: boolean; currentUs
     try {
       const res = await fetchWithAuth(token, `${API}/leads/import`, { method: 'POST', body: formData });
       const result = await res.json();
-      showNotify(`Đã nhập: ${result.inserted}, Bỏ qua: ${result.skipped}`, 'success');
+      if (!res.ok) throw new Error(result?.error || 'Không thể import dữ liệu');
+      const report = normalizeImportReport(result);
+      showNotify(buildImportSummary(report), report.errors > 0 ? 'info' : 'success');
       loadData();
-    } catch { showNotify('Lỗi khi nhập CSV', 'error'); }
-    setLoading(false);
+    } catch (error: any) {
+      showNotify(error?.message || 'Lỗi khi nhập dữ liệu', 'error');
+    } finally {
+      setLoading(false);
+      if (e?.target) e.target.value = '';
+    }
   };
 
-  const exportCSV = () => window.open(`${API}/leads/export`, '_blank');
-  const downloadTemplate = () => window.open(`${API}/template/leads`, '_blank');
+  const exportData = (format: 'csv' | 'xlsx') => window.open(buildTabularFileUrl(`${API}/leads/export`, format), '_blank');
+  const downloadTemplate = (format: 'csv' | 'xlsx') => window.open(buildTabularFileUrl(`${API}/template/leads`, format), '_blank');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
       {showAdd && <AddLeadModal onClose={()=>setShowAdd(false)} onSaved={loadData} token={token} />}
       {editingLead && <EditLeadModal lead={editingLead} onClose={()=>setEditingLead(null)} onSaved={loadData} token={token} />}
       {loggingLead && <LogEventModal entityId={loggingLead.id} entityType="Lead" entityName={loggingLead.companyName || loggingLead.contactName} onClose={() => setLoggingLead(null)} onSaved={() => {}} token={token} />}
@@ -342,7 +358,7 @@ export function Leads({ isMobile, currentUser }: { isMobile?: boolean; currentUs
         />
       )}
       
-      <input type="file" ref={fileInputRef} onChange={importCSV} style={{ display: 'none' }} accept=".csv" />
+      <input type="file" ref={fileInputRef} onChange={importCSV} style={{ display: 'none' }} accept=".csv,.xlsx" />
 
       {/* Mini Dashboard */}
       <div style={{ display: 'flex', gap: isMobile ? '12px' : '16px', flexDirection: isMobile ? 'column' : 'row', flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
@@ -379,9 +395,9 @@ export function Leads({ isMobile, currentUser }: { isMobile?: boolean; currentUs
               style={{ ...ui.input.base, padding: '9px 12px 9px 36px', fontSize: '13.5px', width: isMobile ? '100%' : '220px', minWidth: 0 }} />
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', overflowX: isMobile ? 'auto' : 'visible', paddingBottom: isMobile ? '4px' : '0' }}>
-            <button style={S.btnSecondary} onClick={downloadTemplate}><SheetIcon size={14} /> {t('common.csv_template')}</button>
-            {userCanEdit && <button style={S.btnSecondary} onClick={() => fileInputRef.current?.click()}><ImportIcon size={14} /> {t('common.csv_import')}</button>}
-            <button style={S.btnSecondary} onClick={exportCSV}><ExportIcon size={14} /> {t('common.csv_export')}</button>
+            <FormatActionButton label={t('common.import_template')} icon={SheetIcon} buttonStyle={S.btnSecondary} onSelect={downloadTemplate} />
+            {userCanEdit && <button style={S.btnSecondary} onClick={() => fileInputRef.current?.click()}><ImportIcon size={14} /> {t('common.import_file')}</button>}
+            <FormatActionButton label={t('common.export_data')} icon={ExportIcon} buttonStyle={S.btnSecondary} onSelect={exportData} />
             {userCanEdit && <button style={S.btnPrimary} onClick={()=>setShowAdd(true)}><PlusIcon size={14} /> {t('sales.leads.action.add')}</button>}
           </div>
         </div>

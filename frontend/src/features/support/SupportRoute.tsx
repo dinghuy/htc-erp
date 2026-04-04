@@ -15,7 +15,7 @@ export function SupportRoute({
   currentUser: CurrentUser;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai trung tam ho tro...">
+    <FeatureRouteShell fallbackMessage="Đang tải trung tâm hỗ trợ...">
       <SupportScreen isMobile={isMobile} currentUser={currentUser} />
     </FeatureRouteShell>
   );

@@ -21,6 +21,12 @@ Build a sales and operations CRM that controls the revenue flow from lead captur
 - General-purpose chat features
 - Non-core UX redesigns that do not improve the revenue flow
 
+## Planned Expansion After Phase 1
+
+- Work Hub expansion may add richer project workspace, task graph, activity stream, contextual collaboration, and project document review.
+- This expansion must remain anchored to the revenue workflow and must not turn `htc-erp` into a general-purpose collaboration suite.
+- Huly is the reference benchmark for these capabilities, but the target implementation remains native to the current modular monolith.
+
 ## Success Criteria
 
 - Sales can create and advance the full revenue flow without Excel-only side channels.

@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { getDb } from '../../../sqlite-db';
+import type { PlatformWorkspaceServices } from '../../bootstrap/createOperationalServices';
 import type { AuthenticatedRequest } from '../../shared/auth/httpAuth';
 import { canUserApproveRequest, hasGlobalWorkspaceAccess, resolveApprovalLane as resolveApprovalLaneForUser } from '../../shared/auth/permissions';
 import { normalizeRoleCodes, resolvePrimaryRole } from '../../shared/auth/roles';
@@ -9,11 +9,13 @@ type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unkn
 type RegisterPlatformWorkspaceRoutesDeps = {
   ah: AsyncRouteFactory;
   requireAuth: any;
-  getProjectWorkspaceById: (db: any, projectId: string, currentUser?: any) => Promise<any>;
+  workspaceServices: PlatformWorkspaceServices;
+  getProjectWorkspaceById?: (db: any, projectId: string, currentUser?: any) => Promise<any>;
 };
 
 function getPersonaMode(roleCodes: string[]) {
   if (roleCodes.includes('admin')) return 'admin';
+  if (roleCodes.includes('sales') && roleCodes.includes('project_manager')) return 'sales_pm_combined';
   if (roleCodes.includes('procurement')) return 'procurement';
   if (roleCodes.includes('accounting')) return 'accounting';
   if (roleCodes.includes('legal')) return 'legal';
@@ -24,6 +26,14 @@ function getPersonaMode(roleCodes: string[]) {
 }
 
 function buildPriorityItems(mode: string, summary: any) {
+  if (mode === 'sales_pm_combined') {
+    return [
+      { metricKey: 'handoff_pending', label: 'Handoff cần chốt', value: Number(summary.handoffPending ?? 0), tone: 'warn' },
+      { metricKey: 'active_projects', label: 'Projects đang chạy', value: Number(summary.activeProjects ?? 0), tone: 'good' },
+      { metricKey: 'pending_approvals', label: 'Approvals chờ', value: Number(summary.pendingApprovals ?? 0), tone: 'bad' },
+    ];
+  }
+
   if (mode === 'procurement') {
     return [
       { metricKey: 'po_needed', label: 'PO cần tạo', value: Number(summary.procurementPending ?? 0), tone: 'warn' },
@@ -86,6 +96,19 @@ function buildMyWorkView(mode: string, input: { tasks?: any[]; approvals?: any[]
   };
 
   const byMode: Record<string, any> = {
+    sales_pm_combined: {
+      title: 'My Work',
+      description: 'Queue hợp nhất cho vai trò sales + PM, gom commercial handoff, execution blockers và approval trong cùng một lớp điều phối.',
+      taskTitle: 'Deals + Projects',
+      taskDescription: 'Các đầu việc đang kéo từ quotation sang execution, ưu tiên theo blocker và tiến độ dự án.',
+      approvalTitle: 'Unified Approvals',
+      approvalDescription: 'Một hàng chờ approval duy nhất cho commercial, legal, finance và delivery milestones.',
+      cards: [
+        { label: 'Deals cần chốt', value: summary.taskCount, tone: 'info' },
+        { label: 'Handoff / approvals', value: summary.approvalCount, tone: 'warn' },
+        { label: 'Projects cần đẩy', value: summary.projectCount, tone: 'good' },
+      ],
+    },
     sales: {
       title: 'My Work',
       description: 'Queue commercial theo assignment thực tế: follow-up, quotation và các yêu cầu bổ sung để đẩy deal.',
@@ -205,6 +228,10 @@ function buildInboxView(mode: string, items: any[]) {
   };
 
   const byMode: Record<string, any> = {
+    sales_pm_combined: {
+      title: 'Unified Inbox',
+      description: 'Một inbox hợp nhất cho hồ sơ thiếu, blocked task và notifications ảnh hưởng trực tiếp tới deal-to-delivery flow.',
+    },
     sales: {
       title: 'Sales Inbox',
       description: 'Tập trung hồ sơ thiếu, blocked task và notifications ảnh hưởng tới commercial follow-up hoặc handoff.',
@@ -264,6 +291,10 @@ function buildApprovalsView(mode: string, approvals: any[]) {
   };
 
   const byMode: Record<string, any> = {
+    sales_pm_combined: {
+      title: 'Unified Approvals',
+      description: 'Cockpit approval hợp nhất cho commercial, execution và các lane điều phối liên quan tới sales + PM.',
+    },
     sales: {
       title: 'Commercial Approvals',
       description: 'Theo dõi yêu cầu commercial và handoff đang chờ phản hồi từ các phòng ban liên quan.',
@@ -458,105 +489,10 @@ function buildExecutiveCockpitSummary(input: { highlights?: any[]; approvals?: a
   };
 }
 
-async function queryHighlightsForUser(userId: string, globalAccess = false) {
-  const db = getDb();
-  const sharedSelect = `
-    SELECT
-      p.id AS projectId,
-      p.code AS projectCode,
-      p.name AS projectName,
-      p.projectStage,
-      p.status AS projectStatus,
-      a.companyName AS accountName,
-      (
-        SELECT COUNT(*) FROM Task t
-        WHERE t.projectId = p.id AND t.status != 'completed'
-      ) AS openTaskCount,
-      (
-        SELECT COUNT(*) FROM ApprovalRequest ar
-        WHERE ar.projectId = p.id AND ar.status = 'pending'
-      ) AS pendingApprovalCount,
-      (
-        SELECT COUNT(*) FROM ProjectDocument pd
-        WHERE pd.projectId = p.id AND pd.status IN ('missing', 'requested')
-      ) AS missingDocumentCount
-    FROM Project p
-    LEFT JOIN Account a ON a.id = p.accountId
-  `;
-
-  if (globalAccess) {
-    return db.all(
-      `
-        ${sharedSelect}
-        ORDER BY COALESCE(p.updatedAt, p.createdAt) DESC
-        LIMIT 8
-      `,
-    );
-  }
-
-  return db.all(
-    `
-      ${sharedSelect}
-      WHERE p.managerId = ?
-         OR EXISTS (
-           SELECT 1 FROM Task t
-           WHERE t.projectId = p.id AND t.assigneeId = ?
-         )
-         OR EXISTS (
-           SELECT 1 FROM ApprovalRequest ar
-           WHERE ar.projectId = p.id AND (ar.requestedBy = ? OR ar.approverUserId = ?)
-         )
-      ORDER BY COALESCE(p.updatedAt, p.createdAt) DESC
-      LIMIT 8
-    `,
-    [userId, userId, userId, userId],
-  );
-}
-
-async function queryApprovalsForUser(userId: string, globalAccess = false) {
-  const db = getDb();
-  return db.all(
-    `
-      SELECT
-        ar.*,
-        p.name AS projectName,
-        p.code AS projectCode,
-        q.quoteNumber AS quotationNumber,
-        approver.fullName AS approverName,
-        requester.fullName AS requestedByName
-      FROM ApprovalRequest ar
-      LEFT JOIN Project p ON p.id = ar.projectId
-      LEFT JOIN Quotation q ON q.id = ar.quotationId
-      LEFT JOIN User approver ON approver.id = ar.approverUserId
-      LEFT JOIN User requester ON requester.id = ar.requestedBy
-      ${globalAccess ? '' : 'WHERE ar.approverUserId = ? OR ar.requestedBy = ?'}
-      ORDER BY CASE WHEN ar.status = 'pending' THEN 0 ELSE 1 END, ar.dueDate ASC, ar.createdAt DESC
-      LIMIT 50
-    `,
-    globalAccess ? [] : [userId, userId],
-  );
-}
-
 export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlatformWorkspaceRoutesDeps) {
-  const { ah, requireAuth, getProjectWorkspaceById } = deps;
-
-  async function enrichProjectHighlights(highlights: any[], currentUser?: any) {
-    const db = getDb();
-    return Promise.all((Array.isArray(highlights) ? highlights : []).map(async (highlight) => {
-      const projectId = String(highlight?.projectId || '').trim();
-      if (!projectId) return highlight;
-      const workspace = await getProjectWorkspaceById(db, projectId, currentUser).catch(() => null);
-      return {
-        ...highlight,
-        approvalGateStates: Array.isArray(workspace?.approvalGateStates) ? workspace.approvalGateStates : [],
-        actionAvailability: workspace?.actionAvailability || null,
-        pendingApproverState: Array.isArray(workspace?.pendingApproverState) ? workspace.pendingApproverState : [],
-      };
-    }));
-  }
+  const { ah, requireAuth, workspaceServices } = deps;
 
   app.get('/api/workspace/home', requireAuth, ah(async (req: AuthenticatedRequest, res: Response) => {
-    const db = getDb();
     const authUser = req.user;
     const roleCodes = normalizeRoleCodes(authUser?.roleCodes, authUser?.systemRole);
     const primaryRole = resolvePrimaryRole(roleCodes, authUser?.systemRole);
@@ -565,52 +501,9 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const userId = authUser?.id || '';
 
     const [summary, rawHighlights] = await Promise.all([
-      db.get(
-        `
-          SELECT
-            SUM(CASE WHEN t.taskType = 'handoff' AND t.status != 'completed' THEN 1 ELSE 0 END) AS handoffPending,
-            SUM(CASE WHEN p.status = 'active' THEN 1 ELSE 0 END) AS activeProjects,
-            SUM(CASE WHEN t.blockedReason IS NOT NULL AND trim(t.blockedReason) != '' AND t.status != 'completed' THEN 1 ELSE 0 END) AS blockers,
-            SUM(CASE WHEN ar.status = 'pending' THEN 1 ELSE 0 END) AS pendingApprovals,
-            SUM(CASE WHEN pd.status IN ('missing', 'requested') THEN 1 ELSE 0 END) AS missingDocuments,
-            SUM(CASE WHEN ppl.shortageQty > 0 THEN 1 ELSE 0 END) AS shortages,
-            SUM(CASE WHEN ppl.etaDate IS NOT NULL AND date(ppl.etaDate) < date('now') AND COALESCE(ppl.receivedQty, 0) < MAX(COALESCE(ppl.orderedQty, 0), COALESCE(ppl.contractQty, 0)) THEN 1 ELSE 0 END) AS overdueEta,
-            SUM(CASE WHEN ppl.orderedQty < ppl.contractQty THEN 1 ELSE 0 END) AS procurementPending,
-            SUM(CASE WHEN so.status = 'processing' THEN 1 ELSE 0 END) AS paymentDue,
-            SUM(CASE WHEN eo.status = 'failed' THEN 1 ELSE 0 END) AS erpFailed,
-            SUM(CASE WHEN ar.department = 'Finance' AND ar.status = 'pending' THEN 1 ELSE 0 END) AS receivableRisk,
-            SUM(CASE WHEN ar.department = 'Legal' AND ar.status = 'pending' THEN 1 ELSE 0 END) AS legalPending,
-            SUM(CASE WHEN p.projectStage IN ('won', 'order_released', 'procurement_active', 'delivery_active', 'delivery', 'delivery_completed') AND ((SELECT COUNT(*) FROM ApprovalRequest ap WHERE ap.projectId = p.id AND ap.status = 'pending') > 0 OR (SELECT COUNT(*) FROM ProjectDocument doc WHERE doc.projectId = p.id AND doc.status IN ('missing', 'requested')) > 0) THEN 1 ELSE 0 END) AS executiveRiskProjects
-          FROM Project p
-          LEFT JOIN Task t ON t.projectId = p.id
-          LEFT JOIN ApprovalRequest ar ON ar.projectId = p.id
-          LEFT JOIN ProjectDocument pd ON pd.projectId = p.id
-          LEFT JOIN ProjectProcurementLine ppl ON ppl.projectId = p.id AND COALESCE(ppl.isActive, 1) = 1
-          LEFT JOIN SalesOrder so ON so.projectId = p.id
-          LEFT JOIN ErpOutbox eo ON eo.entityId = p.id
-          ${globalAccess ? '' : `WHERE p.managerId = ?
-             OR EXISTS (SELECT 1 FROM Task ownTask WHERE ownTask.projectId = p.id AND ownTask.assigneeId = ?)
-             OR EXISTS (SELECT 1 FROM ApprovalRequest ownApproval WHERE ownApproval.projectId = p.id AND (ownApproval.requestedBy = ? OR ownApproval.approverUserId = ?))`}
-        `,
-        globalAccess ? [] : [userId, userId, userId, userId],
-      ).catch(() => ({
-        handoffPending: 0,
-        activeProjects: 0,
-        blockers: 0,
-        pendingApprovals: 0,
-        missingDocuments: 0,
-        shortages: 0,
-        overdueEta: 0,
-        procurementPending: 0,
-        paymentDue: 0,
-        erpFailed: 0,
-        receivableRisk: 0,
-        legalPending: 0,
-        executiveRiskProjects: 0,
-      })),
-      queryHighlightsForUser(userId, globalAccess),
+      workspaceServices.getHomeSummary(userId, globalAccess),
+      workspaceServices.listHighlights(userId, globalAccess, authUser),
     ]);
-    const highlights = await enrichProjectHighlights(rawHighlights, authUser);
 
     res.json({
       persona: {
@@ -619,12 +512,11 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
         mode: personaMode,
       },
       priorities: buildPriorityItems(personaMode, summary || {}),
-      highlights,
+      highlights: rawHighlights,
     });
   }));
 
   app.get('/api/workspace/my-work', requireAuth, ah(async (req: AuthenticatedRequest, res: Response) => {
-    const db = getDb();
     const authUser = req.user;
     const roleCodes = normalizeRoleCodes(authUser?.roleCodes, authUser?.systemRole);
     const primaryRole = resolvePrimaryRole(roleCodes, authUser?.systemRole);
@@ -632,46 +524,8 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const userId = authUser?.id || '';
     const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
 
-    const [tasks, approvals, projects] = await Promise.all([
-      db.all(
-        `
-          SELECT
-            t.*,
-            p.name AS projectName,
-            p.code AS projectCode,
-            p.projectStage,
-            q.quoteNumber AS quotationNumber
-          FROM Task t
-          LEFT JOIN Project p ON p.id = t.projectId
-          LEFT JOIN Quotation q ON q.id = t.quotationId
-          ${globalAccess ? '' : 'WHERE t.assigneeId = ?'}
-          ORDER BY
-            CASE WHEN t.status = 'active' THEN 0 WHEN t.status = 'pending' THEN 1 ELSE 2 END,
-            CASE WHEN t.dueDate IS NULL THEN 1 ELSE 0 END,
-            t.dueDate ASC,
-            t.createdAt DESC
-          LIMIT 24
-        `,
-        globalAccess ? [] : [userId],
-      ),
-      db.all(
-        `
-          SELECT
-            ar.*,
-            p.name AS projectName,
-            p.code AS projectCode,
-            q.quoteNumber AS quotationNumber
-          FROM ApprovalRequest ar
-          LEFT JOIN Project p ON p.id = ar.projectId
-          LEFT JOIN Quotation q ON q.id = ar.quotationId
-          ${globalAccess ? '' : 'WHERE ar.approverUserId = ? OR ar.requestedBy = ?'}
-          ORDER BY CASE WHEN ar.status = 'pending' THEN 0 ELSE 1 END, ar.dueDate ASC, ar.createdAt DESC
-          LIMIT 24
-        `,
-        globalAccess ? [] : [userId, userId],
-      ),
-      queryHighlightsForUser(userId, globalAccess),
-    ]);
+    const { tasks, approvals } = await workspaceServices.getMyWork(userId, globalAccess);
+    const projects = await workspaceServices.listHighlights(userId, globalAccess, authUser);
 
     const decoratedTasks = (Array.isArray(tasks) ? tasks : []).map((task: any) => decorateTaskForCurrentUser(task));
     const decoratedApprovals = (Array.isArray(approvals) ? approvals : []).map((approval: any) => decorateApprovalForCurrentUser(approval, authUser));
@@ -694,7 +548,6 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
   }));
 
   app.get('/api/workspace/inbox', requireAuth, ah(async (req: AuthenticatedRequest, res: Response) => {
-    const db = getDb();
     const authUser = req.user;
     const roleCodes = normalizeRoleCodes(authUser?.roleCodes, authUser?.systemRole);
     const primaryRole = resolvePrimaryRole(roleCodes, authUser?.systemRole);
@@ -702,68 +555,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const userId = authUser?.id || '';
     const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
 
-    const [documentItems, notificationItems, blockedTasks] = await Promise.all([
-      db.all(
-        `
-          SELECT
-            pd.id AS entityId,
-            'ProjectDocument' AS entityType,
-            pd.documentName AS title,
-            pd.status,
-            pd.department,
-            pd.requiredAtStage,
-            pd.updatedAt AS createdAt,
-            p.id AS projectId,
-            p.name AS projectName
-          FROM ProjectDocument pd
-          INNER JOIN Project p ON p.id = pd.projectId
-          WHERE pd.status IN ('missing', 'requested')
-            ${globalAccess ? '' : `AND (
-              p.managerId = ?
-              OR EXISTS (SELECT 1 FROM Task t WHERE t.projectId = p.id AND t.assigneeId = ?)
-              OR EXISTS (SELECT 1 FROM ApprovalRequest ar WHERE ar.projectId = p.id AND (ar.requestedBy = ? OR ar.approverUserId = ?))
-            )`}
-          ORDER BY pd.updatedAt DESC, pd.createdAt DESC
-          LIMIT 20
-        `,
-        globalAccess ? [] : [userId, userId, userId, userId],
-      ),
-      db.all(
-        `
-          SELECT
-            n.id AS entityId,
-            COALESCE(n.entityType, 'Notification') AS entityType,
-            n.content AS title,
-            n.link,
-            n.createdAt
-          FROM Notification n
-          WHERE n.userId = ?
-          ORDER BY n.createdAt DESC
-          LIMIT 20
-        `,
-        [userId],
-      ),
-      db.all(
-        `
-          SELECT
-            t.id AS entityId,
-            'Task' AS entityType,
-            t.name AS title,
-            t.blockedReason AS description,
-            t.updatedAt AS createdAt,
-            p.id AS projectId,
-            p.name AS projectName
-          FROM Task t
-          LEFT JOIN Project p ON p.id = t.projectId
-          WHERE ${globalAccess ? '1 = 1 AND' : 't.assigneeId = ? AND'} t.blockedReason IS NOT NULL
-            AND trim(t.blockedReason) != ''
-            AND t.status != 'completed'
-          ORDER BY t.updatedAt DESC, t.createdAt DESC
-          LIMIT 20
-        `,
-        globalAccess ? [] : [userId],
-      ),
-    ]);
+    const { documentItems, notificationItems, blockedTasks } = await workspaceServices.getInboxItems(userId, globalAccess);
 
     const items = [
       ...documentItems.map((item: any) => ({ ...item, source: 'documents' })),
@@ -794,7 +586,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const personaMode = getPersonaMode(roleCodes);
     const userId = authUser?.id || '';
     const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
-    const approvals = (await queryApprovalsForUser(userId, globalAccess)).map((approval: any) => decorateApprovalForCurrentUser(approval, authUser));
+    const approvals = (await workspaceServices.listApprovals(userId, globalAccess)).map((approval: any) => decorateApprovalForCurrentUser(approval, authUser));
     const approvalsView = buildApprovalsView(personaMode, approvals);
 
     res.json({
@@ -807,6 +599,39 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
       view: approvalsView.view,
       cards: approvalsView.cards,
       approvals,
+    });
+  }));
+
+  app.get('/api/v1/approvals/queue', requireAuth, ah(async (req: AuthenticatedRequest, res: Response) => {
+    const authUser = req.user;
+    const roleCodes = normalizeRoleCodes(authUser?.roleCodes, authUser?.systemRole);
+    const userId = authUser?.id || '';
+    const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
+    const approvals = (await workspaceServices.listApprovals(userId, globalAccess))
+      .map((approval: any) => decorateApprovalForCurrentUser(approval, authUser))
+      .map((approval: any) => ({
+        id: approval.id,
+        approvalRequestId: approval.id,
+        lane: approval.actionAvailability?.lane || resolveApprovalLane(approval),
+        status: approval.status,
+        requestType: approval.requestType || null,
+        projectId: approval.projectId || null,
+        taskId: approval.taskId || null,
+        dueAt: approval.dueDate || null,
+        assigneeUserId: approval.approverUserId || null,
+        createdAt: approval.createdAt || null,
+        updatedAt: approval.updatedAt || null,
+        createdBy: approval.requestedBy || null,
+        updatedBy: approval.decidedBy || null,
+      }));
+
+    res.json({
+      items: approvals,
+      persona: {
+        primaryRole: resolvePrimaryRole(roleCodes, authUser?.systemRole),
+        roleCodes,
+        mode: getPersonaMode(roleCodes),
+      },
     });
   }));
 
@@ -823,8 +648,8 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const userId = authUser?.id || '';
 
     const [highlights, approvals] = await Promise.all([
-      queryHighlightsForUser(userId, globalAccess),
-      queryApprovalsForUser(userId, globalAccess),
+      workspaceServices.listHighlights(userId, globalAccess),
+      workspaceServices.listApprovals(userId, globalAccess),
     ]);
 
     res.json({

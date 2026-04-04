@@ -4,6 +4,9 @@ import { ui } from '../ui/styles';
 import type { NotificationItem } from './useNotifications';
 import { setNavContext } from '../navContext';
 import { BellIcon } from '../ui/icons';
+import { buildNotificationNavigationTarget } from './notificationNavigation';
+
+let notificationPanelIdCounter = 0;
 
 function formatNotificationTime(value: string) {
   const date = new Date(value);
@@ -14,11 +17,6 @@ function formatNotificationTime(value: string) {
     day: '2-digit',
     month: '2-digit',
   });
-}
-
-function normalizeEntityType(value?: string | null) {
-  if (value === 'Task' || value === 'Quotation' || value === 'Account' || value === 'Lead') return value;
-  return undefined;
 }
 
 export function NotificationBell({
@@ -44,6 +42,15 @@ export function NotificationBell({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const refreshButtonRef = useRef<HTMLButtonElement>(null);
+  const notificationItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const wasOpenRef = useRef(false);
+  const panelId = useMemo(() => {
+    notificationPanelIdCounter += 1;
+    return `notification-bell-panel-${notificationPanelIdCounter}`;
+  }, []);
 
   useEffect(() => {
     const onMouseDown = (event: MouseEvent) => {
@@ -64,11 +71,24 @@ export function NotificationBell({
   }, []);
 
   const unreadItems = useMemo(() => items.filter(item => !item.readAt), [items]);
+  notificationItemRefs.current = [];
+
+  useEffect(() => {
+    if (open) {
+      const focusTarget = notificationItemRefs.current.find(Boolean) ?? refreshButtonRef.current ?? panelRef.current;
+      focusTarget?.focus();
+    } else if (wasOpenRef.current) {
+      triggerRef.current?.focus();
+    }
+
+    wasOpenRef.current = open;
+  }, [open, items]);
 
   return (
     <div ref={rootRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
       <button
         type="button"
+        ref={triggerRef}
         onClick={() => setOpen(prev => !prev)}
         style={{
           position: 'relative',
@@ -86,6 +106,8 @@ export function NotificationBell({
         }}
         aria-label="Mở thông báo"
         aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-controls={panelId}
       >
         <BellIcon size={compact ? 16 : 18} strokeWidth={1.9} color={tokens.colors.textPrimary} />
         {unreadCount > 0 && (
@@ -115,6 +137,12 @@ export function NotificationBell({
 
       {open && (
         <div
+          id={panelId}
+          ref={panelRef}
+          role="dialog"
+          aria-label="Thông báo"
+          aria-modal="false"
+          tabIndex={-1}
           style={{
             position: isMobile ? 'fixed' : 'absolute',
             right: isMobile ? '12px' : 0,
@@ -126,7 +154,7 @@ export function NotificationBell({
             border: `1px solid ${tokens.colors.border}`,
             borderRadius: tokens.radius.xl,
             boxShadow: tokens.shadow.md,
-            zIndex: 1200,
+            zIndex: tokens.zIndex.popover,
             overflow: 'hidden',
           }}
         >
@@ -139,6 +167,7 @@ export function NotificationBell({
             </div>
             <button
               type="button"
+              ref={refreshButtonRef}
               onClick={() => onRefresh?.()}
               style={{
                 ...ui.btn.outline,
@@ -164,64 +193,83 @@ export function NotificationBell({
               </div>
             )}
 
-            {items.map(item => {
+            {items.map((item, index) => {
               const isUnread = !item.readAt;
               const isClickable = !!(item.link && onNavigate);
+              const target = isClickable ? buildNotificationNavigationTarget(item) : null;
+              const handleRowClick = () => {
+                if (!isClickable) return;
+                if (target) setNavContext(target.navContext as any);
+                if (isUnread && item.id) {
+                  void onMarkRead?.([item.id]);
+                }
+                onNavigate?.(target?.route || (item.link as string));
+                setOpen(false);
+              };
+
+              const rowContent = (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  <div
+                    style={{
+                      marginTop: '4px',
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: isUnread ? tokens.colors.warning : tokens.colors.border,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', color: tokens.colors.textPrimary, lineHeight: 1.45 }}>
+                      {item.content}
+                    </div>
+                    <div style={{ fontSize: '11px', color: tokens.colors.textMuted, marginTop: '4px' }}>
+                      {formatNotificationTime(item.createdAt)}
+                    </div>
+                  </div>
+                </div>
+              );
+
+              const sharedRowStyle = {
+                padding: '12px 16px',
+                borderBottom: `1px solid ${tokens.colors.border}`,
+                background: isUnread ? tokens.colors.badgeBgSuccess : 'transparent',
+                width: '100%',
+                textAlign: 'left' as const,
+                font: 'inherit',
+              };
+
+              if (isClickable) {
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    ref={(node) => {
+                      notificationItemRefs.current[index] = node;
+                    }}
+                    onClick={handleRowClick}
+                    aria-label={`${item.content} ${formatNotificationTime(item.createdAt)}`.trim()}
+                    style={{
+                      ...sharedRowStyle,
+                      cursor: 'pointer',
+                      border: 'none',
+                    }}
+                  >
+                    {rowContent}
+                  </button>
+                );
+              }
+
               return (
                 <div
                   key={item.id}
                   style={{
-                    padding: '12px 16px',
-                    borderBottom: `1px solid ${tokens.colors.border}`,
-                    background: isUnread ? tokens.colors.badgeBgSuccess : 'transparent',
-                    cursor: isClickable ? 'pointer' : 'default',
-                  }}
-                  onClick={() => {
-                    if (!isClickable) return;
-                    if (item.link) {
-                      const entityType = normalizeEntityType(item.entityType);
-                      const entityId = item.entityId || undefined;
-                      setNavContext({
-                        route: item.link,
-                        entityType,
-                        entityId,
-                        autoOpenEdit: true,
-                        filters: entityType === 'Quotation' && entityId
-                          ? { quotationId: entityId }
-                          : entityType === 'Account' && entityId
-                            ? { accountId: entityId }
-                            : entityType === 'Lead' && entityId
-                              ? { leadId: entityId }
-                              : undefined,
-                      });
-                    }
-                    if (isUnread && item.id) {
-                      void onMarkRead?.([item.id]);
-                    }
-                    onNavigate?.(item.link as string);
-                    setOpen(false);
+                    ...sharedRowStyle,
+                    cursor: 'default',
+                    border: 'none',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <div
-                      style={{
-                        marginTop: '4px',
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        background: isUnread ? tokens.colors.warning : tokens.colors.border,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', color: tokens.colors.textPrimary, lineHeight: 1.45 }}>
-                        {item.content}
-                      </div>
-                      <div style={{ fontSize: '11px', color: tokens.colors.textMuted, marginTop: '4px' }}>
-                        {formatNotificationTime(item.createdAt)}
-                      </div>
-                    </div>
-                  </div>
+                  {rowContent}
                 </div>
               );
             })}
