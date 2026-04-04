@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { API_BASE } from '../config';
 import { fetchWithAuth, type CurrentUser } from '../auth';
 import { setNavContext } from '../navContext';
+import { buildErpOrdersNavigation, buildProjectListNavigation, buildProjectWorkspaceNavigation, buildTasksNavigation } from '../shared/workflow/workflowNavigation';
 import { tokens } from '../ui/tokens';
 import { ui } from '../ui/styles';
 import {
@@ -111,13 +112,14 @@ type Props = {
 };
 
 const API = API_BASE;
+const F = tokens.fontSize;
 
 const S = {
   shell: {
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: '24px',
-    paddingBottom: '12px',
+    gap: tokens.spacing.xl,
+    paddingBottom: tokens.spacing.md,
     color: tokens.colors.textPrimary,
   },
   hero: {
@@ -131,23 +133,23 @@ const S = {
   heroInner: {
     position: 'relative' as const,
     zIndex: 1,
-    padding: '28px',
+    padding: tokens.spacing.xxl,
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: '16px',
+    gap: tokens.spacing.lg,
   },
   sectionCard: {
     ...ui.card.base,
-    padding: '24px',
+    padding: tokens.spacing.xl,
   },
   title: {
-    fontSize: '28px',
+    fontSize: F.displayLg,
     fontWeight: 900,
     letterSpacing: '-0.04em',
     margin: 0,
   },
   subtitle: {
-    fontSize: '14px',
+    fontSize: F.base,
     color: tokens.colors.textSecondary,
     margin: 0,
     lineHeight: 1.6,
@@ -156,13 +158,13 @@ const S = {
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '8px 12px',
+    gap: tokens.spacing.sm,
+    padding: `${tokens.spacing.sm} ${tokens.spacing.md}`,
     borderRadius: tokens.radius.xl,
     background: tokens.colors.surface,
     border: `1px solid ${tokens.colors.border}`,
     color: tokens.colors.textSecondary,
-    fontSize: '12px',
+    fontSize: F.sm,
     fontWeight: 700,
   },
 };
@@ -172,28 +174,28 @@ const PROJECT_STATUS = {
   active: { label: 'Đang thực hiện', color: 'var(--ht-green)' },
   completed: { label: 'Hoàn thành', color: '#16a34a' },
   paused: { label: 'Tạm dừng', color: 'var(--ht-amber)' },
-  cancelled: { label: 'Hủy bỏ', color: '#dc2626' },
+  cancelled: { label: 'Hủy bỏ', color: tokens.colors.error },
 };
 
 const PROJECT_STAGE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   new: { label: 'Mới', color: '#475569', bg: tokens.colors.surface },
-  quoting: { label: 'Đang báo giá', color: '#0369a1', bg: '#e0f2fe' },
-  negotiating: { label: 'Thương lượng', color: '#b45309', bg: '#fff7ed' },
-  'internal-review': { label: 'Duyệt nội bộ', color: '#7c3aed', bg: '#f3e8ff' },
+  quoting: { label: 'Đang báo giá', color: tokens.colors.infoAccentText, bg: tokens.colors.infoAccentBg },
+  negotiating: { label: 'Thương lượng', color: tokens.colors.warningSurfaceText, bg: tokens.colors.warningSurfaceBg },
+  'internal-review': { label: 'Duyệt nội bộ', color: tokens.colors.violetAccentText, bg: tokens.colors.violetAccentBg },
   won: { label: 'Thắng', color: '#047857', bg: '#d1fae5' },
-  lost: { label: 'Thua', color: '#dc2626', bg: '#fee2e2' },
-  delivery: { label: 'Triển khai', color: '#6d28d9', bg: '#ede9fe' },
-  closed: { label: 'Đóng', color: '#0f172a', bg: '#e2e8f0' },
+  lost: { label: 'Thua', color: tokens.colors.error, bg: tokens.colors.badgeBgError },
+  delivery: { label: 'Triển khai', color: tokens.colors.violetStrongText, bg: tokens.colors.violetStrongBg },
+  closed: { label: 'Đóng', color: tokens.colors.textPrimary, bg: tokens.colors.surfaceSubtle },
 };
 
 const SALES_ORDER_STATUS = {
   draft: { label: 'Bản nháp', color: '#64748b', bg: tokens.colors.surface },
-  released: { label: 'Released', color: '#0369a1', bg: '#e0f2fe' },
+  released: { label: 'Released', color: tokens.colors.infoAccentText, bg: tokens.colors.infoAccentBg },
   locked_for_execution: { label: 'Khóa triển khai', color: '#047857', bg: '#d1fae5' },
-  processing: { label: 'Đang xử lý', color: '#0369a1', bg: '#e0f2fe' },
+  processing: { label: 'Đang xử lý', color: tokens.colors.infoAccentText, bg: tokens.colors.infoAccentBg },
   delivered: { label: 'Đã giao', color: '#047857', bg: '#d1fae5' },
-  closed: { label: 'Đã đóng', color: '#0f172a', bg: '#e2e8f0' },
-  cancelled: { label: 'Đã hủy', color: '#dc2626', bg: '#fee2e2' },
+  closed: { label: 'Đã đóng', color: tokens.colors.textPrimary, bg: tokens.colors.surfaceSubtle },
+  cancelled: { label: 'Đã hủy', color: tokens.colors.error, bg: tokens.colors.badgeBgError },
 };
 
 const TASK_STATUS = {
@@ -206,8 +208,8 @@ const TASK_STATUS = {
 const TASK_PRIORITY = {
   low: { label: 'Thấp', color: '#64748b', bg: tokens.colors.surface },
   medium: { label: 'Trung bình', color: 'var(--ht-green)', bg: 'var(--ht-success-bg)' },
-  high: { label: 'Cao', color: '#c2410c', bg: '#fff7ed' },
-  urgent: { label: 'Khẩn cấp', color: '#dc2626', bg: 'var(--ht-error-bg)' },
+  high: { label: 'Cao', color: tokens.colors.warningSurfaceText, bg: tokens.colors.warningSurfaceBg },
+  urgent: { label: 'Khẩn cấp', color: tokens.colors.error, bg: tokens.colors.badgeBgError },
 };
 
 const fmt = new Intl.NumberFormat('vi-VN');
@@ -278,14 +280,14 @@ function StatCard({
 }) {
   const palette = {
     neutral: { color: tokens.colors.textPrimary, bg: tokens.colors.surface },
-    good: { color: 'var(--ht-green)', bg: 'var(--ht-success-bg)' },
-    warn: { color: 'var(--ht-amber)', bg: 'var(--ht-warning-bg, #fff7ed)' },
-    bad: { color: '#dc2626', bg: 'var(--ht-error-bg)' },
+    good: { color: tokens.colors.success, bg: tokens.colors.badgeBgSuccess },
+    warn: { color: tokens.colors.warning, bg: tokens.colors.warningBg },
+    bad: { color: tokens.colors.error, bg: tokens.colors.badgeBgError },
   }[tone];
 
   const cardStyle = {
     ...ui.card.base,
-    padding: '20px',
+    padding: tokens.spacing.xlPlus,
     position: 'relative' as const,
     overflow: 'hidden' as const,
     width: '100%',
@@ -300,8 +302,8 @@ function StatCard({
       <div style={{ position: 'absolute', inset: 'auto -18px -22px auto', opacity: 0.06, transform: 'scale(3)', pointerEvents: 'none' }}>{icon}</div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
         <div>
-          <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
-          <div style={{ fontSize: '30px', fontWeight: 900, lineHeight: 1.1, marginTop: '8px', color: palette.color }}>{value}</div>
+          <div style={{ fontSize: F.xs, fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+          <div style={{ fontSize: F.displayXl, fontWeight: 900, lineHeight: 1.1, marginTop: tokens.spacing.sm, color: palette.color }}>{value}</div>
         </div>
         <div style={{
           width: '48px',
@@ -317,7 +319,7 @@ function StatCard({
           {icon}
         </div>
       </div>
-      {hint && <div style={{ marginTop: '10px', fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{hint}</div>}
+      {hint && <div style={{ marginTop: tokens.spacing.smPlus, fontSize: F.sm, color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{hint}</div>}
     </>
   );
 
@@ -334,10 +336,10 @@ function StatCard({
 
 function SectionTitle({ title, subtitle, action }: { title: string; subtitle?: string; action?: ComponentChildren }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', marginBottom: '18px', flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: tokens.spacing.lg, alignItems: 'flex-start', marginBottom: tokens.spacing.lgPlus, flexWrap: 'wrap' }}>
       <div>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 900, letterSpacing: '-0.03em' }}>{title}</h2>
-        {subtitle && <p style={{ margin: '4px 0 0', fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{subtitle}</p>}
+        <h2 style={{ margin: 0, fontSize: F.xl, fontWeight: 900, letterSpacing: '-0.03em' }}>{title}</h2>
+        {subtitle && <p style={{ margin: `${tokens.spacing.xs} 0 0`, fontSize: F.md, color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -355,7 +357,7 @@ function HorizontalBars({
 }) {
   const max = Math.max(...items.map((item) => item.value), 1);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacing.mdPlus }}>
       {items.map((item) => (
         <button
           key={item.label}
@@ -373,7 +375,7 @@ function HorizontalBars({
             color: 'inherit',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '6px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: tokens.spacing.md, marginBottom: tokens.spacing.xsPlus, fontSize: F.sm }}>
             <span style={{ fontWeight: 800, color: tokens.colors.textPrimary }}>{item.label}</span>
             <span style={{ color: tokens.colors.textSecondary }}>{formatNumber(item.value)}</span>
           </div>
@@ -389,10 +391,10 @@ function HorizontalBars({
               }}
             />
           </div>
-          {item.hint && <div style={{ marginTop: '4px', fontSize: '11px', color: tokens.colors.textMuted }}>{item.hint}</div>}
+          {item.hint && <div style={{ marginTop: tokens.spacing.xs, fontSize: F.xs, color: tokens.colors.textMuted }}>{item.hint}</div>}
         </button>
       ))}
-      {totalLabel && <div style={{ marginTop: '4px', fontSize: '11px', color: tokens.colors.textMuted }}>{totalLabel}</div>}
+      {totalLabel && <div style={{ marginTop: tokens.spacing.xs, fontSize: F.xs, color: tokens.colors.textMuted }}>{totalLabel}</div>}
     </div>
   );
 }
@@ -408,22 +410,22 @@ function MiniPill({
 }) {
   const palette = {
     neutral: { color: tokens.colors.textPrimary, bg: tokens.colors.surface, border: tokens.colors.border },
-    good: { color: 'var(--ht-green)', bg: 'var(--ht-success-bg)', border: 'rgba(0, 151, 110, 0.18)' },
-    warn: { color: 'var(--ht-amber)', bg: 'var(--ht-warning-bg, #fff7ed)', border: 'rgba(245, 158, 11, 0.18)' },
-    bad: { color: '#dc2626', bg: 'var(--ht-error-bg)', border: 'rgba(220, 38, 38, 0.18)' },
+    good: { color: tokens.colors.success, bg: tokens.colors.badgeBgSuccess, border: tokens.colors.successTint },
+    warn: { color: tokens.colors.warning, bg: tokens.colors.warningBg, border: tokens.colors.warningBorder },
+    bad: { color: tokens.colors.error, bg: tokens.colors.badgeBgError, border: tokens.colors.badgeBgError },
   }[tone];
 
   return (
     <div style={{
       display: 'inline-flex',
       alignItems: 'center',
-      gap: '8px',
-      padding: '8px 12px',
+      gap: tokens.spacing.sm,
+      padding: `${tokens.spacing.sm} ${tokens.spacing.md}`,
       borderRadius: tokens.radius.xl,
       border: `1px solid ${palette.border}`,
       background: palette.bg,
       color: palette.color,
-      fontSize: '12px',
+      fontSize: F.sm,
       fontWeight: 800,
       whiteSpace: 'nowrap',
     }}>
@@ -527,18 +529,14 @@ function TaskPriorityCard({ task, onNavigate }: { task: TaskRow; onNavigate?: (r
   const statusMeta = TASK_STATUS[status] || TASK_STATUS.pending;
   const openSimilarTasks = () => {
     if (!onNavigate) return;
-    setNavContext({
-      route: 'Tasks',
-      filters: {
-        projectId: task.projectId || undefined,
-        quotationId: task.quotationId || undefined,
-        status,
-        priorityGroup: priority === 'urgent' || priority === 'high' ? 'high' : priority,
-      },
-      entityType: 'Task',
-      entityId: task.id,
-    });
-    onNavigate('Tasks');
+    const target = buildTasksNavigation({
+      projectId: task.projectId || undefined,
+      quotationId: task.quotationId || undefined,
+      status,
+      priorityGroup: priority === 'urgent' || priority === 'high' ? 'high' : priority,
+    }, task.id, 'Task');
+    setNavContext(target.navContext);
+    onNavigate(target.route);
   };
 
   return (
@@ -592,7 +590,7 @@ function TaskPriorityCard({ task, onNavigate }: { task: TaskRow; onNavigate?: (r
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', fontSize: '12px', color: tokens.colors.textMuted }}>
         <span>Bắt đầu: {formatDate(task.startDate)}</span>
-        <span style={{ color: overdue ? '#dc2626' : dueSoon ? 'var(--ht-amber)' : tokens.colors.textMuted }}>
+        <span style={{ color: overdue ? tokens.colors.error : dueSoon ? tokens.colors.warning : tokens.colors.textMuted }}>
           Hạn xong: {formatDate(task.dueDate)}{overdue ? ' • Trễ hạn' : dueSoon ? ' • Sắp đến hạn' : ''}
         </span>
       </div>
@@ -607,7 +605,7 @@ function TaskPriorityCard({ task, onNavigate }: { task: TaskRow; onNavigate?: (r
             width: `${completion}%`,
             height: '100%',
             borderRadius: tokens.radius.xl,
-            background: overdue ? '#dc2626' : priority === 'urgent' ? '#f97316' : 'var(--ht-green)',
+            background: overdue ? tokens.colors.error : priority === 'urgent' ? tokens.colors.warning : tokens.colors.primary,
           }} />
         </div>
       </div>
@@ -884,38 +882,45 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
 
   const openProjects = (filters?: Record<string, unknown>) => {
     if (!onNavigate) return;
-    setNavContext({ route: 'Projects', filters, entityType: 'Project' });
-    onNavigate('Projects');
+    const target = buildProjectListNavigation(filters);
+    setNavContext(target.navContext);
+    onNavigate(target.route);
   };
 
   const openProject = (projectId: string) => {
     if (!onNavigate) return;
-    setNavContext({ route: 'Projects', filters: { projectId }, entityType: 'Project', entityId: projectId });
-    onNavigate('Projects');
+    const target = buildProjectWorkspaceNavigation(projectId, null);
+    if (!target) return;
+    setNavContext(target.navContext);
+    onNavigate(target.route);
   };
 
   const openTasks = (filters?: Record<string, unknown>) => {
     if (!onNavigate) return;
-    setNavContext({ route: 'Tasks', filters, entityType: 'Task' });
-    onNavigate('Tasks');
+    const target = buildTasksNavigation(filters);
+    setNavContext(target.navContext);
+    onNavigate(target.route);
   };
 
   const openTasksForProject = (projectId: string, extras?: Record<string, unknown>) => {
     if (!onNavigate) return;
-    setNavContext({ route: 'Tasks', filters: { projectId, ...extras }, entityType: 'Project', entityId: projectId });
-    onNavigate('Tasks');
+    const target = buildTasksNavigation({ projectId, ...extras }, projectId, 'Project');
+    setNavContext(target.navContext);
+    onNavigate(target.route);
   };
 
   const openOrders = (filters?: Record<string, unknown>) => {
     if (!onNavigate) return;
-    setNavContext({ route: 'ERP Orders', filters, entityType: 'Project' });
-    onNavigate('ERP Orders');
+    const target = buildErpOrdersNavigation(filters);
+    setNavContext(target.navContext);
+    onNavigate(target.route);
   };
 
   const openOrdersForProject = (projectId: string, extras?: Record<string, unknown>) => {
     if (!onNavigate) return;
-    setNavContext({ route: 'ERP Orders', filters: { projectId, ...extras }, entityType: 'Project', entityId: projectId });
-    onNavigate('ERP Orders');
+    const target = buildErpOrdersNavigation({ projectId, ...extras }, projectId);
+    setNavContext(target.navContext);
+    onNavigate(target.route);
   };
 
   return (
@@ -931,12 +936,12 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
           filter: 'blur(0px)',
         }} />
         <div style={S.heroInner}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: tokens.spacing.smPlus }}>
             <span style={S.chip}>Tổng quan vận hành</span>
             <span style={S.chip}>{new Date().toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
             <span style={S.chip}>Dữ liệu trực tiếp từ CRM</span>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: tokens.spacing.sm }}>
             <MiniPill label="Giai đoạn dự án" value={formatNumber(totals.projectStages)} tone="good" />
             <MiniPill label="Công việc trễ hạn" value={formatNumber(totals.overdueTasks)} tone={totals.overdueTasks > 0 ? 'bad' : 'neutral'} />
             <MiniPill label="Đơn đang xử lý" value={formatNumber(totals.activeOrders)} tone={totals.activeOrders > 0 ? 'warn' : 'neutral'} />
@@ -948,7 +953,7 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
               Theo dõi dự án, công việc và độ ưu tiên vận hành trong cùng một màn hình. Mục tiêu là giúp ban kinh doanh và vận hành nhìn nhanh phần việc đang trễ, phần việc sắp đến hạn, và những công việc cần tác động ngay.
             </p>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: tokens.spacing.smPlus }}>
             <button
               type="button"
               onClick={() => openProjects()}
@@ -979,7 +984,7 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
             )}
           </div>
           {erpSyncNote && (
-            <div style={{ marginTop: '6px', fontSize: '12px', color: tokens.colors.textSecondary, fontWeight: 700 }}>
+            <div style={{ marginTop: tokens.spacing.xsPlus, fontSize: F.sm, color: tokens.colors.textSecondary, fontWeight: 700 }}>
               {erpSyncNote}
             </div>
           )}
@@ -989,11 +994,11 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
       {error && (
         <div style={{
           ...ui.card.base,
-          padding: '16px 20px',
+          padding: `${tokens.spacing.lg} ${tokens.spacing.xlPlus}`,
           background: 'var(--ht-error-bg)',
           borderColor: 'rgba(220, 38, 38, 0.2)',
           color: '#991b1b',
-          fontSize: '13px',
+          fontSize: F.md,
           fontWeight: 600,
         }}>
           {error}
@@ -1080,35 +1085,35 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
                 totalLabel="đơn hàng"
                 onItemClick={(item) => openOrders({ status: item.key })}
               />
-              <div style={{ marginTop: '16px', display: 'grid', gap: '10px' }}>
+              <div style={{ marginTop: tokens.spacing.lg, display: 'grid', gap: tokens.spacing.smPlus }}>
                 {derived.workflowAttentionOrders.length > 0 ? derived.workflowAttentionOrders.map((order) => (
                   <div
                     key={order.id}
                     style={{
                       border: `1px solid ${tokens.colors.border}`,
                       borderRadius: tokens.radius.lg,
-                      padding: '14px',
+                      padding: tokens.spacing.mdPlus,
                       background: tokens.colors.surface,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '10px',
+                      gap: tokens.spacing.smPlus,
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: tokens.spacing.md, alignItems: 'flex-start' }}>
                       <div>
-                        <div style={{ fontSize: '14px', fontWeight: 900, color: tokens.colors.textPrimary }}>{order.orderNumber || order.id}</div>
-                        <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, marginTop: '4px' }}>
+                        <div style={{ fontSize: F.base, fontWeight: 900, color: tokens.colors.textPrimary }}>{order.orderNumber || order.id}</div>
+                        <div style={{ fontSize: F.sm, color: tokens.colors.textSecondary, marginTop: tokens.spacing.xs }}>
                           {order.projectName || order.projectId || 'Chưa gắn project'}{order.accountName ? ` • ${order.accountName}` : ''}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <div style={{ display: 'flex', gap: tokens.spacing.sm, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <MiniPill label="Trạng thái" value={SALES_ORDER_STATUS[order.status as keyof typeof SALES_ORDER_STATUS]?.label || order.status || 'draft'} tone="neutral" />
                         {order.approvalGateState?.status && order.approvalGateState.status !== 'not_requested' && (
                           <MiniPill label="Gate" value={String(order.approvalGateState.status).toUpperCase()} tone={orderGateTone(order.approvalGateState.status)} />
                         )}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: tokens.spacing.sm, flexWrap: 'wrap' }}>
                       {(order.approvalGateState?.pendingApprovers || []).map((approver) => (
                         <MiniPill
                           key={`${order.id}-${approver.approvalId || approver.approverRole || 'approver'}`}
@@ -1124,13 +1129,13 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
                         <MiniPill key={`${order.id}-${blocker}`} label="Blocker" value={blocker} tone="bad" />
                       ))}
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: tokens.spacing.sm, flexWrap: 'wrap' }}>
                       <button type="button" onClick={() => openOrders({ status: order.status, projectId: order.projectId })} style={ui.btn.outline}>Mở đơn ERP</button>
                       {order.projectId && <button type="button" onClick={() => openProject(String(order.projectId))} style={ui.btn.ghost}>Mở dự án</button>}
                     </div>
                   </div>
                 )) : (
-                  <div style={{ fontSize: '13px', color: tokens.colors.textMuted }}>
+                  <div style={{ fontSize: F.md, color: tokens.colors.textMuted }}>
                     Không có sales order nào đang cần workflow attention.
                   </div>
                 )}

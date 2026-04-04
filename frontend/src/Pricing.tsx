@@ -3,6 +3,7 @@ import { API_BASE } from './config';
 import { fetchWithAuth } from './auth';
 import { showNotify } from './Notification';
 import { consumeNavContext } from './navContext';
+import { OverlayPortal, getOverlayContainerStyle, overlayStyles } from './ui/overlay';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
 import {
@@ -42,24 +43,8 @@ const S = {
     color: tokens.colors.warning,
     justifyContent: 'center',
   } as any,
-  modalShell: {
-    position: 'fixed',
-    inset: 0,
-    zIndex: 1200,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
-  } as any,
-  modalBackdrop: {
-    position: 'absolute',
-    inset: 0,
-    background: 'rgba(15, 23, 42, 0.7)',
-  } as any,
   modalCard: {
-    ...ui.card.base,
-    position: 'relative',
-    zIndex: 1,
+    ...overlayStyles.surface,
     width: 'min(980px, calc(100vw - 32px))',
     maxHeight: '85vh',
     overflowY: 'auto',
@@ -212,9 +197,10 @@ function PricingModal({
   actions?: any;
 }) {
   return (
-    <div style={S.modalShell}>
-      <div style={S.modalBackdrop} onClick={onClose} />
-      <div style={S.modalCard}>
+    <OverlayPortal>
+      <div style={getOverlayContainerStyle('modal', { padding: '24px' })}>
+        <div aria-hidden="true" style={overlayStyles.backdrop} onClick={onClose} />
+        <div style={S.modalCard}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
           <div style={{ display: 'grid', gap: '6px' }}>
             <div style={{ fontSize: '20px', fontWeight: 800, color: tokens.colors.textPrimary }}>{title}</div>
@@ -225,7 +211,8 @@ function PricingModal({
         {children}
         {actions ? <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>{actions}</div> : null}
       </div>
-    </div>
+      </div>
+    </OverlayPortal>
   );
 }
 
@@ -575,7 +562,7 @@ export function Pricing({
               <MoneyIcon size={22} /> Pricing
             </h2>
             <div style={{ marginTop: '6px', color: tokens.colors.textSecondary, fontSize: '14px' }}>
-              Pricing giờ được quản lý theo từng project. Chọn project để mở context QBU của dự án.
+              Pricing giờ nằm trong phần quản lý chi phí của từng project. Chọn project để mở context QBU của dự án.
             </div>
           </div>
           <div style={{ display: 'grid', gap: '8px', maxWidth: '420px' }}>
@@ -587,7 +574,7 @@ export function Pricing({
           </div>
           {selectedProjectId ? (
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button style={S.primary} onClick={() => void loadList(selectedProjectId)}>Mở pricing của project</button>
+              <button style={S.primary} onClick={() => void loadList(selectedProjectId)}>Mở quản lý chi phí của project</button>
             </div>
           ) : null}
         </div>
@@ -600,7 +587,7 @@ export function Pricing({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', gap: tokens.spacing.md }}>
         <div>
           <h2 style={{ margin: 0, fontSize: embedded ? '24px' : '28px', fontWeight: 800, color: tokens.colors.textPrimary, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <MoneyIcon size={22} /> {embedded ? 'Project Pricing' : 'Pricing'}
+            <MoneyIcon size={22} /> {embedded ? 'Quản lý chi phí dự án' : 'Pricing'}
           </h2>
           <div style={{ marginTop: '6px', color: tokens.colors.textSecondary, fontSize: '14px' }}>
             {activeProject?.code || activeProject?.name || 'Project'} · QBU gốc, QBU bổ sung, actual cost, variance và workflow duyệt.
@@ -623,9 +610,9 @@ export function Pricing({
 
       {showRootEmptyState ? (
         <div style={{ ...S.card, padding: tokens.spacing.xl, display: 'grid', gap: tokens.spacing.md }}>
-          <div style={{ fontSize: '18px', fontWeight: 800, color: tokens.colors.textPrimary }}>Project này chưa có QBU gốc</div>
+          <div style={{ fontSize: '18px', fontWeight: 800, color: tokens.colors.textPrimary }}>Project này chưa có QBU gốc trong quản lý chi phí</div>
           <div style={{ fontSize: '14px', color: tokens.colors.textSecondary }}>
-            Tạo QBU gốc trực tiếp trong workspace dự án để quản lý toàn bộ pricing, actual cost và các batch bổ sung.
+            Tạo QBU gốc trực tiếp trong workspace dự án để quản lý toàn bộ chi phí, actual cost và các batch bổ sung.
           </div>
           <div>
             <button style={S.primary} onClick={startRootDraft} disabled={projectClosed}>Tạo QBU gốc</button>

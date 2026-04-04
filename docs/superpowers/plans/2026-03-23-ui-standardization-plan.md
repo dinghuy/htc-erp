@@ -12,33 +12,33 @@
 
 ## File Structure (Planned)
 **Create:**
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\tokens.ts`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\styles.ts`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\tokens.ts`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\styles.ts`
 
 **Modify (primary):**
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Layout.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Dashboard.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Leads.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Customers.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Users.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Layout.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Dashboard.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Leads.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Customers.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Users.tsx`
 
 **Modify (secondary):**
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Suppliers.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Products.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Reports.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Settings.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Support.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\EventLog.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Notification.tsx`
-- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\app.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Suppliers.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Products.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Reports.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Settings.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Support.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\EventLog.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Notification.tsx`
+- `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\app.tsx`
 
 ---
 
 ### Task 1: Create Token Mapping File
 
 **Files:**
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\tokens.ts`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\tokens.ts`
 
 - [ ] **Step 1: Define token object with CSS variable mappings**
 
@@ -87,7 +87,7 @@ export const tokens = {
 ### Task 2: Create Shared Style Objects
 
 **Files:**
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\styles.ts`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\styles.ts`
 
 - [ ] **Step 1: Import tokens and define shared UI styles**
 
@@ -237,8 +237,8 @@ export const ui = {
 ### Task 3: Update Layout and Dashboard to Use Shared Styles
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Layout.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Dashboard.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Layout.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Dashboard.tsx`
 
 - [ ] **Step 1: Replace inline hard-coded colors/radius/shadows with `tokens`/`ui`**
 
@@ -260,9 +260,9 @@ Expected: Layout and Dashboard appear unchanged in structure, with consistent bu
 ### Task 4: Update Leads, Customers, Users
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Leads.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Customers.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Users.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Leads.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Customers.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Users.tsx`
 
 - [ ] **Step 1: Replace local `S` style objects with `ui` styles**
 - [ ] **Step 2: Normalize KPI border colors to `tokens.colors.info|warning|success|error`**
@@ -278,15 +278,15 @@ Expected: All three screens share the same button, card, table, and badge look.
 ### Task 5: Update Secondary Screens for Token Cleanup
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Suppliers.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Products.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Reports.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Settings.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Support.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\EventLog.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Notification.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\app.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Suppliers.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Products.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Reports.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Settings.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Support.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\EventLog.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Notification.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\app.tsx`
 
 - [ ] **Step 1: Replace hard-coded colors/radius/shadows with tokenized values**
 - [ ] **Step 2: Where possible, swap to `ui.card.base`, `ui.btn.*`, `ui.table.*`**
@@ -297,13 +297,13 @@ Expected: All three screens share the same button, card, table, and badge look.
 ### Task 6: Static Check for Hard‑Coded Values
 
 **Files:**
-- Test: Entire `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src` tree
+- Test: Entire `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src` tree
 
 - [ ] **Step 1: Search for remaining hard-coded colors**
 
 Run (PowerShell):
 ```powershell
-Get-ChildItem -Path "C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src" -Recurse -File |
+Get-ChildItem -Path "C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src" -Recurse -File |
   Select-String -Pattern "#[0-9a-fA-F]{3,8}\b|rgb\\(|rgba\\(|hsl\\(|hsla\\(|box-shadow:|boxShadow:|borderRadius: '\\d+px'|borderRadius: \"\\d+px\"|borderRadius: \\d+|border-radius: \\d+px"
 ```
 
@@ -326,3 +326,4 @@ Expected: No hits for UI code except assets or explicitly approved exceptions.
 ## Notes
 - Git is not initialized in this workspace, so no commits are included.
 - If any visual regression is seen, pause and confirm with the user before adjusting mapping.
+

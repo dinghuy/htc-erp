@@ -4,7 +4,7 @@ import { tokens } from '../../ui/tokens';
 
 export function FeatureRouteShell({
   children,
-  fallbackMessage = 'Dang tai module...',
+  fallbackMessage = 'Đang tải module...',
   maxWidth = '1400px',
 }: {
   children: ComponentChildren;

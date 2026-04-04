@@ -78,22 +78,17 @@ export function normalizeRoleCodes(roleCodes: unknown, systemRole?: unknown): No
     normalized.push('viewer');
   }
 
-  const deduped = Array.from(new Set(normalized));
-  if (deduped.includes('project_manager') && deduped.includes('sales')) {
-    return deduped.filter((roleCode) => roleCode !== 'sales');
-  }
-
-  return deduped;
+  return Array.from(new Set(normalized));
 }
 
 export function resolvePrimaryRole(roleCodes: NormalizedRoleCode[], systemRole?: unknown): NormalizedRoleCode {
-  if (roleCodes.includes('project_manager') && roleCodes.includes('sales')) {
-    return 'project_manager';
-  }
-
   const normalizedSystemRole = normalizeRoleCode(systemRole);
   if (normalizedSystemRole && roleCodes.includes(normalizedSystemRole)) {
     return normalizedSystemRole;
+  }
+
+  if (roleCodes.includes('project_manager') && roleCodes.includes('sales')) {
+    return 'project_manager';
   }
 
   for (const roleCode of PRIMARY_ROLE_PRIORITY) {

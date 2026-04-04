@@ -11,19 +11,19 @@
 ---
 
 ## File Structure (Touch Points)
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts`
   - Purpose: Implement pixel-perfect PDF layout (header, title, info grid, table, terms) with Times New Roman and logo.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts`
   - Purpose: Ensure PDF data mapping and header text match the reference (if needed).
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
   - Purpose: Update preview to visually match the reference images pixel-perfect.
-- Create (if needed): `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\quotation-preview.css`
+- Create (if needed): `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\quotation-preview.css`
   - Purpose: Isolate preview styling for precise typography, spacing, and table grid lines.
 
 ## Task 1: Capture Reference Measurements
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -52,14 +52,14 @@ Expected: PASS (no error thrown).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts
 # git commit -m "chore: lock pdf layout constants"
 ```
 
 ## Task 2: Embed Times New Roman + L&D Logo in PDF
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -86,14 +86,14 @@ Expected: PASS with assets loaded.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts
 # git commit -m "feat: embed Times New Roman and LDA logo in PDF"
 ```
 
 ## Task 3: Rebuild PDF Layout (Header, Title, Info Grid)
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -114,14 +114,14 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts
 # git commit -m "feat: match header/title/info grid layout"
 ```
 
 ## Task 4: Rebuild PDF Table Layout (Column Widths + Borders)
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -142,14 +142,14 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts
 # git commit -m "feat: match items table layout"
 ```
 
 ## Task 5: Remarks, Terms, Closing, Signatures
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -170,15 +170,15 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\pdf-generator.ts
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\pdf-generator.ts
 # git commit -m "feat: match remarks/terms/footer layout"
 ```
 
 ## Task 6: Update Preview Layout to Match PDF
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
-- Create (optional): `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\quotation-preview.css`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
+- Create (optional): `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\quotation-preview.css`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -199,7 +199,7 @@ Expected: no warning; visual match to reference.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx
 # git commit -m "feat: pixel-perfect preview layout"
 ```
 
@@ -226,3 +226,4 @@ Open preview and ensure all layout elements align with PDF.
 git add -A
 # git commit -m "chore: final pixel adjustments"
 ```
+

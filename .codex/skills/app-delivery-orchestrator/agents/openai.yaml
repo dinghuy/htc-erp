@@ -1,7 +1,8 @@
 name: app-delivery-orchestrator
-short_description: Cross-tool app delivery orchestration with Linear, Notion, Figma, and Playwright
+short_description: htc-erp delivery orchestration across Linear, Notion, Figma, and Playwright
 description: |
-  Generic delivery orchestration skill for app work that spans issue tracking, docs, design context,
-  and browser verification.
+  Default htc-erp delivery orchestration skill for work that spans issue tracking, docs,
+  design context, and browser verification.
 when_to_use: |
-  Use when a request needs context from Linear, Notion, Figma, or Playwright before coding or reviewing.
+  Use when an htc-erp request needs context from Linear, Notion, Figma, or Playwright before coding,
+  reviewing, or verifying UI behavior.

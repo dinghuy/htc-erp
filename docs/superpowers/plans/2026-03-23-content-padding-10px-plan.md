@@ -11,12 +11,12 @@
 ---
 
 ## File Map
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Layout.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Layout.tsx`
 
 ### Task 1: Update Main Content Padding
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Layout.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Layout.tsx`
 
 - [ ] **Step 1: Update the main content wrapper padding to 10px**
 
@@ -47,3 +47,4 @@ If available, run the frontend and verify top spacing in key tabs (Dashboard, Sa
 ## Notes
 - No tests are expected for this UI-only spacing update.
 - Keep header and sidebar padding unchanged.
+

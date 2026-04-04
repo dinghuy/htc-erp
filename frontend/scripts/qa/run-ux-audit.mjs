@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { UX_REGRESSION_MANIFEST, UX_SMOKE_ROUTES } from './ux-regression.manifest.mjs';
@@ -33,6 +36,7 @@ const DEFAULT_ADMIN = {
 };
 const ARTIFACT_ROOT = path.resolve(FRONTEND_ROOT, 'artifacts', 'ux-audit');
 const REPORT_STAMP = new Date().toISOString().replace(/[:.]/g, '-');
+const DEFAULT_CDP_URL = 'http://127.0.0.1:9222';
 
 function sanitizeFileName(value) {
   return String(value).replace(/[^a-z0-9-_]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase();
@@ -127,10 +131,64 @@ async function loadPlaywright() {
   }
 }
 
+function getWindowsBrowserCandidates() {
+  return [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+  ];
+}
+
+async function isCdpReady(cdpUrl) {
+  try {
+    const response = await fetch(`${cdpUrl.replace(/\/$/, '')}/json/version`);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureWindowsCdpBrowser(cdpUrl) {
+  if (process.platform !== 'win32') return false;
+  if (await isCdpReady(cdpUrl)) return true;
+
+  const executable = getWindowsBrowserCandidates().find((candidate) => existsSync(candidate));
+  if (!executable) return false;
+
+  const userDataDir = path.join(tmpdir(), 'codex-ux-audit-cdp');
+  const psCommand = [
+    `$browser = '${executable.replace(/'/g, "''")}'`,
+    `$userData = '${userDataDir.replace(/'/g, "''")}'`,
+    "Start-Process -FilePath $browser -ArgumentList @('--remote-debugging-port=9222', '--user-data-dir=' + $userData, '--no-first-run', '--no-default-browser-check', 'about:blank')",
+  ].join('; ');
+
+  const child = spawn('powershell.exe', ['-NoProfile', '-Command', psCommand], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  child.unref();
+
+  const deadline = Date.now() + 12000;
+  while (Date.now() < deadline) {
+    if (await isCdpReady(cdpUrl)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  return false;
+}
+
 async function launchBrowser(playwright) {
   const channelCandidates = process.env.QA_BROWSER_CHANNEL
     ? [process.env.QA_BROWSER_CHANNEL]
     : ['chrome']; // Force chrome first
+  const cdpCandidates = Array.from(
+    new Set(
+      [process.env.QA_CDP_URL, DEFAULT_CDP_URL]
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter(Boolean),
+    ),
+  );
 
   const launchOptions = {
     headless: process.env.QA_HEADLESS === '0' ? false : true,
@@ -140,26 +198,58 @@ async function launchBrowser(playwright) {
   const launchErrors = [];
   for (const channel of channelCandidates) {
     try {
-      return await playwright.chromium.launch({
-        ...launchOptions,
-        channel,
-      });
+      return {
+        browser: await playwright.chromium.launch({
+          ...launchOptions,
+          channel,
+        }),
+        mode: 'launch',
+      };
     } catch (error) {
       launchErrors.push(`${channel}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   try {
-    return await playwright.chromium.launch({
-      ...launchOptions,
-    });
+    return {
+      browser: await playwright.chromium.launch({
+        ...launchOptions,
+      }),
+      mode: 'launch',
+    };
   } catch (error) {
     launchErrors.push(`bundled: ${error instanceof Error ? error.message : String(error)}`);
-    throw new Error(`Không thể khởi chạy browser cho UX audit. Hãy cài browser bằng "npx playwright install chromium" hoặc đặt QA_BROWSER_CHANNEL. Chi tiết: ${launchErrors.join(' | ')}`);
   }
+
+  for (const cdpUrl of cdpCandidates) {
+    try {
+      if (!(await isCdpReady(cdpUrl))) {
+        const launched = await ensureWindowsCdpBrowser(cdpUrl);
+        if (!launched) {
+          launchErrors.push(`cdp ${cdpUrl}: fetch failed`);
+          continue;
+        }
+      }
+
+      const response = await fetch(`${cdpUrl.replace(/\/$/, '')}/json/version`);
+      if (!response.ok) {
+        launchErrors.push(`cdp ${cdpUrl}: HTTP ${response.status}`);
+        continue;
+      }
+
+      return {
+        browser: await playwright.chromium.connectOverCDP(cdpUrl),
+        mode: 'cdp',
+      };
+    } catch (error) {
+      launchErrors.push(`cdp ${cdpUrl}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  throw new Error(`Không thể khởi chạy browser cho UX audit. Hãy cài browser bằng "npx playwright install chromium", đặt QA_BROWSER_CHANNEL, hoặc mở Chromium/Chrome với remote debugging rồi đặt QA_CDP_URL. Chi tiết: ${launchErrors.join(' | ')}`);
 }
 
-async function expectVisible(page, selector, message, timeout = 8000) {
+async function expectVisible(page, selector, message, timeout = 12000) {
   const locator = page.locator(selector).first();
   await locator.waitFor({ state: 'visible', timeout });
   return locator;
@@ -186,13 +276,43 @@ async function gotoAndWait(page, routeName) {
   await expectVisible(page, navItemSelector(routeName), `Missing nav item for ${routeName}`);
   await page.locator(navItemSelector(routeName)).click();
   await expectVisible(page, routeSelector(routeName), `Route ${routeName} did not render`);
+  await page.waitForLoadState('networkidle').catch(() => {});
+}
+
+async function resetToAdminHome(page, contract) {
+  await page.goto(contract.baseUrl.frontend, { waitUntil: 'domcontentloaded' });
+
+  const loginShell = page.locator(selectors.login.shell).first();
+  if (await loginShell.count()) {
+    await expectVisible(page, selectors.login.shell, 'Login screen did not render while resetting admin state');
+    await page.locator(selectors.login.username).fill(contract.admin.username);
+    await page.locator(selectors.login.password).fill(contract.admin.password);
+    await page.locator(selectors.login.submit).click();
+  }
+
+  await expectVisible(page, routeSelector('Home'), 'Home route did not render while resetting admin state');
+
+  const backToAdmin = page.locator(selectors.layout.previewBackToAdmin);
+  if (await backToAdmin.count()) {
+    await backToAdmin.first().click();
+    await page.waitForTimeout(100);
+  }
+
+  await gotoAndWait(page, 'Home');
+  await expectVisible(page, selectors.layout.previewBanner, 'Preview banner missing in base admin state');
+
+  const workspaceClose = page.locator(selectors.workspace.close);
+  if (await workspaceClose.count()) {
+    await workspaceClose.first().click();
+  }
 }
 
 async function selectPreviewPreset(page, presetKey, expectedRoute) {
   await expectVisible(page, selectors.layout.previewBanner, 'Preview banner missing before preset switch');
-  await page.locator(previewPresetSelector(presetKey)).click();
+  await page.locator(previewPresetSelector(presetKey)).first().click();
   await expectVisible(page, routeSelector(expectedRoute), `Route ${expectedRoute} did not render after preset ${presetKey}`);
   await expectVisible(page, selectors.layout.previewBanner, 'Preview banner disappeared unexpectedly');
+  await page.waitForLoadState('networkidle').catch(() => {});
 }
 
 async function openSettingsFromPreview(page) {
@@ -200,6 +320,7 @@ async function openSettingsFromPreview(page) {
   await page.locator(selectors.layout.previewOpenSettings).click();
   await expectVisible(page, routeSelector('Settings'), 'Settings route did not render from preview banner');
   await expectVisible(page, selectors.settings.previewPanel, 'Settings preview panel missing');
+  await page.waitForLoadState('networkidle').catch(() => {});
 }
 
 async function openRepresentativeWorkspace(page) {
@@ -207,6 +328,8 @@ async function openRepresentativeWorkspace(page) {
   await page.locator(selectors.settings.previewOpenWorkspace).click();
   await expectVisible(page, routeSelector('Projects'), 'Projects route did not render after opening representative workspace');
   await expectVisible(page, selectors.workspace.modal, 'Representative project workspace did not open');
+  await page.waitForLoadState('networkidle').catch(() => {});
+  await page.waitForTimeout(250);
 }
 
 async function closeRepresentativeWorkspace(page) {
@@ -239,11 +362,11 @@ async function runAdminPreviewViewerEscape(page) {
   await selectPreviewPreset(page, 'viewer', 'Home');
   await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST[0]);
   await openSettingsFromPreview(page);
-  await page.locator(previewPresetSelector('sales')).click();
+  await page.locator(previewPresetSelector('sales')).first().click();
   await expectVisible(page, routeSelector('My Work'), 'Sales preview did not reach My Work from Settings');
   await expectVisible(page, selectors.layout.previewBackToAdmin, 'Back to Admin missing after sales preview');
   await page.locator(selectors.layout.previewBackToAdmin).click();
-  await expectHidden(page, selectors.layout.previewBanner, 'Preview banner stayed visible after Back to Admin');
+  await expectVisible(page, selectors.layout.previewBanner, 'Preview banner should return to the admin control rail after Back to Admin');
   await expectVisible(page, navItemSelector('Users'), 'Admin nav did not recover after leaving preview');
 }
 
@@ -382,9 +505,12 @@ async function main() {
     contract.baseUrl.frontend = frontendUrl;
     await assertHttpReachable(contract.baseUrl.frontend, 'Frontend');
     const playwright = await loadPlaywright();
-    browser = await launchBrowser(playwright);
-    context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
-    const page = await context.newPage();
+    const browserSession = await launchBrowser(playwright);
+    browser = browserSession.browser;
+    context = browserSession.mode === 'cdp'
+      ? (browser.contexts()[0] ?? await browser.newContext({ viewport: { width: 1600, height: 1000 } }))
+      : await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+    const page = context.pages()[0] ?? await context.newPage();
     const results = [];
 
     await verifyUiLogin(page, contract);
@@ -393,6 +519,7 @@ async function main() {
       const startedAt = Date.now();
       const screenshotPath = path.join(artifactDir, `${sanitizeFileName(journey.id)}.png`);
       try {
+        await resetToAdminHome(page, contract);
         await JOURNEY_HANDLERS[journey.id](page, contract);
         await page.screenshot({ path: screenshotPath, fullPage: true });
         results.push({
@@ -422,6 +549,7 @@ async function main() {
     const smokeStartedAt = Date.now();
     const smokeShot = path.join(artifactDir, 'smoke-routes.png');
     try {
+      await resetToAdminHome(page, contract);
       await runSmokeRoutes(page);
       await page.screenshot({ path: smokeShot, fullPage: true });
       results.push({

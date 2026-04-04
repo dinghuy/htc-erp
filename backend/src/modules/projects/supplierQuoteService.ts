@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { getDb } from '../../../sqlite-db';
 
 export type SupplierQuoteCreateInput = {
   supplierId: unknown;
@@ -14,6 +15,7 @@ export type SupplierQuoteCreateInput = {
 };
 
 export async function createSupplierQuote(db: any, input: SupplierQuoteCreateInput) {
+  const database = db || getDb();
   const id = uuidv4();
   const projectId = typeof input.projectId === 'string' && input.projectId.trim() ? input.projectId.trim() : null;
   const linkedQuotationId = typeof input.linkedQuotationId === 'string' && input.linkedQuotationId.trim()
@@ -21,7 +23,7 @@ export async function createSupplierQuote(db: any, input: SupplierQuoteCreateInp
     : null;
 
   if (linkedQuotationId && projectId) {
-    const linkedQuotation = await db.get(
+    const linkedQuotation = await database.get(
       'SELECT id FROM Quotation WHERE id = ? AND projectId = ?',
       [linkedQuotationId, projectId]
     );
@@ -32,7 +34,7 @@ export async function createSupplierQuote(db: any, input: SupplierQuoteCreateInp
     }
   }
 
-  await db.run(
+  await database.run(
     `INSERT INTO SupplierQuote (id, supplierId, projectId, linkedQuotationId, category, quoteDate, validUntil, items, attachments, changeReason, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
@@ -50,5 +52,5 @@ export async function createSupplierQuote(db: any, input: SupplierQuoteCreateInp
     ]
   );
 
-  return db.get('SELECT * FROM SupplierQuote WHERE id = ?', [id]);
+  return database.get('SELECT * FROM SupplierQuote WHERE id = ?', [id]);
 }

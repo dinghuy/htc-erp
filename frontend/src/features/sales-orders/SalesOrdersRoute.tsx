@@ -17,7 +17,7 @@ export function SalesOrdersRoute({
   onNavigate?: (route: string) => void;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai don ERP...">
+    <FeatureRouteShell fallbackMessage="Đang tải đơn ERP...">
       <SalesOrdersScreen isMobile={isMobile} currentUser={currentUser} onNavigate={onNavigate} />
     </FeatureRouteShell>
   );

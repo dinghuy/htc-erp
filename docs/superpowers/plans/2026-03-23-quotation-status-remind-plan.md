@@ -11,13 +11,13 @@
 ---
 
 **File Map (ownership & responsibility)**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts`
   - Enforce status transitions, compute `isRemind`, add structured errors, log status changes.
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\quotation-status.ts`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\quotation-status.ts`
   - Pure helpers for status validation and remind computation.
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\quotation-status.test.ts`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\quotation-status.test.ts`
   - Lightweight tests for helper logic using `assert`.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
   - Status badges, Remind warning, status change actions, read-only UI lock.
 
 ---
@@ -25,11 +25,11 @@
 ### Task 1: Add Backend Helper for Status Validation + Remind
 
 **Files:**
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\quotation-status.ts`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\quotation-status.ts`
 
 - [ ] **Step 1: Write failing tests**
 
-Create `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\quotation-status.test.ts` with:
+Create `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\quotation-status.test.ts` with:
 
 ```ts
 import assert from 'node:assert/strict';
@@ -97,14 +97,14 @@ console.log('quotation-status tests passed');
 
 Run:
 ```bash
-cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend
+cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend
 npx ts-node scripts\quotation-status.test.ts
 ```
 Expected: FAIL because `quotation-status.ts` does not exist.
 
 - [ ] **Step 3: Implement helper module**
 
-Create `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\quotation-status.ts`:
+Create `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\quotation-status.ts`:
 
 ```ts
 export const VALID_STATUSES = ['draft', 'sent', 'accepted', 'rejected'] as const;
@@ -165,7 +165,7 @@ export function allowedTransitions(currentStatus?: string) {
 
 Run:
 ```bash
-cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend
+cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend
 npx ts-node scripts\quotation-status.test.ts
 ```
 Expected: `quotation-status tests passed`.
@@ -173,7 +173,7 @@ Expected: `quotation-status tests passed`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\quotation-status.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\quotation-status.test.ts
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\quotation-status.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\quotation-status.test.ts
 git commit -m "feat: add quotation status helper and tests"
 ```
 
@@ -182,8 +182,8 @@ git commit -m "feat: add quotation status helper and tests"
 ### Task 2: Enforce Status Validation + Remind in API
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts`
-- Test: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\quotation-status.test.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts`
+- Test: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\quotation-status.test.ts`
 
 - [ ] **Step 1: Write failing test**
 
@@ -200,14 +200,14 @@ assert.deepEqual(allowedTransitions('sent'), ['accepted', 'rejected']);
 
 Run:
 ```bash
-cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend
+cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend
 npx ts-node scripts\quotation-status.test.ts
 ```
 Expected: FAIL if `allowedTransitions` not exported.
 
 - [ ] **Step 3: Implement server changes**
 
-Update `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts`:
+Update `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts`:
 
 1) Import helper:
 ```ts
@@ -269,7 +269,7 @@ if (hasStatusField && req.body.status && req.body.status !== current.status) {
 
 Run:
 ```bash
-cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend
+cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend
 npx ts-node scripts\quotation-status.test.ts
 ```
 Expected: `quotation-status tests passed`.
@@ -277,7 +277,7 @@ Expected: `quotation-status tests passed`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\quotation-status.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\quotation-status.test.ts
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\quotation-status.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\quotation-status.test.ts
 git commit -m "feat: enforce quotation status transitions and remind flag"
 ```
 
@@ -286,7 +286,7 @@ git commit -m "feat: enforce quotation status transitions and remind flag"
 ### Task 3: Update Quotations List UI (Badge + Status Actions)
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
 
 - [ ] **Step 1: Add helper constants and functions (no tests)**
 
@@ -369,7 +369,7 @@ Add `LEGACY` badge if legacy; add `Remind` badge if `isRemind`:
 
 Run frontend and visually confirm:
 ```bash
-cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend
+cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend
 npm run dev
 ```
 Expected: table shows Remind badge where `isRemind=true`, select shows only valid transitions.
@@ -377,7 +377,7 @@ Expected: table shows Remind badge where `isRemind=true`, select shows only vali
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx
 git commit -m "feat: add list status actions and remind badge"
 ```
 
@@ -386,7 +386,7 @@ git commit -m "feat: add list status actions and remind badge"
 ### Task 4: Update Quotations Detail UI (Status Selector + Read-Only Lock)
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
 
 - [ ] **Step 1: Track current status in detail view**
 
@@ -449,7 +449,7 @@ Open a sent quote and verify selector shows accepted/rejected, and fields are di
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx
 git commit -m "feat: add detail status selector and read-only lock"
 ```
 
@@ -464,7 +464,7 @@ git commit -m "feat: add detail status selector and read-only lock"
 
 Run:
 ```bash
-cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend
+cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend
 npm run dev
 ```
 Expected: server starts on `http://localhost:3001`.
@@ -473,7 +473,7 @@ Expected: server starts on `http://localhost:3001`.
 
 Run:
 ```bash
-cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend
+cd C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend
 npm run dev
 ```
 
@@ -495,9 +495,10 @@ git commit -m "chore: manual verification adjustments"
 
 ---
 
-Plan complete and saved to `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\docs\superpowers\plans\2026-03-23-quotation-status-remind-plan.md`. Two execution options:
+Plan complete and saved to `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\docs\superpowers\plans\2026-03-23-quotation-status-remind-plan.md`. Two execution options:
 
 1. Subagent-Driven (recommended) - I dispatch a fresh subagent per task, review between tasks, fast iteration
 2. Inline Execution - Execute tasks in this session using executing-plans, batch execution with checkpoints
 
 Which approach?
+

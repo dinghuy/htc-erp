@@ -43,6 +43,7 @@ describe('authRolePreview', () => {
 
   it('publishes stable one-click presets and can detect the active preset', () => {
     expect(ROLE_PREVIEW_PRESETS.find((preset) => preset.key === 'project_manager')?.roleCodes).toEqual(['project_manager']);
+    expect(ROLE_PREVIEW_PRESETS.find((preset) => preset.key === 'sales_pm_combined')?.roleCodes).toEqual(['sales', 'project_manager']);
     expect(ROLE_PREVIEW_PRESETS.find((preset) => preset.key === 'viewer')?.roleCodes).toEqual(['viewer']);
     expect(ROLE_PREVIEW_PRESETS.find((preset) => preset.key === 'admin')).toBeUndefined();
     expect(isRolePreviewPresetActive(['sales', 'project_manager'], ['sales', 'project_manager'])).toBe(true);
@@ -54,6 +55,7 @@ describe('authRolePreview', () => {
   it('routes presets to the primary QA screen for each persona', () => {
     expect(getRolePreviewPresetNavigation('sales')).toMatchObject({ route: 'My Work', navContext: { filters: { workFocus: 'commercial' } } });
     expect(getRolePreviewPresetNavigation('project_manager')).toMatchObject({ route: 'My Work', navContext: { filters: { workFocus: 'execution' } } });
+    expect(getRolePreviewPresetNavigation('sales_pm_combined')).toMatchObject({ route: 'My Work', navContext: { filters: { workFocus: 'combined' } } });
     expect(getRolePreviewPresetNavigation('procurement')).toMatchObject({ route: 'Inbox', navContext: { filters: { department: 'procurement' } } });
     expect(getRolePreviewPresetNavigation('accounting')).toMatchObject({ route: 'Approvals', navContext: { filters: { approvalLane: 'finance' } } });
     expect(getRolePreviewPresetNavigation('legal')).toMatchObject({ route: 'Approvals', navContext: { filters: { approvalLane: 'legal' } } });
@@ -64,6 +66,7 @@ describe('authRolePreview', () => {
   it('builds representative project workspace navigation without expanding permissions', () => {
     expect(getRolePreviewWorkspaceNavigation(['sales'])).toMatchObject({ route: 'Projects', navContext: { filters: { projectStage: 'quoting', openRepresentative: true, workspaceTab: 'commercial' } } });
     expect(getRolePreviewWorkspaceNavigation(['project_manager'])).toMatchObject({ route: 'Projects', navContext: { filters: { projectStage: 'delivery', openRepresentative: true, workspaceTab: 'commercial' } } });
+    expect(getRolePreviewWorkspaceNavigation(['sales', 'project_manager'])).toMatchObject({ route: 'Projects', navContext: { filters: { projectStage: 'won', openRepresentative: true, workspaceTab: 'commercial' } } });
     expect(getRolePreviewWorkspaceNavigation(['procurement'])).toMatchObject({ route: 'Projects', navContext: { filters: { projectStage: 'delivery', openRepresentative: true, workspaceTab: 'procurement' } } });
     expect(getRolePreviewWorkspaceNavigation(['accounting'])).toMatchObject({ route: 'Projects', navContext: { filters: { projectStage: 'delivery', openRepresentative: true, workspaceTab: 'finance' } } });
     expect(getRolePreviewWorkspaceNavigation(['legal'])).toMatchObject({ route: 'Projects', navContext: { filters: { projectStage: 'won', openRepresentative: true, workspaceTab: 'legal' } } });

@@ -11,22 +11,22 @@
 ---
 
 ## File Structure & Responsibilities
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\OverlayModal.tsx` — shared overlay wrapper.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\styles.ts` — base input overflow fixes.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Customers.tsx` — replace local `ModalWrapper` with `OverlayModal`.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Leads.tsx` — replace local `Modal` with `OverlayModal`.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Products.tsx` — replace local `Modal` with `OverlayModal`.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx` — replace local `ProductModal` wrapper with `OverlayModal`.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Suppliers.tsx` — replace local `Modal` with `OverlayModal`.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Users.tsx` — replace local `ModalWrapper` with `OverlayModal`.
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Dashboard.tsx` — replace inline Activity Details modal with `OverlayModal`.
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\OverlayModal.tsx` — shared overlay wrapper.
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\styles.ts` — base input overflow fixes.
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Customers.tsx` — replace local `ModalWrapper` with `OverlayModal`.
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Leads.tsx` — replace local `Modal` with `OverlayModal`.
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Products.tsx` — replace local `Modal` with `OverlayModal`.
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx` — replace local `ProductModal` wrapper with `OverlayModal`.
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Suppliers.tsx` — replace local `Modal` with `OverlayModal`.
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Users.tsx` — replace local `ModalWrapper` with `OverlayModal`.
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Dashboard.tsx` — replace inline Activity Details modal with `OverlayModal`.
 
 ---
 
 ### Task 1: Add Shared `OverlayModal`
 
 **Files:**
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\OverlayModal.tsx`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\OverlayModal.tsx`
 
 - [ ] **Step 1: Write a minimal component scaffold (no behavior yet)**
 
@@ -129,7 +129,7 @@ type OverlayModalProps = {
 
 - [ ] **Step 4: Manual visual check**
 
-Run: `npm run dev` in `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend` and open any screen that will use the modal once wired. Expected: overlay fills screen, backdrop dims, header visible.
+Run: `npm run dev` in `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend` and open any screen that will use the modal once wired. Expected: overlay fills screen, backdrop dims, header visible.
 
 - [ ] **Step 5: Skip commit here** — single final commit in Task 10.
 
@@ -138,7 +138,7 @@ Run: `npm run dev` in `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity W
 ### Task 2: Fix Base Input Overflow Styles
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\styles.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\styles.ts`
 
 - [ ] **Step 1: Add box sizing and width guards**
 
@@ -178,7 +178,7 @@ Example in `Customers.tsx` (Add/Edit Contact rows):
 ### Task 3: Refactor `Customers` Modals to `OverlayModal`
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Customers.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Customers.tsx`
 
 - [ ] **Step 1: Replace `ModalWrapper` with `OverlayModal`**
 
@@ -206,7 +206,7 @@ Open Customers screen; verify all customer/contact/history/event modals close on
 ### Task 4: Refactor `Leads` Modals to `OverlayModal`
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Leads.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Leads.tsx`
 
 - [ ] **Step 1: Remove local `Modal` and replace with `OverlayModal`**
 
@@ -229,7 +229,7 @@ Open Leads screen; verify Add/Edit/Log modals close on click-away.
 ### Task 5: Refactor `Products` Modals to `OverlayModal`
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Products.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Products.tsx`
 
 - [ ] **Step 1: Replace local `Modal` with `OverlayModal`**
 
@@ -252,7 +252,7 @@ Open Products screen; verify Add/Edit/Detail modals close on click-away.
 ### Task 6: Refactor `Quotations` Product Modal to `OverlayModal`
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
 
 - [ ] **Step 1: Replace local modal wrapper with `OverlayModal`**
 
@@ -275,7 +275,7 @@ Open Quotations screen; open product selection modal; verify click-away closes.
 ### Task 7: Refactor `Suppliers` Modals to `OverlayModal`
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Suppliers.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Suppliers.tsx`
 
 - [ ] **Step 1: Replace local `Modal` with `OverlayModal`**
 
@@ -298,7 +298,7 @@ Open Suppliers screen; verify Add/Edit/Quote modals close on click-away.
 ### Task 8: Refactor `Users` Modals to `OverlayModal`
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Users.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Users.tsx`
 
 - [ ] **Step 1: Replace `ModalWrapper` with `OverlayModal`**
 
@@ -321,7 +321,7 @@ Open Users screen; verify Add/Edit modals close on click-away.
 ### Task 9: Refactor `Dashboard` Activity Details Modal to `OverlayModal`
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Dashboard.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Dashboard.tsx`
 
 - [ ] **Step 1: Replace inline modal markup**
 
@@ -353,7 +353,7 @@ Open Dashboard; click activity; verify click-away closes and content scrolls if 
 
 - [ ] **Step 1: Run build (optional)**
 
-Run: `npm run build` in `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend`
+Run: `npm run build` in `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend`
 Expected: build completes without errors.
 
 - [ ] **Step 2: Full UI check**
@@ -366,15 +366,16 @@ Confirm on each screen:
 - [ ] **Step 3: Commit** (skip if repo isn’t a git workspace)
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\OverlayModal.tsx \
-  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\styles.ts \
-  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Customers.tsx \
-  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Leads.tsx \
-  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Products.tsx \
-  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx \
-  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Suppliers.tsx \
-  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Users.tsx \
-  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Dashboard.tsx
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\OverlayModal.tsx \
+  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\styles.ts \
+  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Customers.tsx \
+  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Leads.tsx \
+  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Products.tsx \
+  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx \
+  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Suppliers.tsx \
+  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Users.tsx \
+  C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Dashboard.tsx
 
 git commit -m "feat: standardize overlay modals"
 ```
+

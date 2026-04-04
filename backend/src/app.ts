@@ -15,8 +15,9 @@ import * as dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { normalizeGender } from '../gender';
+import { createOperationalServices } from './bootstrap/createOperationalServices';
 import { startServer } from './bootstrap/startServer';
-import { JWT_SECRET, requireAuth, requireRole } from './shared/auth/httpAuth';
+import { requireAuth, requireRole } from './shared/auth/httpAuth';
 import { asyncHandler } from './shared/http/asyncHandler';
 import { parseLimitParam } from './shared/http/params';
 import { registerPlatformRoutes } from './modules/platform/routes';
@@ -34,14 +35,11 @@ import { registerExchangeRateRoutes } from './modules/exchange-rates/routes';
 import { registerProjectContractRoutes } from './modules/projects/contractRoutes';
 import { registerProjectGovernanceRoutes } from './modules/projects/governanceRoutes';
 import { registerProjectLogisticsRoutes } from './modules/projects/logisticsRoutes';
-import { createProjectOrchestrationServices } from './modules/projects/orchestration';
 import { registerProjectReadRoutes } from './modules/projects/readRoutes';
 import { registerProjectSupplierQuoteRoutes } from './modules/projects/supplierQuoteRoutes';
 import { createSupplierQuote } from './modules/projects/supplierQuoteService';
 import { registerProjectWorkflowRoutes } from './modules/projects/workflowRoutes';
-import { createProjectWorkspaceServices } from './modules/projects/workspace';
 import { registerProductRoutes } from './modules/products/routes';
-import { createQuotationAutomationServices } from './modules/quotations/automation';
 import { registerProjectWriteRoutes } from './modules/projects/writeRoutes';
 import {
   buildRevisionLabel,
@@ -54,14 +52,11 @@ import { registerSalesOrderRoutes } from './modules/sales-orders/routes';
 import { registerSalespersonRoutes } from './modules/salespersons/routes';
 import { registerSupplierRoutes } from './modules/suppliers/routes';
 import { registerSupplierQuoteRoutes } from './modules/supplier-quotes/routes';
-import { createTaskServices } from './modules/tasks/service';
-import { createVcbExchangeRateServices } from './shared/exchange-rate/vcb';
-import { createActivityServices } from './shared/activity/service';
-import { createNotificationServices } from './shared/notifications/service';
 import { createCrmSerializationServices } from './shared/serialization/crm';
 import { registerTaskRoutes } from './modules/tasks/routes';
+import { registerTaskDependencyRoutes } from './modules/tasks/dependencyRoutes';
+import { registerTimeSpendRoutes } from './modules/tasks/timeSpendRoutes';
 import { registerUserRoutes } from './modules/users/routes';
-import { createCollaborationServices } from './modules/collaboration/service';
 
 dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
@@ -70,8 +65,30 @@ const ah = asyncHandler;
 export const app = express();
 export const PORT = Number(process.env.PORT || 3001);
 
-const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:4173')
-  .split(',').map(s => s.trim()).filter(Boolean);
+function expandLoopbackCorsOrigins(origin: string) {
+  try {
+    const url = new URL(origin);
+    if (url.hostname === 'localhost') {
+      return [origin, origin.replace('://localhost', '://127.0.0.1')];
+    }
+    if (url.hostname === '127.0.0.1') {
+      return [origin, origin.replace('://127.0.0.1', '://localhost')];
+    }
+  } catch {
+    // Keep invalid origins untouched so explicit env mistakes are still visible.
+  }
+  return [origin];
+}
+
+const allowedOrigins = Array.from(
+  new Set(
+    (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:4173')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .flatMap(expandLoopbackCorsOrigins),
+  ),
+);
 
 app.use(cors({
   origin: (origin, cb) => {
@@ -83,19 +100,13 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '2mb' }));
 
-// Compatibility bridge while the API surface migrates toward versioned routes.
-app.use((req, _res, next) => {
-  if (req.url === '/api/v1' || req.url.startsWith('/api/v1/')) {
-    const suffix = req.url.slice('/api/v1'.length);
-    req.url = `/api${suffix || ''}`;
-  }
-  next();
-});
-
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// Multer setup — memory storage for CSV parsing (max 5MB)
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+// Multer setup:
+// - importUpload: lightweight tabular files
+// - productAssetUpload: larger images/documents attached to products
+const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const productAssetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 function mapGenderRecord<T extends { gender?: unknown } | null | undefined>(row: T): T {
   if (!row || typeof row !== 'object') return row;
@@ -223,34 +234,58 @@ const WORKFLOW_PACK_LIBRARY: Record<string, { taskTemplateKeys: string[]; approv
     projectStage: 'internal-review',
   },
 };
-
-let vcbExchangeRateServicesCache: ReturnType<typeof createVcbExchangeRateServices> | null = null;
-
-function getVcbExchangeRateServices() {
-  if (!vcbExchangeRateServicesCache) {
-    vcbExchangeRateServicesCache = createVcbExchangeRateServices({
-      getDb,
-      createId: uuidv4,
-    });
-  }
-  return vcbExchangeRateServicesCache;
+function normalizeProjectStage(value: unknown, fallback = 'new') {
+  const stage = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return PROJECT_STAGE_VALUES.includes(stage as any) ? stage : fallback;
 }
 
-function parseExchangeRatePair(pairRaw: unknown) {
-  return getVcbExchangeRateServices().parseExchangeRatePair(pairRaw);
-}
+const operationalServices = createOperationalServices({
+  getDb,
+  createId: uuidv4,
+  supportTicketStatuses: SUPPORT_TICKET_STATUSES,
+  projectStageValues: PROJECT_STAGE_VALUES,
+  taskTemplateLibrary: TASK_TEMPLATE_LIBRARY,
+  approvalTemplateLibrary: APPROVAL_TEMPLATE_LIBRARY,
+  documentTemplateLibrary: DOCUMENT_TEMPLATE_LIBRARY,
+});
 
-function getLatestExchangeRatePayload(baseCurrency: string, quoteCurrency: string) {
-  return getVcbExchangeRateServices().getLatestExchangeRatePayload(baseCurrency, quoteCurrency);
-}
-
-export function refreshVcbRates() {
-  return getVcbExchangeRateServices().refreshVcbRates();
-}
-
-function scheduleDailyVcbRefresh(): void {
-  return getVcbExchangeRateServices().scheduleDailyVcbRefresh();
-}
+const {
+  parseExchangeRatePair,
+  getLatestExchangeRatePayload,
+  refreshVcbRates,
+  scheduleDailyVcbRefresh,
+  listActivities,
+  createActivity,
+  logAct,
+  getCurrentUserId,
+  appendDateRangeFilter,
+  resolveAssigneeId,
+  getTaskWithLinksById,
+  normalizeSupportTicketStatus,
+  getSupportTicketById,
+  autoCreateProjectForQuotation,
+  createProjectTasksFromTemplate,
+  createApprovalRequestsFromTemplate,
+  createProjectDocumentsFromTemplate,
+  createSalesOrderFromQuotation,
+  resolveProjectHandoffQuotation,
+  projectHubText,
+  projectHubNumber,
+  parseProjectHubJson,
+  normalizeContractLineItems,
+  mapProjectContractRow,
+  mapProjectAppendixRow,
+  mapProjectInboundLineRow,
+  mapProjectDeliveryLineRow,
+  createProjectTimelineEvent,
+  recalculateProjectProcurementRollup,
+  createExecutionBaselineFromSource,
+  getProjectWorkspaceById,
+  ensureNotification,
+  platformReportingServices,
+  platformWorkspaceServices,
+  triggerQuotationAutomation,
+} = operationalServices;
 
 registerPlatformRoutes(app);
 registerPlatformTranslationRoutes(app, { ah });
@@ -263,36 +298,22 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
   requireAuth(req, res, next);                         // POST/PUT/PATCH/DELETE cần token
 });
 
-let activityServicesCache: ReturnType<typeof createActivityServices> | null = null;
-
-function getActivityServices() {
-  if (!activityServicesCache) {
-    activityServicesCache = createActivityServices({
-      getDb,
-      createId: uuidv4,
-    });
-  }
-  return activityServicesCache;
-}
-
-const logAct = (...args: Parameters<ReturnType<typeof createActivityServices>['logAct']>) =>
-  getActivityServices().logAct(...args);
-
 const crmSerializationServices = createCrmSerializationServices();
 
 
 registerAuthRoutes(app, { mapGenderRecord });
 registerPlatformCalculatorRoutes(app, { ah });
 registerPlatformQaRoutes(app, { ah, requireAuth });
-registerPlatformReportingRoutes(app, { ah });
-registerPlatformWorkspaceRoutes(app, { ah, requireAuth, getProjectWorkspaceById });
+registerPlatformReportingRoutes(app, { ah, reportingServices: platformReportingServices });
+registerPlatformWorkspaceRoutes(app, { ah, requireAuth, workspaceServices: platformWorkspaceServices });
 registerPlatformSystemRoutes(app, { ah, requireAuth, requireRole });
-registerCrmRoutes(app, { ah, requireAuth, requireRole, upload, mapGenderRecord, mapGenderRecords, logAct });
+registerCrmRoutes(app, { ah, requireAuth, requireRole, upload: importUpload, mapGenderRecord, mapGenderRecords, logAct });
 registerProductRoutes(app, {
   ah,
   requireAuth,
   requireRole,
-  upload,
+  upload: importUpload,
+  assetUpload: productAssetUpload,
   serializeProductRow: crmSerializationServices.serializeProductRow,
   parseJsonObject: crmSerializationServices.parseJsonObject,
   stringifyNormalizedJson: crmSerializationServices.stringifyNormalizedJson,
@@ -302,7 +323,7 @@ registerSupplierRoutes(app, {
   ah,
   requireAuth,
   requireRole,
-  upload,
+  upload: importUpload,
   serializeSupplierTags: crmSerializationServices.serializeSupplierTags,
   hydrateSupplier: crmSerializationServices.hydrateSupplier,
 });
@@ -315,8 +336,8 @@ registerUserRoutes(app, {
   ah,
   requireAuth,
   requireRole,
-  upload,
-  avatarUploadDir: path.join(__dirname, 'uploads', 'avatars'),
+  upload: importUpload,
+  avatarUploadDir: path.join(__dirname, '..', 'uploads', 'avatars'),
   mapGenderRecord,
   mapGenderRecords,
 });
@@ -340,6 +361,7 @@ registerQuotationRoutes(app, {
   markWinningQuotation,
   createProjectTasksFromTemplate,
   triggerQuotationAutomation,
+  createProjectTimelineEvent,
   logAct,
 });
 
@@ -349,284 +371,9 @@ registerSalesOrderRoutes(app, {
   requireRole,
   parseLimitParam,
   createSalesOrderFromQuotation,
+  getProjectWorkspaceById,
+  createProjectTimelineEvent,
 });
-
-const appendDateRangeFilter = (
-  conditions: string[],
-  params: any[],
-  column: string,
-  from: unknown,
-  to: unknown,
-) => {
-  const start = typeof from === 'string' ? from.trim() : '';
-  const end = typeof to === 'string' ? to.trim() : '';
-
-  if (start) {
-    conditions.push(`${column} >= ?`);
-    params.push(start);
-  }
-  if (end) {
-    conditions.push(`${column} <= ?`);
-    params.push(end);
-  }
-};
-
-const getCurrentUserId = (req: Request) => String((req as any).user?.id || '');
-
-let taskServicesCache: ReturnType<typeof createTaskServices> | null = null;
-
-function getTaskServices() {
-  if (!taskServicesCache) {
-    taskServicesCache = createTaskServices();
-  }
-  return taskServicesCache;
-}
-
-function resolveAssigneeId(db: any, preferredAssigneeId: unknown, salesperson: unknown, fallbackUserId: string | null) {
-  return getTaskServices().resolveAssigneeId(db, preferredAssigneeId, salesperson, fallbackUserId);
-}
-
-function getTaskWithLinksById(db: any, id: string) {
-  return getTaskServices().getTaskWithLinksById(db, id);
-}
-
-let collaborationServicesCache: ReturnType<typeof createCollaborationServices> | null = null;
-
-function getCollaborationServices() {
-  if (!collaborationServicesCache) {
-    collaborationServicesCache = createCollaborationServices({
-      supportTicketStatuses: SUPPORT_TICKET_STATUSES,
-    });
-  }
-  return collaborationServicesCache;
-}
-
-function normalizeSupportTicketStatus(value: unknown): string | null {
-  return getCollaborationServices().normalizeSupportTicketStatus(value);
-}
-
-function getSupportTicketById(db: any, id: string) {
-  return getCollaborationServices().getSupportTicketById(db, id);
-}
-
-function normalizeProjectStage(value: unknown, fallback = 'new') {
-  const stage = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  return PROJECT_STAGE_VALUES.includes(stage as any) ? stage : fallback;
-}
-
-let projectOrchestrationServicesCache: ReturnType<typeof createProjectOrchestrationServices> | null = null;
-
-function getProjectOrchestrationServices() {
-  if (!projectOrchestrationServicesCache) {
-    projectOrchestrationServicesCache = createProjectOrchestrationServices({
-      TASK_TEMPLATE_LIBRARY,
-      APPROVAL_TEMPLATE_LIBRARY,
-      DOCUMENT_TEMPLATE_LIBRARY,
-      resolveAssigneeId,
-      getTaskWithLinksById,
-      normalizeProjectStage,
-    });
-  }
-  return projectOrchestrationServicesCache;
-}
-
-function autoCreateProjectForQuotation(db: any, payload: any, actorUserId: string | null) {
-  return getProjectOrchestrationServices().autoCreateProjectForQuotation(db, payload, actorUserId);
-}
-
-function createProjectTasksFromTemplate(
-  db: any,
-  params: {
-    projectId: string;
-    templateKey: string;
-    quotation: any | null;
-    actorUserId: string | null;
-    requestedAssigneeId?: unknown;
-  }
-) {
-  return getProjectOrchestrationServices().createProjectTasksFromTemplate(db, params);
-}
-
-function createApprovalRequestsFromTemplate(
-  db: any,
-  params: {
-    projectId: string;
-    templateKey: string;
-    quotation: any | null;
-    actorUserId: string | null;
-  }
-) {
-  return getProjectOrchestrationServices().createApprovalRequestsFromTemplate(db, params);
-}
-
-function createProjectDocumentsFromTemplate(
-  db: any,
-  params: {
-    projectId: string;
-    templateKey: string;
-    quotation: any | null;
-  }
-) {
-  return getProjectOrchestrationServices().createProjectDocumentsFromTemplate(db, params);
-}
-
-function createSalesOrderFromQuotation(db: any, quotationId: string) {
-  return getProjectOrchestrationServices().createSalesOrderFromQuotation(db, quotationId);
-}
-
-function resolveProjectHandoffQuotation(db: any, projectId: string, preferredQuotationId?: string | null) {
-  return getProjectOrchestrationServices().resolveProjectHandoffQuotation(db, projectId, preferredQuotationId);
-}
-
-function projectHubText(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-function projectHubNumber(value: unknown, fallback = 0) {
-  const next = Number(value);
-  return Number.isFinite(next) ? next : fallback;
-}
-
-function parseProjectHubJson<T>(value: unknown, fallback: T): T {
-  if (typeof value !== 'string' || !value.trim()) return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-let projectWorkspaceServicesCache: ReturnType<typeof createProjectWorkspaceServices> | null = null;
-
-function getProjectWorkspaceServices() {
-  if (!projectWorkspaceServicesCache) {
-    projectWorkspaceServicesCache = createProjectWorkspaceServices({
-      projectHubText,
-      projectHubNumber,
-      parseProjectHubJson,
-    });
-  }
-  return projectWorkspaceServicesCache;
-}
-
-function normalizeContractLineItems(items: any[] = []) {
-  return getProjectWorkspaceServices().normalizeContractLineItems(items);
-}
-
-function mapProjectContractRow(row: any) {
-  return getProjectWorkspaceServices().mapProjectContractRow(row);
-}
-
-function mapProjectAppendixRow(row: any) {
-  return getProjectWorkspaceServices().mapProjectAppendixRow(row);
-}
-
-function mapProjectBaselineRow(row: any) {
-  return getProjectWorkspaceServices().mapProjectBaselineRow(row);
-}
-
-function mapProjectProcurementLineRow(row: any) {
-  return getProjectWorkspaceServices().mapProjectProcurementLineRow(row);
-}
-
-function mapProjectInboundLineRow(row: any) {
-  return getProjectWorkspaceServices().mapProjectInboundLineRow(row);
-}
-
-function mapProjectDeliveryLineRow(row: any) {
-  return getProjectWorkspaceServices().mapProjectDeliveryLineRow(row);
-}
-
-function createProjectTimelineEvent(
-  db: any,
-  event: {
-    projectId: string;
-    eventType: string;
-    title: string;
-    description?: string | null;
-    eventDate?: string | null;
-    entityType?: string | null;
-    entityId?: string | null;
-    payload?: any;
-    createdBy?: string | null;
-  }
-) {
-  return getProjectWorkspaceServices().createProjectTimelineEvent(db, event);
-}
-
-function recalculateProjectProcurementRollup(db: any, procurementLineId: string) {
-  return getProjectWorkspaceServices().recalculateProjectProcurementRollup(db, procurementLineId);
-}
-
-function syncProjectProcurementLinesFromBaseline(db: any, projectId: string, baselineId: string) {
-  return getProjectWorkspaceServices().syncProjectProcurementLinesFromBaseline(db, projectId, baselineId);
-}
-
-function createExecutionBaselineFromSource(
-  db: any,
-  params: {
-    projectId: string;
-    sourceType: 'main_contract' | 'appendix';
-    sourceId: string;
-    title: string;
-    effectiveDate?: string | null;
-    currency?: string | null;
-    totalValue?: number | null;
-    lineItems?: any[];
-    createdBy?: string | null;
-  }
-) {
-  return getProjectWorkspaceServices().createExecutionBaselineFromSource(db, params);
-}
-
-function getProjectWorkspaceById(db: any, projectId: string, currentUser?: any) {
-  return getProjectWorkspaceServices().getProjectWorkspaceById(db, projectId, currentUser);
-}
-
-let notificationServicesCache: ReturnType<typeof createNotificationServices> | null = null;
-
-function getNotificationServices() {
-  if (!notificationServicesCache) {
-    notificationServicesCache = createNotificationServices({
-      allowedEntityTypes: ['Task', 'Quotation', 'Account', 'Lead', 'SupportTicket'],
-      allowedLinks: ['Sales', 'Tasks', 'Accounts', 'Leads', 'Projects', 'Ops Overview', 'Ops Chat', 'Support'],
-    });
-  }
-  return notificationServicesCache;
-}
-
-function ensureNotification(
-  db: any,
-  userId: string | null,
-  content: string,
-  meta: { entityType?: string | null; entityId?: string | null; link?: string | null } = {}
-) {
-  return getNotificationServices().ensureNotification(db, userId, content, meta);
-}
-
-let quotationAutomationServicesCache: ReturnType<typeof createQuotationAutomationServices> | null = null;
-
-function getQuotationAutomationServices() {
-  if (!quotationAutomationServicesCache) {
-    quotationAutomationServicesCache = createQuotationAutomationServices({
-      ensureNotification,
-      resolveAssigneeId,
-      getTaskWithLinksById,
-      logAct,
-    });
-  }
-  return quotationAutomationServicesCache;
-}
-
-function triggerQuotationAutomation(
-  db: any,
-  quotation: any,
-  status: 'submitted_for_approval' | 'won',
-  actorUserId: string | null,
-  extra: { triggerSource?: string; projectId?: string | null; leadId?: string | null } = {}
-) {
-  return getQuotationAutomationServices().triggerQuotationAutomation(db, quotation, status, actorUserId, extra);
-}
 
 registerCollaborationRoutes(app, {
   ah,
@@ -638,8 +385,8 @@ registerCollaborationRoutes(app, {
   getSupportTicketById,
   normalizeSupportTicketStatus,
   supportTicketStatuses: SUPPORT_TICKET_STATUSES,
-  listActivities: getActivityServices().listActivities,
-  createActivity: getActivityServices().createActivity,
+  listActivities,
+  createActivity,
   logAct,
 });
 
@@ -692,6 +439,7 @@ registerProjectLogisticsRoutes(app, {
   mapProjectInboundLineRow,
   mapProjectDeliveryLineRow,
   createProjectTimelineEvent,
+  getProjectWorkspaceById,
 });
 
 registerProjectGovernanceRoutes(app, {
@@ -734,12 +482,25 @@ registerTaskRoutes(app, {
   resolveAssigneeId,
   getTaskWithLinksById,
 });
+registerTaskDependencyRoutes(app, {
+  ah,
+  requireAuth,
+  getCurrentUserId,
+});
+registerTimeSpendRoutes(app, {
+  ah,
+  requireAuth,
+  getCurrentUserId,
+});
 
 registerPricingRoutes(app);
 
 // ─── GLOBAL ERROR HANDLER ─────────────────────────────────────────────────────
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[ERROR]', err.message);
+  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'File vượt quá giới hạn cho phép. Ảnh/tài liệu sản phẩm tối đa 20MB, file import tối đa 5MB.' });
+  }
   res.status(Number(err?.status) || 500).json({ error: err.message || 'Internal Server Error' });
 });
 

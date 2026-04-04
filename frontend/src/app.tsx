@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
 import { Layout } from './Layout';
-import { Leads } from './Leads';
-import { Pricing } from './Pricing';
 import { Products } from './Products';
 import { NotificationContainer, showNotify } from './Notification';
 import { Login } from './Login';
@@ -14,13 +12,14 @@ import { isKnownRoute, resolveProtectedRoute } from './core/routes';
 import { clearNavContext, setNavContext } from './navContext';
 import type { AppModule } from './shared/domain/contracts';
 import { routeTestId } from './testing/testIds';
-import { Approvals } from './Approvals';
 import { Home } from './Home';
 import { Inbox } from './Inbox';
 import { MyWork } from './MyWork';
 import { UsersRoute } from './features/admin';
+import { ApprovalsRoute } from './features/approvals';
 import { CustomersRoute } from './features/customers';
 import { EventLogRoute } from './features/event-log';
+import { LeadsRoute } from './features/leads';
 import { GanttRoute, OpsChatRoute, OpsOverviewRoute, OpsStaffRoute } from './features/operations';
 import { ProjectsRoute } from './features/projects';
 import { QuotationsRoute } from './features/quotations';
@@ -48,12 +47,20 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (isDarkMode) {
+      root.classList.add('dark');
       document.body.classList.add('dark');
+      root.style.colorScheme = 'dark';
       localStorage.setItem('theme', 'dark');
+      themeColorMeta?.setAttribute('content', '#0F172A');
     } else {
+      root.classList.remove('dark');
       document.body.classList.remove('dark');
+      root.style.colorScheme = 'light';
       localStorage.setItem('theme', 'light');
+      themeColorMeta?.setAttribute('content', '#F8FAFC');
     }
   }, [isDarkMode]);
 
@@ -94,6 +101,10 @@ export function App() {
   } else {
     const roleProfile = buildRoleProfile(currentUser.roleCodes, currentUser.systemRole);
     const allowedModules = roleProfile.allowedModules;
+    const previewAdminRoutes: AppModule[] = currentUser.baseRoleCodes?.includes('admin')
+      ? ['Settings', 'Users']
+      : [];
+    const routeGuardModules = Array.from(new Set([...allowedModules, ...previewAdminRoutes]));
     const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
     const handleRolePreviewChange = (previewRoleCodes?: SystemRole[], navigation?: RolePreviewNavigation) => {
       if (!currentUser) return;
@@ -110,7 +121,7 @@ export function App() {
     const handleNavigate = (route: string) => {
       if (route === 'Logout') { handleLogout(); return; }
       if (route === 'NewDeal') {
-        if (!allowedModules.includes('Sales')) {
+        if (!routeGuardModules.includes('Sales')) {
           clearNavContext();
           showNotify('Bạn không có quyền tạo báo giá mới trong vai trò hiện tại.', 'error');
           return;
@@ -118,8 +129,8 @@ export function App() {
         setAutoOpenQuote(true);
         setCurrentRoute('Sales');
       } else {
-        const targetRoute = resolveProtectedRoute(route, allowedModules);
-        if (!allowedModules.includes(route as AppModule) && !allowedModules.includes(targetRoute)) {
+        const targetRoute = resolveProtectedRoute(route, routeGuardModules);
+        if (!routeGuardModules.includes(route as AppModule) && !routeGuardModules.includes(targetRoute)) {
           clearNavContext();
           showNotify('Bạn không có quyền truy cập màn hình này.', 'error');
           return;
@@ -128,7 +139,7 @@ export function App() {
       }
     };
 
-    const resolvedRoute = resolveProtectedRoute(currentRoute, allowedModules);
+    const resolvedRoute = resolveProtectedRoute(currentRoute, routeGuardModules);
     const contentTestId = routeTestId(resolvedRoute);
 
     content = (
@@ -136,8 +147,8 @@ export function App() {
         {resolvedRoute === 'Home' && <Home currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'My Work' && <MyWork currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Inbox' && <Inbox currentUser={currentUser} />}
-        {resolvedRoute === 'Approvals' && <Approvals currentUser={currentUser} onNavigate={handleNavigate} />}
-        {resolvedRoute === 'Leads' && <Leads isMobile={isMobile} currentUser={currentUser} />}
+        {resolvedRoute === 'Approvals' && <ApprovalsRoute currentUser={currentUser} onNavigate={handleNavigate} />}
+        {resolvedRoute === 'Leads' && <LeadsRoute isMobile={isMobile} currentUser={currentUser} />}
         {resolvedRoute === 'Accounts' && <CustomersRoute route="Accounts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Contacts' && <CustomersRoute route="Contacts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Partners' && <CustomersRoute route="Partners" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
@@ -158,7 +169,6 @@ export function App() {
         {resolvedRoute === 'Projects' && <ProjectsRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Tasks' && <TasksRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'ERP Orders' && <SalesOrdersRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
-        {resolvedRoute === 'Pricing' && <Pricing isMobile={isMobile} currentUser={currentUser} />}
         {resolvedRoute === 'Reports' && <ReportsRoute isMobile={isMobile} currentUser={currentUser} />}
         {resolvedRoute === 'EventLog' && <EventLogRoute onNavigate={handleNavigate} isMobile={isMobile} currentUser={currentUser} />}
         {resolvedRoute === 'Users' && <UsersRoute isMobile={isMobile} currentUser={currentUser} />}

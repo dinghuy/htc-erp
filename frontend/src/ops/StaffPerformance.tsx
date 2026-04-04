@@ -102,29 +102,29 @@ const S = {
   hero: { position: 'relative' as const, overflow: 'hidden' as const, background: `linear-gradient(135deg, rgba(0,151,110,0.12) 0%, rgba(0,63,133,0.08) 55%, ${tokens.colors.surface} 100%)`, border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.xl, boxShadow: tokens.shadow.sm },
   heroInner: { position: 'relative' as const, zIndex: 1, padding: '28px', display: 'flex', flexDirection: 'column' as const, gap: '16px' },
   sectionCard: { ...ui.card.base, padding: '24px' },
-  chip: { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: tokens.radius.xl, background: tokens.colors.surface, border: `1px solid ${tokens.colors.border}`, color: tokens.colors.textSecondary, fontSize: '12px', fontWeight: 700 },
-  title: { fontSize: '28px', fontWeight: 900, letterSpacing: '-0.04em', margin: 0 },
-  subtitle: { fontSize: '14px', color: tokens.colors.textSecondary, margin: 0, lineHeight: 1.6, maxWidth: '72ch' },
+  chip: { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: tokens.radius.xl, background: tokens.colors.surface, border: `1px solid ${tokens.colors.border}`, color: tokens.colors.textSecondary, fontSize: tokens.fontSize.sm, fontWeight: 700 },
+  title: { fontSize: tokens.fontSize.displayLg, fontWeight: 900, letterSpacing: '-0.04em', margin: 0 },
+  subtitle: { fontSize: tokens.fontSize.base, color: tokens.colors.textSecondary, margin: 0, lineHeight: 1.6, maxWidth: '72ch' },
 } as const;
 
 function StatCard({ icon, label, value, hint, tone = 'neutral' as const }: { icon: ComponentChildren; label: string; value: string; hint?: string; tone?: 'neutral' | 'good' | 'warn' | 'bad' }) {
   const palette = {
     neutral: { color: tokens.colors.textPrimary, bg: tokens.colors.surface },
-    good: { color: 'var(--ht-green)', bg: 'var(--ht-success-bg)' },
-    warn: { color: 'var(--ht-amber)', bg: 'var(--ht-warning-bg, #fff7ed)' },
-    bad: { color: '#dc2626', bg: 'var(--ht-error-bg)' },
+    good: { color: tokens.colors.primary, bg: tokens.colors.badgeBgSuccess },
+    warn: { color: tokens.colors.warning, bg: tokens.colors.warningBg },
+    bad: { color: tokens.colors.error, bg: tokens.colors.badgeBgError },
   }[tone];
   return (
     <div style={{ ...ui.card.base, padding: '20px', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 'auto -18px -22px auto', opacity: 0.06, transform: 'scale(3)' }}>{icon}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center' }}>
         <div>
-          <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
-          <div style={{ fontSize: '30px', fontWeight: 900, lineHeight: 1.1, marginTop: '8px', color: palette.color }}>{value}</div>
+          <div style={{ fontSize: tokens.fontSize.xs, fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+          <div style={{ fontSize: tokens.fontSize.displayXl, fontWeight: 900, lineHeight: 1.1, marginTop: '8px', color: palette.color }}>{value}</div>
         </div>
         <div style={{ width: '48px', height: '48px', borderRadius: tokens.radius.lg, background: palette.bg, color: palette.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</div>
       </div>
-      {hint && <div style={{ marginTop: '10px', fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{hint}</div>}
+      {hint && <div style={{ marginTop: '10px', fontSize: tokens.fontSize.sm, color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{hint}</div>}
     </div>
   );
 }
@@ -133,8 +133,8 @@ function SectionTitle({ title, subtitle, action }: { title: string; subtitle?: s
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', marginBottom: '18px', flexWrap: 'wrap' }}>
       <div>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 900, letterSpacing: '-0.03em' }}>{title}</h2>
-        {subtitle && <p style={{ margin: '4px 0 0', fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{subtitle}</p>}
+        <h2 style={{ margin: 0, fontSize: tokens.fontSize.xl, fontWeight: 900, letterSpacing: '-0.03em' }}>{title}</h2>
+        {subtitle && <p style={{ margin: '4px 0 0', fontSize: tokens.fontSize.md, color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -152,14 +152,14 @@ function BarList({ items }: { items: { label: string; value: number; hint?: stri
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {items.map((item) => (
         <div key={item.label}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '6px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '6px', fontSize: tokens.fontSize.sm }}>
             <span style={{ fontWeight: 800 }}>{item.label}</span>
             <span style={{ color: tokens.colors.textSecondary }}>{formatNumber(item.value)}</span>
           </div>
           <div style={{ height: '12px', borderRadius: tokens.radius.xl, background: tokens.colors.background, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${(item.value / max) * 100}%`, borderRadius: tokens.radius.xl, background: 'var(--ht-green)', minWidth: item.value > 0 ? '10px' : '0px' }} />
           </div>
-          {item.hint && <div style={{ marginTop: '4px', fontSize: '11px', color: tokens.colors.textMuted }}>{item.hint}</div>}
+          {item.hint && <div style={{ marginTop: '4px', fontSize: tokens.fontSize.xs, color: tokens.colors.textMuted }}>{item.hint}</div>}
         </div>
       ))}
     </div>
@@ -181,17 +181,17 @@ function StaffRow({ row, onOpen }: { row: StaffMetric; onOpen: () => void }) {
       <td style={{ ...ui.table.td, minWidth: '220px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ fontWeight: 800 }}>{row.label}</div>
-          <div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>{user?.employeeCode ? `${user.employeeCode} · ` : ''}{user?.email || user?.username || '—'}</div>
+          <div style={{ fontSize: tokens.fontSize.sm, color: tokens.colors.textMuted }}>{user?.employeeCode ? `${user.employeeCode} · ` : ''}{user?.email || user?.username || '—'}</div>
         </div>
       </td>
-      <td style={ui.table.td}><div style={{ fontWeight: 700, fontSize: '12px' }}>{user?.systemRole || 'member'}</div><div style={{ color: tokens.colors.textMuted, fontSize: '12px' }}>{user?.department || 'Chung'}</div></td>
+      <td style={ui.table.td}><div style={{ fontWeight: 700, fontSize: tokens.fontSize.sm }}>{user?.systemRole || 'member'}</div><div style={{ color: tokens.colors.textMuted, fontSize: tokens.fontSize.sm }}>{user?.department || 'Chung'}</div></td>
       <td style={ui.table.td}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <strong>{formatNumber(row.taskCount)}</strong>
-          <span style={{ fontSize: '11px', color: tokens.colors.textMuted }}>{formatNumber(row.completedCount)} đã xong</span>
+          <span style={{ fontSize: tokens.fontSize.xs, color: tokens.colors.textMuted }}>{formatNumber(row.completedCount)} đã xong</span>
         </div>
       </td>
-      <td style={ui.table.td}><strong style={{ color: row.overdueCount > 0 ? '#dc2626' : tokens.colors.textPrimary }}>{formatNumber(row.overdueCount)}</strong></td>
+      <td style={ui.table.td}><strong style={{ color: row.overdueCount > 0 ? tokens.colors.error : tokens.colors.textPrimary }}>{formatNumber(row.overdueCount)}</strong></td>
       <td style={ui.table.td}><Badge tone={health.tone}>{health.label}</Badge></td>
       <td style={ui.table.td}>
         <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(); }} style={ui.btn.outline}>Chi tiết</button>
@@ -381,7 +381,7 @@ export function StaffPerformance({ currentUser, isMobile, onNavigate, token }: P
         </div>
       </div>
 
-      {error && <div style={{ ...ui.card.base, padding: '16px 20px', background: 'var(--ht-error-bg)', borderColor: 'rgba(220, 38, 38, 0.2)', color: '#991b1b', fontSize: '13px', fontWeight: 600 }}>{error}</div>}
+      {error && <div style={{ ...ui.card.base, padding: '16px 20px', background: tokens.colors.badgeBgError, borderColor: tokens.colors.errorBorder, color: tokens.colors.error, fontSize: tokens.fontSize.md, fontWeight: 600 }}>{error}</div>}
       {loading ? (
         <div style={{ ...ui.card.base, padding: '40px', textAlign: 'center', color: tokens.colors.textMuted }}>Đang tải dữ liệu...</div>
       ) : (
@@ -404,12 +404,12 @@ export function StaffPerformance({ currentUser, isMobile, onNavigate, token }: P
                     <div key={row.key} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 800 }}>{row.label}</div>
-                        <div style={{ fontSize: '12px', color: tokens.colors.textMuted, marginTop: '4px' }}>{row.user?.department || 'Chung'} · {row.user?.systemRole || 'member'}</div>
+                        <div style={{ fontSize: tokens.fontSize.sm, color: tokens.colors.textMuted, marginTop: '4px' }}>{row.user?.department || 'Chung'} · {row.user?.systemRole || 'member'}</div>
                       </div>
                       <Badge tone={health.tone}>{health.label}</Badge>
                     </div>
                   );
-                }) : <div style={{ border: `1px dashed ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '28px', textAlign: 'center', color: tokens.colors.textMuted, fontSize: '13px' }}>Chưa có nhân sự nào cần cảnh báo.</div>}
+                }) : <div style={{ border: `1px dashed ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '28px', textAlign: 'center', color: tokens.colors.textMuted, fontSize: tokens.fontSize.md }}>Chưa có nhân sự nào cần cảnh báo.</div>}
               </div>
             </div>
           </div>
@@ -442,15 +442,15 @@ export function StaffPerformance({ currentUser, isMobile, onNavigate, token }: P
                 {derived.strongPerformers.length > 0 ? derived.strongPerformers.map((row, idx) => (
                   <div key={row.key} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                      <div style={{ width: '30px', height: '30px', borderRadius: '999px', background: idx === 0 ? 'var(--ht-green)' : tokens.colors.background, color: idx === 0 ? 'white' : tokens.colors.textSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '12px' }}>{idx + 1}</div>
+                        <div style={{ width: '30px', height: '30px', borderRadius: '999px', background: idx === 0 ? tokens.colors.primary : tokens.colors.background, color: idx === 0 ? tokens.colors.white : tokens.colors.textSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: tokens.fontSize.sm }}>{idx + 1}</div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.label}</div>
-                        <div style={{ fontSize: '12px', color: tokens.colors.textMuted, marginTop: '2px' }}>{formatNumber(row.taskCount)} task · {formatNumber(row.overdueCount)} quá hạn</div>
+                        <div style={{ fontSize: tokens.fontSize.sm, color: tokens.colors.textMuted, marginTop: '2px' }}>{formatNumber(row.taskCount)} task · {formatNumber(row.overdueCount)} quá hạn</div>
                       </div>
                     </div>
                     <Badge tone={row.completionRate >= 80 ? 'good' : row.completionRate >= 60 ? 'warn' : 'bad'}>{formatPercent(row.completionRate)}</Badge>
                   </div>
-                )) : <div style={{ border: `1px dashed ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '24px', textAlign: 'center', color: tokens.colors.textMuted, fontSize: '13px' }}>Chưa có dữ liệu để xếp hạng.</div>}
+                )) : <div style={{ border: `1px dashed ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '24px', textAlign: 'center', color: tokens.colors.textMuted, fontSize: tokens.fontSize.md }}>Chưa có dữ liệu để xếp hạng.</div>}
               </div>
             </div>
 
@@ -466,7 +466,7 @@ export function StaffPerformance({ currentUser, isMobile, onNavigate, token }: P
                   ['Tỷ lệ hoàn thành', derived.completionRate],
                 ].map(([label, value]) => (
                   <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '12px 14px', borderRadius: tokens.radius.lg, background: tokens.colors.background }}>
-                    <span style={{ color: tokens.colors.textSecondary, fontSize: '13px' }}>{label}</span>
+                    <span style={{ color: tokens.colors.textSecondary, fontSize: tokens.fontSize.md }}>{label}</span>
                     <strong>{String(label).includes('Hoàn thành') || String(label).includes('Tỷ lệ') ? formatPercent(Number(value)) : formatNumber(Number(value))}</strong>
                   </div>
                 ))}

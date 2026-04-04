@@ -24,7 +24,7 @@ export function SettingsRoute({
   onUserUpdated?: (partial: Partial<CurrentUser>) => void;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai cai dat...">
+    <FeatureRouteShell fallbackMessage="Đang tải cài đặt...">
       <SettingsScreen
         isDarkMode={isDarkMode}
         toggleDarkMode={toggleDarkMode}

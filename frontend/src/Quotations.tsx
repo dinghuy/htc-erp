@@ -973,7 +973,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
                   <div style={{ marginBottom: '10px' }}>
                     <label style={S.label}>Thông số kỹ thuật (Commodity)</label>
                     <textarea rows={5} value={item.technicalSpecs} onInput={(e:any)=>updateItem(idx,'technicalSpecs',e.target.value)} 
-                      style={{ ...S.input, background: tokens.colors.surface, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }}
+                  style={{ ...S.input, background: tokens.colors.surface, fontFamily: 'var(--font-family-sans)', fontSize: '12px', resize: 'vertical' }}
                       placeholder={"- Nhãn hiệu: SOCMA\n- Model: HNRS4531\n- Xuất xứ: Trung Quốc\n- Tình trạng: Mới 100%\n- Năm SX: 2025 trở về sau\n- Tải trọng: 45T, 31T, 16T\n- Chiều cao nâng: 15100mm"} />
                   </div>
                   <div>
@@ -1080,28 +1080,28 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
                 <style>
                   {`
                     @font-face {
-                      font-family: "Times New Roman";
+        font-family: var(--font-family-sans);
                       src: url("/Times New Roman.ttf") format("truetype");
                       font-weight: 400;
                       font-style: normal;
                       font-display: swap;
                     }
                     @font-face {
-                      font-family: "Times New Roman";
+        font-family: var(--font-family-sans);
                       src: url("/Times New Roman Bold.ttf") format("truetype");
                       font-weight: 700;
                       font-style: normal;
                       font-display: swap;
                     }
                     @font-face {
-                      font-family: "Times New Roman";
+        font-family: var(--font-family-sans);
                       src: url("/Times New Roman Italic.ttf") format("truetype");
                       font-weight: 400;
                       font-style: italic;
                       font-display: swap;
                     }
                     @font-face {
-                      font-family: "Times New Roman";
+        font-family: var(--font-family-sans);
                       src: url("/Times New Roman Bold Italic.ttf") format("truetype");
                       font-weight: 700;
                       font-style: italic;
@@ -1113,7 +1113,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
                 <div style={{ position: 'relative', width: `${(PREVIEW_PAGE_WIDTH * previewScale).toFixed(2)}px`, height: `${(previewContentHeight * previewScale).toFixed(2)}px` }}>
                   <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${previewScale})`, transformOrigin: 'top left', willChange: 'transform' }}>
                     <div style={{ position: 'relative', width: `${PREVIEW_PAGE_WIDTH}px`, height: `${previewContentHeight}px` }}>
-                      <div ref={previewA4Ref} style={{ width: `${PREVIEW_PAGE_WIDTH}px`, minHeight: `${PREVIEW_PAGE_HEIGHT}px`, padding: `${PREVIEW_MARGIN_Y}px ${PREVIEW_MARGIN_X}px`, fontFamily: '"Times New Roman", Times, serif', fontSize: '11px', lineHeight: 1.5, boxSizing: 'border-box' }}>
+      <div ref={previewA4Ref} style={{ width: `${PREVIEW_PAGE_WIDTH}px`, minHeight: `${PREVIEW_PAGE_HEIGHT}px`, padding: `${PREVIEW_MARGIN_Y}px ${PREVIEW_MARGIN_X}px`, fontFamily: 'var(--font-family-sans)', fontSize: '11px', lineHeight: 1.5, boxSizing: 'border-box' }}>
                         {/* Header (Logo + Info) */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '10px', borderBottom: '1.5px solid #003F85' }}>
                           <img src="/lda-logo.png" alt="LDA" style={{ width: '90px', height: 'auto', objectFit: 'contain' }} />

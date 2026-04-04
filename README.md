@@ -1,6 +1,6 @@
-# Huynh Thy CRM App
+# HTC ERP
 
-Huynh Thy CRM App is the official product repository for the CRM-to-ERP revenue workflow.
+HTC ERP is the official product repository for the Huynh Thy CRM-to-ERP revenue workflow.
 
 ## Product Focus
 
@@ -22,6 +22,7 @@ Huynh Thy CRM App is the official product repository for the CRM-to-ERP revenue 
 
 - `frontend/`: UI application
 - `backend/`: API, domain logic, persistence, ERP integration
+- `docs/index.md`: source-of-truth entrypoint for active docs and plans
 - `docs/product/`: product scope and business goals
 - `docs/architecture/`: engineering architecture and module boundaries
 - `docs/adr/`: architecture decisions
@@ -38,6 +39,9 @@ Huynh Thy CRM App is the official product repository for the CRM-to-ERP revenue 
 ```powershell
 cd backend
 npm install
+npm run dev
+npm run build
+npm run verify:media-runtime
 npm test
 ```
 
@@ -52,14 +56,33 @@ npx tsc -b
 
 ## Delivery Workflow
 
-1. Create or update a short spec in `docs/`.
-2. Break the work into one bounded task.
-3. Implement only that task.
-4. Run verification commands.
-5. Update UAT checklist if user-facing behavior changed.
+1. Start from `docs/index.md` and identify the active canonical docs for the task.
+2. Create or update a short spec in `docs/`.
+3. Break the work into one bounded task.
+4. Implement only that task.
+5. Run verification commands.
+6. Update UAT checklist if user-facing behavior changed.
+
+## OMX Workflow Skills
+
+Use the project-local OMX skill surface under `.codex/skills/` to route delivery work with less rediscovery:
+
+- `app-delivery-orchestrator`: default entrypoint when work spans Linear, Notion, Figma, or Playwright
+- `frontend-change-flow`: frontend verification mapping for UI, route, selector, and UX-audit-sensitive changes
+- `backend-api-change-flow`: backend verification mapping for route, contract, auth, and runtime changes
+- `release-regression-verification`: cross-surface handoff and regression reporting
+
+Use plain Codex for small bounded edits. Reserve heavier OMX flows such as `$team` for work that cleanly splits into frontend, backend, and verification lanes.
 
 See:
 
+- `docs/index.md`
 - `docs/process/definition-of-ready.md`
 - `docs/process/definition-of-done.md`
 - `docs/ai/task-template.md`
+
+## Tracking
+
+- Use Linear as the execution tracker for active workstreams.
+- Use Notion as the plan and evidence tracker.
+- When material issues or workstreams are identified, update Linear and Notion first, then execute against the tracked items.

@@ -11,15 +11,15 @@
 ---
 
 ## File Structure
-- Modify `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Layout.tsx`
+- Modify `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Layout.tsx`
   - Sidebar nav items array; remove `Leads` and `Reports`.
-- Modify `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\app.tsx`
+- Modify `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\app.tsx`
   - Route guard to normalize `currentRoute` when it equals `Leads` or `Reports`.
 
 ### Task 1: Hide Leads/Reports in Sidebar
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Layout.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Layout.tsx`
 - Test: N/A (manual)
 
 - [ ] **Step 1: Write the failing test**
@@ -43,7 +43,7 @@ Manual: Open the app, confirm Leads and Reports are not shown in the sidebar.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Layout.tsx
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Layout.tsx
 
 git commit -m "chore: hide leads and reports tabs"
 ```
@@ -51,7 +51,7 @@ git commit -m "chore: hide leads and reports tabs"
 ### Task 2: Block Direct Route Access
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\app.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\app.tsx`
 - Test: N/A (manual)
 
 - [ ] **Step 1: Write the failing test**
@@ -77,7 +77,7 @@ Manual:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\app.tsx
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\app.tsx
 
 git commit -m "chore: block leads and reports routes"
 ```
@@ -87,4 +87,5 @@ git commit -m "chore: block leads and reports routes"
 ## Manual Verification Checklist
 - Sidebar no longer displays Leads and Reports.
 - Directly accessing Leads or Reports routes renders Dashboard.
+
 

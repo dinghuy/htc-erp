@@ -1,5 +1,4 @@
 import { tokens } from '../ui/tokens';
-import { ui } from '../ui/styles';
 import type { CommandMetric } from './ganttDerived';
 
 export type { CommandMetric } from './ganttDerived';
@@ -9,16 +8,8 @@ type MetricAction = CommandMetric & {
   onClick?: () => void;
 };
 
-type PresetAction = {
-  key: string;
-  label: string;
-  active?: boolean;
-  onClick?: () => void;
-};
-
 type GanttCommandBarProps = {
   metrics: MetricAction[];
-  presets: PresetAction[];
 };
 
 const toneStyles = {
@@ -32,39 +23,37 @@ const toneStyles = {
   good: {
     color: tokens.colors.success,
     background: 'var(--ht-success-bg)',
-    border: 'rgba(16, 185, 129, 0.2)',
-    badgeBackground: 'rgba(255, 255, 255, 0.72)',
+    border: tokens.colors.badgeBgSuccess,
+    badgeBackground: tokens.surface.badge,
     badgeColor: tokens.colors.success,
   },
   warn: {
     color: tokens.colors.warning,
-    background: 'var(--ht-warning-bg, #fff7ed)',
-    border: 'rgba(245, 158, 11, 0.24)',
-    badgeBackground: 'rgba(255, 255, 255, 0.72)',
+    background: tokens.colors.warningBg,
+    border: tokens.colors.warningBorder,
+    badgeBackground: tokens.surface.badge,
     badgeColor: tokens.colors.warning,
   },
   bad: {
     color: tokens.colors.error,
     background: 'var(--ht-error-bg)',
     border: 'rgba(239, 68, 68, 0.22)',
-    badgeBackground: 'rgba(255, 255, 255, 0.76)',
+    badgeBackground: tokens.surface.badgeStrong,
     badgeColor: tokens.colors.error,
   },
 } as const;
 
 const S = {
   shell: {
-    ...ui.card.base,
-    padding: tokens.spacing.lg,
+    padding: `${tokens.spacing.smPlus} 0 0`,
     display: 'flex',
     flexDirection: 'column',
-    gap: tokens.spacing.md,
-    background: `linear-gradient(180deg, ${tokens.colors.surface} 0%, rgba(255, 255, 255, 0.92) 100%)`,
+    gap: tokens.spacing.sm,
   } as any,
   section: {
     display: 'flex',
     flexDirection: 'column',
-    gap: tokens.spacing.sm,
+    gap: tokens.spacing.xsPlus,
     minWidth: 0,
   } as any,
   sectionLabel: {
@@ -74,22 +63,24 @@ const S = {
     textTransform: 'uppercase',
     color: tokens.colors.textMuted,
   } as any,
-  metricGrid: {
+  metricRail: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(156px, 188px))',
     gap: tokens.spacing.sm,
+    justifyContent: 'start',
   } as any,
   metricButton: {
     minWidth: 0,
-    padding: '12px 14px',
-    borderRadius: tokens.radius.lg,
+    minHeight: '60px',
+    padding: `${tokens.spacing.sm} ${tokens.spacing.md}`,
+    borderRadius: tokens.radius.xl,
     border: `1px solid ${tokens.colors.border}`,
-    background: tokens.colors.surface,
-    boxShadow: tokens.shadow.sm,
+    background: tokens.colors.background,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-start',
-    gap: '8px',
+    justifyContent: 'space-between',
+    gap: tokens.spacing.xs,
     textAlign: 'left',
     transition: 'all 0.2s ease',
   } as any,
@@ -98,75 +89,60 @@ const S = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: tokens.spacing.sm,
+    gap: tokens.spacing.xsPlus,
   } as any,
   metricLabel: {
-    fontSize: '11px',
+    fontSize: tokens.fontSize.xs,
     fontWeight: 800,
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     color: tokens.colors.textMuted,
-    lineHeight: 1.3,
+    lineHeight: 1.2,
+  } as any,
+  metricValueRow: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: tokens.spacing.sm,
   } as any,
   metricValue: {
-    fontSize: '24px',
+    fontSize: tokens.fontSize.title,
     fontWeight: 900,
-    letterSpacing: '-0.04em',
+    letterSpacing: '-0.03em',
     lineHeight: 1,
     color: tokens.colors.textPrimary,
   } as any,
-  metricMeta: {
-    fontSize: '12px',
-    color: tokens.colors.textSecondary,
-    lineHeight: 1.4,
-  } as any,
   metricBadge: {
-    padding: '5px 8px',
-    borderRadius: tokens.radius.md,
+    padding: '2px 7px',
+    borderRadius: '999px',
     fontSize: '10px',
     fontWeight: 800,
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
     flexShrink: 0,
   } as any,
-  presetRail: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: tokens.spacing.sm,
-  } as any,
-  presetButton: {
-    ...ui.btn.outline,
-    padding: '8px 12px',
-    borderRadius: tokens.radius.xl,
-    fontSize: '12px',
-    fontWeight: 700,
-    minHeight: '34px',
-    justifyContent: 'center',
-    background: tokens.colors.background,
-  } as any,
   emptyText: {
-    fontSize: '12px',
+    fontSize: tokens.fontSize.sm,
     color: tokens.colors.textSecondary,
-    padding: '2px 0',
+    padding: `${tokens.spacing.xxs} 0`,
   } as any,
 };
 
 function renderMetricCount(metric: CommandMetric) {
   if (metric.value !== String(metric.count)) {
-    return `${metric.count} matched`;
+    return `${metric.count} mục`;
   }
-  return metric.count === 1 ? '1 matched' : `${metric.count} matched`;
+  return metric.count === 1 ? '1 mục' : `${metric.count} mục`;
 }
 
 export function GanttCommandBar(props: GanttCommandBarProps) {
-  const { metrics, presets } = props;
+  const { metrics } = props;
 
   return (
     <section style={S.shell} aria-label="Gantt command bar">
       <div style={S.section}>
-        <div style={S.sectionLabel}>Command Metrics</div>
+        <div style={S.sectionLabel}>Can xu ly ngay</div>
         {metrics.length > 0 ? (
-          <div style={S.metricGrid}>
+          <div style={S.metricRail}>
             {metrics.map((metric) => {
               const tone = toneStyles[metric.tone] || toneStyles.neutral;
               const isInteractive = typeof metric.onClick === 'function';
@@ -183,12 +159,18 @@ export function GanttCommandBar(props: GanttCommandBarProps) {
                     ...S.metricButton,
                     cursor: isInteractive ? 'pointer' : 'default',
                     opacity: !isInteractive && !metric.active ? 0.92 : 1,
-                    background: metric.active ? tone.background : tokens.colors.surface,
+                    background: metric.active ? tone.background : tokens.colors.background,
                     border: `1px solid ${metric.active ? tone.border : tokens.colors.border}`,
+                    boxShadow: metric.active ? tokens.shadow.sm : 'none',
                   }}
                 >
                   <div style={S.metricLabelRow}>
                     <span style={S.metricLabel}>{metric.label}</span>
+                  </div>
+                  <div style={S.metricValueRow}>
+                    <div style={{ ...S.metricValue, color: metric.active ? tone.color : tokens.colors.textPrimary }}>
+                      {metric.value}
+                    </div>
                     <span
                       style={{
                         ...S.metricBadge,
@@ -196,53 +178,15 @@ export function GanttCommandBar(props: GanttCommandBarProps) {
                         color: tone.badgeColor,
                       }}
                     >
-                      {metric.tone}
+                      {renderMetricCount(metric)}
                     </span>
                   </div>
-                  <div style={{ ...S.metricValue, color: metric.active ? tone.color : tokens.colors.textPrimary }}>
-                    {metric.value}
-                  </div>
-                  <div style={S.metricMeta}>{renderMetricCount(metric)}</div>
                 </button>
               );
             })}
           </div>
         ) : (
           <div style={S.emptyText}>No metrics available.</div>
-        )}
-      </div>
-
-      <div style={S.section}>
-        <div style={S.sectionLabel}>Quick Presets</div>
-        {presets.length > 0 ? (
-          <div style={S.presetRail}>
-            {presets.map((preset) => {
-              const isInteractive = typeof preset.onClick === 'function';
-
-              return (
-                <button
-                  key={preset.key}
-                  type="button"
-                  onClick={preset.onClick}
-                  disabled={!isInteractive}
-                  aria-pressed={Boolean(preset.active)}
-                  style={{
-                    ...S.presetButton,
-                    cursor: isInteractive ? 'pointer' : 'default',
-                    opacity: !isInteractive && !preset.active ? 0.72 : 1,
-                    color: preset.active ? tokens.colors.textOnPrimary : tokens.colors.textSecondary,
-                    background: preset.active ? tokens.colors.primary : tokens.colors.background,
-                    border: preset.active ? `1px solid ${tokens.colors.primary}` : `1px solid ${tokens.colors.border}`,
-                    boxShadow: preset.active ? tokens.shadow.sm : 'none',
-                  }}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div style={S.emptyText}>No presets available.</div>
         )}
       </div>
     </section>

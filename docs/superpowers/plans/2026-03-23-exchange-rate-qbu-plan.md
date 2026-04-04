@@ -12,23 +12,23 @@
 
 ## File Structure / Touch Map
 **Backend**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\sqlite-db.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\sqlite-db.ts`
   - Add `ExchangeRate` table + index
   - Add Product columns (`qbuRateSource`, `qbuRateDate`, `qbuRateValue`)
   - Add safe migration logic for existing DB
   - Add SystemSetting default `vcb_rate_url`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts`
   - Add exchange-rate endpoints + warnings
   - Fetch/save VCB rates (transfer selling rate)
   - Daily scheduler (VN timezone)
   - On product QBU save, snapshot latest rate into Product + qbuData
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-db-migration.js`
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-api-exchange-rate.js`
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-warning-logic.js`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-db-migration.js`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-api-exchange-rate.js`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-warning-logic.js`
 
 **Frontend**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Products.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Products.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
 - Optional/Conditional: Sales screen if it exists
 
 **Notes**
@@ -39,8 +39,8 @@
 ### Task 1: Add ExchangeRate table + Product snapshot columns + settings default
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\sqlite-db.ts`
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-db-migration.js`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\sqlite-db.ts`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-db-migration.js`
 
 - [ ] **Step 1: Write failing DB migration test**
 
@@ -72,7 +72,7 @@ const path = require('path');
 
 - [ ] **Step 2: Run test to verify it fails (before migration)**
 
-Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-db-migration.js`
+Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-db-migration.js`
 Expected: FAIL with missing table/columns/setting.
 
 - [ ] **Step 3: Implement migration in sqlite-db.ts**
@@ -84,13 +84,13 @@ Add helper to:
 
 - [ ] **Step 4: Re-run test**
 
-Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-db-migration.js`
+Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-db-migration.js`
 Expected: PASS with `OK`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\sqlite-db.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-db-migration.js
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\sqlite-db.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-db-migration.js
 git commit -m "feat: add exchange rate schema and settings"
 ```
 
@@ -99,8 +99,8 @@ git commit -m "feat: add exchange rate schema and settings"
 ### Task 2: Add exchange rate fetch + endpoints + warning payloads
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts`
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-api-exchange-rate.js`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-api-exchange-rate.js`
 
 - [ ] **Step 1: Write failing API test**
 
@@ -125,7 +125,7 @@ req.on('error', e => { console.error(e.message); process.exit(1); });
 - [ ] **Step 2: Run test to verify it fails**
 
 Run server, then:
-`node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-api-exchange-rate.js`
+`node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-api-exchange-rate.js`
 Expected: FAIL (endpoint missing).
 
 - [ ] **Step 3: Implement endpoints**
@@ -159,13 +159,13 @@ Set `vcb_rate_url` to a mock payload that lacks transfer selling rate (use a loc
 
 - [ ] **Step 6: Re-run test**
 
-Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-api-exchange-rate.js`
+Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-api-exchange-rate.js`
 Expected: PASS when server running.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-api-exchange-rate.js
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-api-exchange-rate.js
 git commit -m "feat: add exchange rate endpoints"
 ```
 
@@ -174,7 +174,7 @@ git commit -m "feat: add exchange rate endpoints"
 ### Task 3: Add daily VN-timezone refresh scheduler
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts`
 
 - [ ] **Step 1: Implement scheduler**
 
@@ -195,7 +195,7 @@ Start server and verify schedule log.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts
 git commit -m "feat: schedule daily VCB refresh"
 ```
 
@@ -204,7 +204,7 @@ git commit -m "feat: schedule daily VCB refresh"
 ### Task 4: Snapshot latest rate when saving QBU (source of truth + fallback)
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts`
 
 - [ ] **Step 1: Integration test (manual)**
 
@@ -233,7 +233,7 @@ Repeat PUT/GET and confirm snapshot values.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\server.ts
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\server.ts
 git commit -m "feat: snapshot exchange rate on QBU save"
 ```
 
@@ -242,7 +242,7 @@ git commit -m "feat: snapshot exchange rate on QBU save"
 ### Task 5: Warning logic unit tests (VN timezone + boundaries)
 
 **Files:**
-- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-warning-logic.js`
+- Create: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-warning-logic.js`
 
 - [ ] **Step 1: Write unit tests**
 
@@ -274,13 +274,13 @@ assert(hasQbuStaleWarning(base) === (new Date(`${getVnDate(new Date())}T00:00:00
 
 - [ ] **Step 2: Run test**
 
-Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-warning-logic.js`
+Run: `node C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-warning-logic.js`
 Expected: PASS
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\backend\scripts\test-warning-logic.js
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\backend\scripts\test-warning-logic.js
 git commit -m "test: add warning logic checks"
 ```
 
@@ -289,7 +289,7 @@ git commit -m "test: add warning logic checks"
 ### Task 6: Frontend warning logic (Products/QBU) with VN timezone
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Products.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Products.tsx`
 
 - [ ] **Step 1: Add VN date helper + warning helpers**
 
@@ -315,7 +315,7 @@ Messages:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Products.tsx
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Products.tsx
 git commit -m "feat: show QBU warnings in products"
 ```
 
@@ -324,7 +324,7 @@ git commit -m "feat: show QBU warnings in products"
 ### Task 7: Frontend warning logic (Quotations + Sales discovery)
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
 - Optional: Sales screen if exists
 
 - [ ] **Step 1: Locate Sales screen**
@@ -342,7 +342,7 @@ Add badge near product name/line.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx
+git add C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx
 git commit -m "feat: show QBU warnings in quotations"
 ```
 
@@ -353,3 +353,4 @@ git commit -m "feat: show QBU warnings in quotations"
 - API warnings array contains only defined strings (`RATE_MISSING`, `RATE_TYPE_MISSING`).
 - UI uses Product column snapshot as source of truth, falls back to qbuData.rateSnapshot only if columns missing.
 - If no rate exists, show “Chưa có tỷ giá VCB” and skip rate comparison.
+

@@ -11,18 +11,18 @@
 ---
 
 ## File Map
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\index.css`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\tokens.ts`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\styles.ts`
-- Modify: all UI sources in `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\**\*.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\index.css`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\tokens.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\styles.ts`
+- Modify: all UI sources in `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\**\*.tsx`
 
 ---
 
 ### Task 1: Global Typography (Roboto) + New Token
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\index.css`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\tokens.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\index.css`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\tokens.ts`
 
 - [ ] **Step 1: Add Roboto font import and global font-family**
 
@@ -61,7 +61,7 @@ Expected: includes `Roboto` first.
 ### Task 2: Expand Shared UI Styles
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\ui\styles.ts`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\ui\styles.ts`
 
 - [ ] **Step 1: Add required button variants**
 
@@ -88,8 +88,8 @@ Ensure primary button text uses `tokens.colors.textOnPrimary`.
 ### Task 3: Migrate Core Shell & Global Components
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Layout.tsx`
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Notification.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Layout.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Notification.tsx`
 
 - [ ] **Step 1: Layout typography + tokens**
 
@@ -185,7 +185,7 @@ Verify `textOnPrimary` and badge text vs background in light and dark mode.
 
 Run:
 ```powershell
-Get-ChildItem -Path "C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src" -Recurse -File |
+Get-ChildItem -Path "C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src" -Recurse -File |
   Select-String -Pattern '#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|box-shadow:|boxShadow:'
 ```
 Expected: only allowlisted locations.
@@ -199,3 +199,4 @@ Verify key screens at `1440x900`, `1280x800`, `390x844`.
 ## Notes
 - No git commits (user requested no git).
 - PDF preview in `Quotations.tsx` is excluded from color normalization.
+

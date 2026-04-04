@@ -1,6 +1,20 @@
 import { fetchWithSessionAuth } from '../../core/session';
 
-export const API_BASE = (import.meta as any).env?.VITE_API_URL ?? 'http://localhost:3001/api';
+export function resolveApiBase(explicitApiUrl?: string, browserHostname?: string) {
+  const trimmedUrl = explicitApiUrl?.trim();
+  if (trimmedUrl) return trimmedUrl;
+
+  const trimmedHostname = browserHostname?.trim();
+  const hostname = trimmedHostname && trimmedHostname.length > 0 ? trimmedHostname : 'localhost';
+  return `http://${hostname}:3001/api`;
+}
+
+const inferredBrowserHostname =
+  typeof window !== 'undefined' && typeof window.location?.hostname === 'string'
+    ? window.location.hostname
+    : undefined;
+
+export const API_BASE = resolveApiBase((import.meta as any).env?.VITE_API_URL, inferredBrowserHostname);
 
 export async function readJsonPayload<T = unknown>(res: Response): Promise<T | null> {
   try {

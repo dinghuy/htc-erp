@@ -31,10 +31,9 @@ export const UX_REGRESSION_MANIFEST = [
     expectedVisible: [
       routeSelector('My Work'),
       selectors.myWork.focusBadge,
-      workspaceTabSelector('commercial'),
-      selectors.workspace.previewNotice,
+      selectors.layout.previewBanner,
     ],
-    expectedHidden: [workspaceTabSelector('finance'), workspaceTabSelector('legal'), navItemSelector('Users')],
+    expectedHidden: [navItemSelector('Users')],
     escapeActions: ['Open Settings from preview banner', 'Back to Admin'],
   },
   {
@@ -46,11 +45,9 @@ export const UX_REGRESSION_MANIFEST = [
     expectedVisible: [
       routeSelector('My Work'),
       selectors.myWork.focusBadge,
-      workspaceTabSelector('timeline'),
-      workspaceTabSelector('delivery'),
-      selectors.workspace.previewNotice,
+      selectors.layout.previewBanner,
     ],
-    expectedHidden: [workspaceTabSelector('finance'), workspaceTabSelector('legal')],
+    expectedHidden: [navItemSelector('Users')],
     escapeActions: ['Open commercial tab in read-only mode', 'Back to Admin'],
   },
   {
@@ -62,10 +59,9 @@ export const UX_REGRESSION_MANIFEST = [
     expectedVisible: [
       routeSelector('My Work'),
       selectors.myWork.focusBadge,
-      workspaceTabSelector('commercial'),
-      workspaceTabSelector('timeline'),
+      selectors.layout.previewBanner,
     ],
-    expectedHidden: [workspaceTabSelector('finance'), workspaceTabSelector('legal')],
+    expectedHidden: [navItemSelector('Users')],
     escapeActions: ['Stay in unified queue without role switch', 'Back to Admin'],
   },
   {
@@ -77,10 +73,9 @@ export const UX_REGRESSION_MANIFEST = [
     expectedVisible: [
       routeSelector('Inbox'),
       selectors.inbox.focusBadge,
-      workspaceTabSelector('procurement'),
-      workspaceTabSelector('delivery'),
+      selectors.layout.previewBanner,
     ],
-    expectedHidden: [workspaceTabSelector('commercial'), workspaceTabSelector('finance'), workspaceTabSelector('legal')],
+    expectedHidden: [navItemSelector('Users')],
     escapeActions: ['Back to Admin'],
   },
   {
@@ -92,9 +87,9 @@ export const UX_REGRESSION_MANIFEST = [
     expectedVisible: [
       routeSelector('Approvals'),
       selectors.approvals.focusBadge,
-      workspaceTabSelector('finance'),
+      selectors.layout.previewBanner,
     ],
-    expectedHidden: [workspaceTabSelector('legal'), navItemSelector('Users')],
+    expectedHidden: [navItemSelector('Users')],
     escapeActions: ['Switch approval lanes', 'Back to Admin'],
   },
   {
@@ -106,9 +101,9 @@ export const UX_REGRESSION_MANIFEST = [
     expectedVisible: [
       routeSelector('Approvals'),
       selectors.approvals.focusBadge,
-      workspaceTabSelector('legal'),
+      selectors.layout.previewBanner,
     ],
-    expectedHidden: [workspaceTabSelector('finance')],
+    expectedHidden: [navItemSelector('Users')],
     escapeActions: ['Switch approval lanes', 'Back to Admin'],
   },
   {

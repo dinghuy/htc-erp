@@ -31,6 +31,27 @@ describe('workspace action access', () => {
     });
   });
 
+  it('keeps combined sales-pm powerful on handoff surfaces without leaking finance or legal authority', () => {
+    const combined = buildWorkspaceActionAccess(['sales', 'project_manager']);
+    expect(combined).toMatchObject({
+      canEditCommercial: true,
+      canEditPricing: true,
+      canEditTimeline: true,
+      canEditProcurement: false,
+      canEditDelivery: false,
+    });
+
+    expect(buildWorkspacePreviewNotice('commercial', combined, true, 'Sales + PM')).toMatchObject({
+      readOnly: false,
+      tone: 'info',
+    });
+
+    expect(buildWorkspacePreviewNotice('finance', combined, true, 'Sales + PM')).toMatchObject({
+      readOnly: true,
+      tone: 'info',
+    });
+  });
+
   it('grants procurement editing to procurement roles and keeps viewers read-only', () => {
     expect(buildWorkspaceActionAccess(['procurement'])).toMatchObject({
       canEditCommercial: false,
@@ -66,6 +87,7 @@ describe('workspace action access', () => {
       readOnly: true,
       tone: 'warning',
     });
+    expect(buildWorkspacePreviewNotice('commercial', pmAccess, true, 'Project Manager')?.message).toContain('read-only');
 
     expect(buildWorkspacePreviewNotice('timeline', pmAccess, true, 'Project Manager')).toMatchObject({
       readOnly: false,

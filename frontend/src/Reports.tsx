@@ -187,7 +187,7 @@ function ExecutiveCockpit({
   return (
     <div style={{ display: 'grid', gap: '28px' }}>
       <PageHero
-        eyebrow="Director Cockpit"
+        eyebrow="Cockpit điều hành"
         title="Cockpit lợi nhuận và rủi ro"
         description="Theo dõi các dự án rủi ro cao, quyết định điều hành đang chờ duyệt và bottleneck đang phình theo từng phòng ban trên cùng một màn hình."
         compact
@@ -195,8 +195,8 @@ function ExecutiveCockpit({
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
         <ExecutiveMetricCard label="Dự án rủi ro cao" value={riskProjectsValue} icon={AlertCircleIcon} accent={tokens.colors.error} />
-        <ExecutiveMetricCard label="Approval chờ" value={pendingApprovalsValue} icon={CheckIcon} accent={tokens.colors.warning} />
-        <ExecutiveMetricCard label="Task đang theo dõi" value={Number(summary.totalOpenTasks || 0)} icon={FolderIcon} accent={tokens.colors.primary} />
+        <ExecutiveMetricCard label="Phê duyệt chờ" value={pendingApprovalsValue} icon={CheckIcon} accent={tokens.colors.warning} />
+        <ExecutiveMetricCard label="Công việc đang theo dõi" value={Number(summary.totalOpenTasks || 0)} icon={FolderIcon} accent={tokens.colors.primary} />
         <ExecutiveMetricCard label="Hồ sơ thiếu" value={Number(summary.totalMissingDocuments || 0)} icon={ReportIcon} accent={tokens.colors.info} />
       </section>
 
@@ -204,7 +204,7 @@ function ExecutiveCockpit({
         <section style={{ ...ui.card.base, padding: '22px', display: 'grid', gap: '14px' }}>
           <PageSectionHeader
             title="Top dự án rủi ro cao"
-            description="Ưu tiên theo approval backlog, thiếu hồ sơ và open task đang đe dọa margin hoặc tiến độ."
+            description="Ưu tiên theo backlog phê duyệt, thiếu hồ sơ và công việc mở đang đe dọa biên lợi nhuận hoặc tiến độ."
           />
           {topRiskProjects.length === 0 ? (
             <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Chưa có dự án nào nổi bật trong vùng điều hành.</div>
@@ -216,11 +216,11 @@ function ExecutiveCockpit({
                   title={`${project.projectCode ? `${project.projectCode} · ` : ''}${project.projectName || 'Dự án chưa đặt tên'}`}
                   subtitle={`${project.accountName || 'Chưa có account'} · Giai đoạn ${project.projectStage || 'new'} · Trạng thái ${project.projectStatus || 'pending'}`}
                   primaryLabel={`Rủi ro ${Number(project.riskScore || 0)}`}
-                  primaryHint="Dự án đang nằm trong vùng điều hành do approval backlog, thiếu hồ sơ hoặc khối lượng task mở."
+                  primaryHint="Dự án đang nằm trong vùng điều hành do backlog phê duyệt, thiếu hồ sơ hoặc khối lượng công việc mở."
                   statusItems={[
-                    { key: `${project.projectId}-approvals`, label: `${Number(project.pendingApprovalCount || 0)} approval`, tone: 'warn' },
+                    { key: `${project.projectId}-approvals`, label: `${Number(project.pendingApprovalCount || 0)} phê duyệt`, tone: 'warn' },
                     { key: `${project.projectId}-docs`, label: `${Number(project.missingDocumentCount || 0)} hồ sơ thiếu`, tone: Number(project.missingDocumentCount || 0) > 0 ? 'bad' : 'good' },
-                    { key: `${project.projectId}-tasks`, label: `${Number(project.openTaskCount || 0)} task`, tone: 'info' },
+                    { key: `${project.projectId}-tasks`, label: `${Number(project.openTaskCount || 0)} công việc`, tone: 'info' },
                   ]}
                 />
               ))}
@@ -230,7 +230,7 @@ function ExecutiveCockpit({
 
         <div style={{ display: 'grid', gap: '24px' }}>
           <section style={{ ...ui.card.base, padding: '22px', display: 'grid', gap: '14px' }}>
-            <PageSectionHeader title="Bottleneck theo phòng ban" description="Số approval pending đang dồn theo từng phòng ban." />
+            <PageSectionHeader title="Bottleneck theo phòng ban" description="Số phê duyệt đang chờ dồn theo từng phòng ban." />
             {bottlenecksByDepartment.length === 0 ? (
               <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Không có bottleneck pending.</div>
             ) : (
@@ -238,7 +238,7 @@ function ExecutiveCockpit({
                 {bottlenecksByDepartment.map((item) => (
                   <div key={item.department} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: tokens.colors.textPrimary }}>{item.department}</div>
-                    <span style={ui.badge.warning as any}>{item.count} pending</span>
+                    <span style={ui.badge.warning as any}>{item.count} đang chờ</span>
                   </div>
                 ))}
               </div>
@@ -247,11 +247,11 @@ function ExecutiveCockpit({
 
           <section style={{ ...ui.card.base, padding: '22px', display: 'grid', gap: '14px' }}>
             <PageSectionHeader
-              title="Hàng đợi approval điều hành"
+              title="Hàng đợi phê duyệt điều hành"
               description="Các yêu cầu đang rơi vào lane điều hành, ưu tiên quyết định nhanh để không nghẽn dự án."
             />
             {executiveApprovals.length === 0 ? (
-              <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Không có approval điều hành đang chờ.</div>
+              <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Không có phê duyệt điều hành đang chờ.</div>
             ) : (
               <div style={{ display: 'grid', gap: '10px' }}>
                 {executiveApprovals.map((approval) => (

@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import { fetchWithAuth } from './auth';
 import { API_BASE } from './config';
 import { showNotify } from './Notification';
+import { OverlayPortal, getOverlayContainerStyle } from './ui/overlay';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
 import htcLogo from './assets/htc-logo.png';
@@ -52,27 +53,23 @@ export function ForceChangePassword({ currentUser, onDone }: { currentUser: any;
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 9999,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #004d35 0%, #009B6E 60%, #00c47a 100%)',
-      fontFamily: 'var(--font-family-sans)',
-    }}>
+    <OverlayPortal>
       <div style={{
-        background: tokens.colors.surface,
-        borderRadius: tokens.radius.xl,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-        padding: '48px 40px',
-        width: '100%',
-        maxWidth: '440px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '24px',
+        ...getOverlayContainerStyle('emergency', { padding: '20px' }),
+        background: 'linear-gradient(135deg, #004d35 0%, #009B6E 60%, #00c47a 100%)',
+        fontFamily: 'var(--font-family-sans)',
       }}>
+        <div style={{
+          background: tokens.colors.surface,
+          borderRadius: tokens.radius.xl,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          padding: '48px 40px',
+          width: '100%',
+          maxWidth: '440px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '24px',
+        }}>
         {/* Header */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
           <img src={htcLogo} alt="HTC Logo" style={{ width: '56px', height: '56px', objectFit: 'contain' }} />
@@ -164,6 +161,7 @@ export function ForceChangePassword({ currentUser, onDone }: { currentUser: any;
           {t('force_pw.signed_in_as', { name: currentUser?.fullName || currentUser?.username })}
         </div>
       </div>
-    </div>
+      </div>
+    </OverlayPortal>
   );
 }

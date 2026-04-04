@@ -35,6 +35,10 @@ export type MonthDay = {
   date: Date;
   dayNumber: number;
   weekdayLabel: string;
+  monthKey: string;
+  monthLabelShort: string;
+  isMonthStart: boolean;
+  isCenterMonth: boolean;
   isToday: boolean;
   isWeekend: boolean;
 };
@@ -72,10 +76,11 @@ export function addMonths(date: Date, delta: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + delta, 1);
 }
 
-export function createMonthDays(viewDate: Date): MonthDay[] {
+function buildMonthDays(viewDate: Date, todayKey: string | null, centerMonthKey: string) {
   const totalDays = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
-  const todayKey = toLocalDateKey(new Date().toISOString());
   const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthKey = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
+  const monthLabelShort = new Intl.DateTimeFormat('en-US', { month: 'short' }).format(viewDate);
 
   return Array.from({ length: totalDays }, (_, index) => {
     const current = new Date(viewDate.getFullYear(), viewDate.getMonth(), index + 1);
@@ -85,10 +90,31 @@ export function createMonthDays(viewDate: Date): MonthDay[] {
       date: current,
       dayNumber: index + 1,
       weekdayLabel: weekdayLabels[current.getDay()],
+      monthKey,
+      monthLabelShort,
+      isMonthStart: index === 0,
+      isCenterMonth: monthKey === centerMonthKey,
       isToday: key === todayKey,
       isWeekend: current.getDay() === 0 || current.getDay() === 6,
-    };
+    } satisfies MonthDay;
   });
+}
+
+export function createMonthDays(viewDate: Date): MonthDay[] {
+  const todayKey = toLocalDateKey(new Date().toISOString());
+  const centerMonthKey = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
+  return buildMonthDays(viewDate, todayKey, centerMonthKey);
+}
+
+export function createTimelineWindowDays(viewDate: Date): MonthDay[] {
+  const todayKey = toLocalDateKey(new Date().toISOString());
+  const centerMonthKey = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
+
+  return [
+    ...buildMonthDays(addMonths(viewDate, -1), todayKey, centerMonthKey),
+    ...buildMonthDays(viewDate, todayKey, centerMonthKey),
+    ...buildMonthDays(addMonths(viewDate, 1), todayKey, centerMonthKey),
+  ];
 }
 
 export function formatMonthLabel(date: Date): string {
@@ -121,6 +147,25 @@ export function isRangeOverlappingMonth(startValue?: string | null, endValue?: s
   return end >= monthStart && start <= monthEnd;
 }
 
+function getTimelineWindowBounds(centerMonthDate: Date) {
+  const windowStart = startOfMonth(addMonths(centerMonthDate, -1));
+  const windowEnd = new Date(centerMonthDate.getFullYear(), centerMonthDate.getMonth() + 2, 0);
+  return { windowStart, windowEnd };
+}
+
+export function isRangeOverlappingTimelineWindow(
+  startValue?: string | null,
+  endValue?: string | null,
+  centerMonthDate?: Date,
+): boolean {
+  if (!centerMonthDate) return true;
+  const { windowStart, windowEnd } = getTimelineWindowBounds(centerMonthDate);
+  const start = parseDate(startValue);
+  const end = parseDate(endValue) ?? start;
+  if (!start || !end) return false;
+  return end >= windowStart && start <= windowEnd;
+}
+
 export function buildTimelineRange(
   startValue: string | null | undefined,
   endValue: string | null | undefined,
@@ -138,6 +183,30 @@ export function buildTimelineRange(
 
   const startIndex = Math.floor((clippedStart.getTime() - monthStart.getTime()) / dayMs);
   const endIndex = Math.floor((clippedEnd.getTime() - monthStart.getTime()) / dayMs);
+
+  return {
+    startIndex,
+    endIndex,
+    span: Math.max(1, endIndex - startIndex + 1),
+  };
+}
+
+export function buildTimelineWindowRange(
+  startValue: string | null | undefined,
+  endValue: string | null | undefined,
+  centerMonthDate: Date,
+): TimelineRange | null {
+  const { windowStart, windowEnd } = getTimelineWindowBounds(centerMonthDate);
+  const start = parseDate(startValue);
+  const end = parseDate(endValue) ?? start;
+  if (!start || !end) return null;
+
+  const clippedStart = start < windowStart ? windowStart : start;
+  const clippedEnd = end > windowEnd ? windowEnd : end;
+  if (clippedEnd < clippedStart) return null;
+
+  const startIndex = Math.floor((clippedStart.getTime() - windowStart.getTime()) / dayMs);
+  const endIndex = Math.floor((clippedEnd.getTime() - windowStart.getTime()) / dayMs);
 
   return {
     startIndex,

@@ -7,18 +7,25 @@ import { buildRoleProfile, type CurrentUser, canEdit, canManageUsers, fetchWithA
 import type { SystemRole } from './shared/domain/contracts';
 import { useI18n } from './i18n';
 import { GENDER_OPTIONS, normalizeGender } from './gender';
+import { normalizeImportReport, buildImportSummary } from './shared/imports/importReport';
+import { buildTabularFileUrl } from './shared/imports/tabularFiles';
+import { compressImageForUpload } from './shared/uploads/imageCompression';
+import { ConfirmDialog } from './ui/ConfirmDialog';
+import { FormatActionButton } from './ui/FormatActionButton';
+import { OverlayPortal, getOverlayContainerStyle } from './ui/overlay';
+import { OverlayModal } from './ui/OverlayModal';
 
 const API = API_BASE;
 
 const DEPARTMENTS = [
-  'Ban Giam Doc',
+  'Ban Giám đốc',
   'Sales & Marketing',
-  'Ky thuat',
-  'Mua hang',
-  'Ke toan & Tai chinh',
+  'Kỹ thuật',
+  'Mua hàng',
+  'Kế toán & Tài chính',
   'IT',
-  'Hanh chinh - Nhan su',
-  'Van hanh',
+  'Hành chính - Nhân sự',
+  'Vận hành',
 ];
 
 const BUSINESS_ROLE_OPTIONS: Array<{ value: SystemRole; label: string }> = [
@@ -140,16 +147,9 @@ function UserAvatar({ avatar, fullName, size = 32 }: { avatar?: string; fullName
 
 function ModalWrapper({ title, children, onClose }: any) {
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ position: 'absolute', inset: 0, background: tokens.colors.textPrimary, opacity: 0.7 }} />
-      <div style={{ ...ui.modal.shell, width: '100%', maxWidth: '680px', position: 'relative', zIndex: 1 }}>
-        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${tokens.colors.border}`, background: tokens.colors.background, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: tokens.colors.primary }}>{title}</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: tokens.colors.textMuted }}>&times;</button>
-        </div>
-        <div style={{ padding: '24px', maxHeight: '80vh', overflowY: 'auto' }}>{children}</div>
-      </div>
-    </div>
+    <OverlayModal title={title} onClose={onClose} maxWidth="680px" contentPadding="24px">
+      <div style={{ maxHeight: '80vh', overflowY: 'auto' }}>{children}</div>
+    </OverlayModal>
   );
 }
 
@@ -266,11 +266,11 @@ function AddUserModal({ onClose, onSaved, token }: any) {
   const F = (field: string, val: any) => setForm(f => ({ ...f, [field]: val }));
 
   return (
-    <ModalWrapper title="Them Nhan vien moi" onClose={onClose}>
+    <ModalWrapper title="Thêm nhân viên mới" onClose={onClose}>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '20px' }}>
 
         {/* Personal info */}
-        <SectionDivider label="Thong tin ca nhan" />
+        <SectionDivider label="Thông tin cá nhân" />
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Giới tính</label>
           <select value={form.gender} onChange={(e: any) => F('gender', e.target.value)} style={S.input}>
@@ -278,32 +278,32 @@ function AddUserModal({ onClose, onSaved, token }: any) {
           </select>
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Ho va Ten day du *</label>
-          <input type="text" placeholder="Nhap ten nhan vien" value={form.fullName} onInput={(e: any) => F('fullName', e.target.value)} style={S.input} />
+          <label style={S.label}>Họ và tên đầy đủ *</label>
+          <input type="text" placeholder="Nhập tên nhân viên" value={form.fullName} onInput={(e: any) => F('fullName', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Ma NV (HTG-001)</label>
           <input type="text" placeholder="VD: HTG-001" value={form.employeeCode} onInput={(e: any) => F('employeeCode', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Ngay sinh</label>
+          <label style={S.label}>Ngày sinh</label>
           <input type="date" value={form.dateOfBirth} onInput={(e: any) => F('dateOfBirth', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Dia chi Email cong ty</label>
+          <label style={S.label}>Địa chỉ email công ty</label>
           <input type="email" placeholder="email@huynhthy.com" value={form.email} onInput={(e: any) => F('email', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>So dien thoai di dong</label>
+          <label style={S.label}>Số điện thoại di động</label>
           <input type="text" placeholder="0901 234 567" value={form.phone} onInput={(e: any) => F('phone', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 2' }}>
-          <label style={S.label}>Dia chi</label>
-          <input type="text" placeholder="So nha, duong, quan/huyen, tinh/thanh pho" value={form.address} onInput={(e: any) => F('address', e.target.value)} style={S.input} />
+          <label style={S.label}>Địa chỉ</label>
+          <input type="text" placeholder="Số nhà, đường, quận/huyện, tỉnh/thành phố" value={form.address} onInput={(e: any) => F('address', e.target.value)} style={S.input} />
         </div>
 
         {/* Work info */}
-        <SectionDivider label="Thong tin cong viec" />
+        <SectionDivider label="Thông tin công việc" />
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Chức vụ đang đảm nhiệm</label>
           <input type="text" placeholder="VD: Sales Executive" value={form.role} onInput={(e: any) => F('role', e.target.value)} style={S.input} />
@@ -322,15 +322,15 @@ function AddUserModal({ onClose, onSaved, token }: any) {
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Trạng thái nhân sự</label>
           <select value={form.status} onChange={(e: any) => F('status', e.target.value)} style={S.input}>
-            <option value="Active">Dang lam viec (Active)</option>
-            <option value="Inactive">Da nghi viec (Inactive)</option>
+            <option value="Active">Đang làm việc (Active)</option>
+            <option value="Inactive">Đã nghỉ việc (Inactive)</option>
           </select>
         </div>
 
         {/* Account info */}
-        <SectionDivider label="Tai khoan dang nhap he thong" />
+        <SectionDivider label="Tài khoản đăng nhập hệ thống" />
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Ten dang nhap (username)</label>
+          <label style={S.label}>Tên đăng nhập (username)</label>
           <input type="text" placeholder="VD: tran.van.a" value={form.username} onInput={(e: any) => F('username', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
@@ -338,7 +338,7 @@ function AddUserModal({ onClose, onSaved, token }: any) {
           <input type="password" placeholder="Tối thiểu 6 ký tự" value={form.password} onInput={(e: any) => F('password', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Phan quyen he thong</label>
+          <label style={S.label}>Phân quyền hệ thống</label>
           <select value={form.systemRole} onChange={(e: any) => F('systemRole', e.target.value)} style={S.input}>
             {PRIMARY_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -432,8 +432,15 @@ function EditUserModal({ user, onClose, onSaved, token }: any) {
   const handleAvatarChange = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    let preparedFile = file;
+    try {
+      const result = await compressImageForUpload(file, 'avatar');
+      preparedFile = result.file;
+    } catch {
+      preparedFile = file;
+    }
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append('avatar', preparedFile);
     setUploadingAvatar(true);
     try {
       const res = await fetchWithAuth(token, `${API}/users/${user.id}/avatar`, {
@@ -472,7 +479,7 @@ function EditUserModal({ user, onClose, onSaved, token }: any) {
             disabled={uploadingAvatar}
             style={{ ...S.btnOutline, marginTop: '8px', padding: '5px 12px', fontSize: '12px', opacity: uploadingAvatar ? 0.7 : 1 }}
           >
-            {uploadingAvatar ? 'Dang tai len...' : 'Doi anh'}
+            {uploadingAvatar ? 'Đang tải lên...' : 'Đổi ảnh'}
           </button>
         </div>
       </div>
@@ -480,7 +487,7 @@ function EditUserModal({ user, onClose, onSaved, token }: any) {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '20px' }}>
 
         {/* Personal info */}
-        <SectionDivider label="Thong tin ca nhan" />
+        <SectionDivider label="Thông tin cá nhân" />
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Giới tính</label>
           <select value={form.gender} onChange={(e: any) => F('gender', e.target.value)} style={S.input}>
@@ -488,7 +495,7 @@ function EditUserModal({ user, onClose, onSaved, token }: any) {
           </select>
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Ho va Ten day du *</label>
+          <label style={S.label}>Họ và tên đầy đủ *</label>
           <input type="text" value={form.fullName} onInput={(e: any) => F('fullName', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
@@ -496,7 +503,7 @@ function EditUserModal({ user, onClose, onSaved, token }: any) {
           <input type="text" placeholder="VD: HTG-001" value={form.employeeCode} onInput={(e: any) => F('employeeCode', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Ngay sinh</label>
+          <label style={S.label}>Ngày sinh</label>
           <input type="date" value={form.dateOfBirth} onInput={(e: any) => F('dateOfBirth', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
@@ -504,16 +511,16 @@ function EditUserModal({ user, onClose, onSaved, token }: any) {
           <input type="email" value={form.email} onInput={(e: any) => F('email', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>So dien thoai</label>
+          <label style={S.label}>Số điện thoại</label>
           <input type="text" value={form.phone} onInput={(e: any) => F('phone', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 2' }}>
-          <label style={S.label}>Dia chi</label>
+          <label style={S.label}>Địa chỉ</label>
           <input type="text" value={form.address} onInput={(e: any) => F('address', e.target.value)} style={S.input} />
         </div>
 
         {/* Work info */}
-        <SectionDivider label="Thong tin cong viec" />
+        <SectionDivider label="Thông tin công việc" />
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Chức vụ</label>
           <input type="text" value={form.role} onInput={(e: any) => F('role', e.target.value)} style={S.input} />
@@ -526,7 +533,7 @@ function EditUserModal({ user, onClose, onSaved, token }: any) {
           </select>
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Ngay vao cong ty</label>
+          <label style={S.label}>Ngày vào công ty</label>
           <input type="date" value={form.startDate} onInput={(e: any) => F('startDate', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
@@ -650,6 +657,168 @@ function CapabilitySummary({
   );
 }
 
+function getUserDirectoryStatus(user: any) {
+  if (user.accountStatus === 'locked') {
+    return {
+      key: 'locked',
+      label: 'Tạm khóa',
+      background: tokens.colors.badgeBgError,
+      color: tokens.colors.error,
+    };
+  }
+  if (user.accountStatus === 'suspended') {
+    return {
+      key: 'limited',
+      label: 'Giới hạn',
+      background: tokens.colors.surfaceSubtle,
+      color: tokens.colors.textSecondary,
+    };
+  }
+  if (String(user.status || '').toLowerCase() === 'inactive') {
+    return {
+      key: 'inactive',
+      label: 'Tạm nghỉ',
+      background: tokens.colors.surfaceSubtle,
+      color: tokens.colors.textSecondary,
+    };
+  }
+  if (!user.lastLoginAt) {
+    return {
+      key: 'never_logged_in',
+      label: 'Chưa đăng nhập',
+      background: tokens.colors.warningBg,
+      color: tokens.colors.warningStrong,
+    };
+  }
+  return {
+    key: 'active',
+    label: 'Hoạt động',
+    background: tokens.colors.badgeBgSuccess,
+    color: tokens.colors.success,
+  };
+}
+
+function getUserAccessSummary(user: any) {
+  const primaryRole = buildRoleProfile(user.roleCodes, user.systemRole).primaryRole;
+  const summaries: Partial<Record<SystemRole, string>> = {
+    admin: 'Toàn quyền hệ thống',
+    accounting: 'Finance + Reports',
+    director: 'Approvals + Reports',
+    legal: 'Contracts + Audit',
+    procurement: 'Vendor + Purchase',
+    project_manager: 'Projects + Timeline',
+    sales: 'Pipeline + Quotations',
+    viewer: 'Chỉ xem dữ liệu',
+  };
+  return summaries[primaryRole] || 'Quyền cơ bản';
+}
+
+function SummaryChip({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: 'info' | 'warning' | 'danger';
+}) {
+  const palette = tone === 'warning'
+    ? { background: '#FFF4DE', color: '#B7791F' }
+    : tone === 'danger'
+      ? { background: tokens.colors.badgeBgError, color: tokens.colors.error }
+      : { background: '#E8F5FF', color: '#2B6CB0' };
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '8px 12px',
+        borderRadius: '999px',
+        background: palette.background,
+        color: palette.color,
+        fontSize: '12px',
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function TableRolePill({ label }: { label: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '6px 12px',
+        borderRadius: '999px',
+        background: '#F8FBFE',
+        border: `1px solid ${tokens.colors.border}`,
+        color: '#43617F',
+        fontSize: '12px',
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function TableStatusPill({ user }: { user: any }) {
+  const status = getUserDirectoryStatus(user);
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '7px 12px',
+        borderRadius: '999px',
+        background: status.background,
+        color: status.color,
+        fontSize: '12px',
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {status.label}
+    </span>
+  );
+}
+
+function TableActionButton({
+  label,
+  tone = 'secondary',
+  onClick,
+}: {
+  label: string;
+  tone?: 'secondary' | 'primary';
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        minWidth: '58px',
+        height: '36px',
+        padding: '0 12px',
+        borderRadius: '12px',
+        border: `1px solid ${tone === 'primary' ? '#BFE8D5' : tokens.colors.border}`,
+        background: tone === 'primary' ? '#E8F7F0' : tokens.colors.surface,
+        color: tone === 'primary' ? '#0C7A57' : '#43617F',
+        fontSize: '13px',
+        fontWeight: 700,
+        cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 function DetailField({ label, value }: { label: string; value?: any }) {
   return (
     <div style={{ display: 'grid', gap: '6px' }}>
@@ -662,10 +831,11 @@ function DetailField({ label, value }: { label: string; value?: any }) {
 function SidePanel({ open, title, subtitle, onClose, children }: { open: boolean; title: string; subtitle?: string; onClose: () => void; children: any }) {
   if (!open) return null;
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 120, display: 'flex', justifyContent: 'flex-end' }}>
-      <button type="button" aria-label="Close panel" onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.46)', border: 'none', padding: 0, cursor: 'pointer' }} />
-      <div style={{ position: 'relative', width: 'min(560px, 100vw)', height: '100%', background: tokens.colors.surface, borderLeft: `1px solid ${tokens.colors.border}`, boxShadow: '0 10px 40px rgba(15,23,42,0.18)', overflowY: 'auto' }}>
-        <div style={{ padding: '22px 24px 18px', borderBottom: `1px solid ${tokens.colors.border}`, background: 'linear-gradient(180deg, rgba(0,77,53,0.08) 0%, rgba(255,255,255,0) 100%)' }}>
+    <OverlayPortal>
+      <div style={getOverlayContainerStyle('drawer', { padding: '0', alignItems: 'stretch', justifyContent: 'flex-end' })}>
+      <button type="button" aria-label="Close panel" onClick={onClose} style={{ position: 'absolute', inset: 0, background: tokens.overlay.softBackdrop, backdropFilter: `blur(${tokens.overlay.backdropBlur})`, WebkitBackdropFilter: `blur(${tokens.overlay.backdropBlur})`, border: 'none', padding: 0, cursor: 'pointer' }} />
+      <div style={{ position: 'relative', zIndex: 1, width: 'min(560px, 100vw)', height: '100%', ...ui.overlay.drawer, overflowY: 'auto' }}>
+        <div style={{ padding: '22px 24px 18px', borderBottom: `1px solid ${tokens.colors.border}`, background: tokens.surface.drawerHeader }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
             <div style={{ display: 'grid', gap: '6px' }}>
               <div style={{ fontSize: '22px', fontWeight: 900, color: tokens.colors.textPrimary }}>{title}</div>
@@ -676,7 +846,8 @@ function SidePanel({ open, title, subtitle, onClose, children }: { open: boolean
         </div>
         <div style={{ padding: '24px' }}>{children}</div>
       </div>
-    </div>
+      </div>
+    </OverlayPortal>
   );
 }
 
@@ -730,12 +901,12 @@ function useUserDirectoryData(items: any[]) {
 
 export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUser?: CurrentUser } = {}) {
   const { t } = useI18n();
-  const roleProfile = buildRoleProfile(currentUser?.roleCodes, currentUser?.systemRole);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [viewingUser, setViewingUser] = useState<any>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [panelTab, setPanelTab] = useState<'profile' | 'access' | 'security' | 'activity'>('profile');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directoryData = useUserDirectoryData(users);
@@ -768,31 +939,9 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
 
   const stats = useMemo(() => {
     const total = users.length;
-    const activeAccounts = users.filter((user) => user.accountStatus === 'active').length;
     const lockedAccounts = users.filter((user) => user.accountStatus === 'locked' || user.accountStatus === 'suspended').length;
-    const pendingPassword = users.filter((user) => user.mustChangePassword === true || user.mustChangePassword === 1).length;
     const neverLoggedIn = users.filter((user) => !user.lastLoginAt).length;
-    return { total, activeAccounts, lockedAccounts, pendingPassword, neverLoggedIn };
-  }, [users]);
-
-  const adminCapabilities = useMemo(() => {
-    const counts: Record<string, number> = {
-      sales: 0,
-      project_manager: 0,
-      procurement: 0,
-      accounting: 0,
-      legal: 0,
-      director: 0,
-      admin: 0,
-      viewer: 0,
-    };
-    users.forEach((user) => {
-      const normalized = normalizeRoleCodes(user.roleCodes, user.systemRole);
-      normalized.forEach((roleCode) => {
-        counts[roleCode] = (counts[roleCode] || 0) + 1;
-      });
-    });
-    return counts;
+    return { total, lockedAccounts, neverLoggedIn };
   }, [users]);
 
   const filterOptions = useMemo(() => ({
@@ -808,31 +957,44 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
     try {
       const res = await fetchWithAuth(token, `${API}/users/import`, { method: 'POST', body: formData });
       const result = await res.json();
-      showNotify(`Đã nhập: ${result.inserted}, Bỏ qua: ${result.skipped}`, 'success');
+      if (!res.ok) throw new Error(result?.error || 'Không thể import dữ liệu');
+      const report = normalizeImportReport(result);
+      showNotify(buildImportSummary(report), report.errors > 0 ? 'info' : 'success');
       loadData();
-    } catch {
-      showNotify('Lỗi khi nhập CSV', 'error');
+    } catch (error: any) {
+      showNotify(error?.message || 'Lỗi khi nhập dữ liệu', 'error');
+    } finally {
+      setLoading(false);
+      if (e?.target) e.target.value = '';
     }
-    setLoading(false);
   };
 
-  const exportCSV = () => window.open(`${API}/users/export`, '_blank');
-  const downloadTemplate = () => window.open(`${API}/template/users`, '_blank');
+  const exportData = (format: 'csv' | 'xlsx') => {
+    window.open(buildTabularFileUrl(`${API}/users/export`, format), '_blank');
+  };
+  const downloadTemplate = (format: 'csv' | 'xlsx') => {
+    window.open(buildTabularFileUrl(`${API}/template/users`, format), '_blank');
+  };
 
   const handleLockToggle = async (item: any) => {
     const isLocked = item.accountStatus === 'locked' || item.accountStatus === 'suspended';
     const endpoint = isLocked ? 'unlock' : 'lock';
     const label = isLocked ? 'mở khóa' : 'khóa';
-    if (!confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} tài khoản "${item.fullName}"?`)) return;
-    try {
-      const res = await fetchWithAuth(token, `${API}/users/${item.id}/${endpoint}`, { method: 'POST' });
-      if (!res.ok) throw new Error('Lỗi server');
-      showNotify(`Đã ${label} tài khoản ${item.fullName}!`, 'success');
-      loadData();
-      if (viewingUser?.id === item.id) setViewingUser({ ...viewingUser, accountStatus: isLocked ? 'active' : 'locked' });
-    } catch (err: any) {
-      showNotify('Lỗi: ' + err.message, 'error');
-    }
+    setConfirmState({
+      message: `${label.charAt(0).toUpperCase() + label.slice(1)} tài khoản "${item.fullName}"?`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          const res = await fetchWithAuth(token, `${API}/users/${item.id}/${endpoint}`, { method: 'POST' });
+          if (!res.ok) throw new Error('Lỗi server');
+          showNotify(`Đã ${label} tài khoản ${item.fullName}!`, 'success');
+          loadData();
+          if (viewingUser?.id === item.id) setViewingUser({ ...viewingUser, accountStatus: isLocked ? 'active' : 'locked' });
+        } catch (err: any) {
+          showNotify('Lỗi: ' + err.message, 'error');
+        }
+      },
+    });
   };
 
   const openUserPanel = (user: any) => {
@@ -840,61 +1002,162 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
     setPanelTab('profile');
   };
 
-  const adminColumns: Array<{ key: DirectorySortKey | 'capabilities' | 'employment' | 'accountStatus' | 'passwordState'; label: string }> = [
-    { key: 'fullName', label: 'User' },
+  const adminColumns: Array<{ key: DirectorySortKey | 'capabilities' | 'status'; label: string }> = [
+    { key: 'fullName', label: 'Người dùng' },
     { key: 'department', label: 'Phòng ban' },
-    { key: 'primaryRole', label: 'Primary role' },
-    { key: 'employment', label: 'Employment' },
-    { key: 'accountStatus', label: 'Account' },
-    { key: 'passwordState', label: 'Password' },
-    { key: 'lastLoginAt', label: 'Last login' },
+    { key: 'primaryRole', label: 'Vai trò' },
+    { key: 'capabilities', label: 'Quyền hạn' },
+    { key: 'status', label: 'Trạng thái' },
+    { key: 'lastLoginAt', label: 'Đăng nhập gần nhất' },
   ];
-  if (hasSupplementalCapabilities) adminColumns.splice(3, 0, { key: 'capabilities', label: 'Capabilities' });
+  const statusFilterValue = directoryData.filters.accountStatus || directoryData.filters.loginState || '';
+  const setStatusFilter = (value: string) => {
+    if (!value) {
+      directoryData.setFilters({
+        ...directoryData.filters,
+        accountStatus: '',
+        loginState: '',
+        passwordState: '',
+      });
+      return;
+    }
+    if (value === 'never_logged_in') {
+      directoryData.setFilters({
+        ...directoryData.filters,
+        accountStatus: '',
+        loginState: 'never_logged_in',
+        passwordState: '',
+      });
+      return;
+    }
+    directoryData.setFilters({
+      ...directoryData.filters,
+      accountStatus: value,
+      loginState: '',
+      passwordState: '',
+    });
+  };
 
-  const renderDirectoryFilters = () => (
-    <div style={{ ...S.card, display: 'grid', gap: '16px', border: `1px solid ${tokens.colors.border}` }}>
-      <div style={{ display: 'grid', gap: '8px' }}>
-        <div style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Tìm đồng nghiệp</div>
-        <input
-          type="text"
-          placeholder="Tìm theo tên, email, số điện thoại, phòng ban..."
-          value={directoryData.filters.query}
-          onInput={(e: any) => directoryData.setFilters({ ...directoryData.filters, query: e.target.value })}
-          style={{ ...S.input, width: '100%' }}
-        />
+  const renderDirectoryFilters = () => {
+    if (userCanManage) {
+      return (
+        <div style={{ display: 'grid', gap: '12px' }}>
+          <div
+            style={{
+              ...S.card,
+              display: 'grid',
+              gap: '12px',
+              padding: isMobile ? '16px' : '14px 16px',
+              borderRadius: '18px',
+              border: `1px solid ${tokens.colors.border}`,
+              boxShadow: 'none',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'minmax(260px, 1.7fr) minmax(180px, 0.9fr) minmax(180px, 0.9fr) auto',
+                gap: '12px',
+                alignItems: 'center',
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Tìm theo tên hoặc username"
+                value={directoryData.filters.query}
+                onInput={(e: any) => directoryData.setFilters({ ...directoryData.filters, query: e.target.value })}
+                style={{
+                  ...S.input,
+                  width: '100%',
+                  background: '#F9FBFD',
+                  borderRadius: '14px',
+                  padding: '12px 16px',
+                }}
+              />
+              <select
+                value={directoryData.filters.department}
+                onChange={(e: any) => directoryData.setFilters({ ...directoryData.filters, department: e.target.value })}
+                style={{
+                  ...S.input,
+                  background: tokens.colors.surface,
+                  borderRadius: '14px',
+                  padding: '12px 16px',
+                }}
+              >
+                <option value="">Phòng ban</option>
+                {filterOptions.departments.map((department) => <option key={department} value={department}>{department}</option>)}
+              </select>
+              <select
+                value={statusFilterValue}
+                onChange={(e: any) => setStatusFilter(e.target.value)}
+                style={{
+                  ...S.input,
+                  background: tokens.colors.surface,
+                  borderRadius: '14px',
+                  padding: '12px 16px',
+                }}
+              >
+                <option value="">Trạng thái</option>
+                <option value="active">Hoạt động</option>
+                <option value="never_logged_in">Chưa đăng nhập</option>
+                <option value="locked">Tạm khóa</option>
+                <option value="suspended">Giới hạn</option>
+              </select>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '12px',
+                  justifyContent: isMobile ? 'stretch' : 'flex-end',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <FormatActionButton label="Xuất file" buttonStyle={{ ...S.btnOutline, padding: '12px 18px', borderRadius: '14px' }} menuAlign="right" onSelect={exportData} />
+                <button style={{ ...S.btnPrimary, padding: '12px 18px', borderRadius: '14px', justifyContent: 'center' }} onClick={() => setShowAdd(true)}>
+                  + Thêm
+                </button>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <FormatActionButton label={t('common.import_template')} buttonStyle={{ ...ui.btn.ghost, padding: '6px 10px', fontSize: '13px' }} onSelect={downloadTemplate} />
+            <button type="button" onClick={() => fileInputRef.current?.click()} style={{ ...ui.btn.ghost, padding: '6px 10px', fontSize: '13px' }}>
+              {t('common.import_file')}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ ...S.card, display: 'grid', gap: '16px', border: `1px solid ${tokens.colors.border}` }}>
+        <div style={{ display: 'grid', gap: '8px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Tìm đồng nghiệp</div>
+          <input
+            type="text"
+            placeholder="Tìm theo tên, email, số điện thoại, phòng ban..."
+            value={directoryData.filters.query}
+            onInput={(e: any) => directoryData.setFilters({ ...directoryData.filters, query: e.target.value })}
+            style={{ ...S.input, width: '100%' }}
+          />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: '12px' }}>
+          <select value={directoryData.filters.department} onChange={(e: any) => directoryData.setFilters({ ...directoryData.filters, department: e.target.value })} style={S.input}>
+            <option value="">Tất cả phòng ban</option>
+            {filterOptions.departments.map((department) => <option key={department} value={department}>{department}</option>)}
+          </select>
+          <select value={directoryData.filters.primaryRole} onChange={(e: any) => directoryData.setFilters({ ...directoryData.filters, primaryRole: e.target.value })} style={S.input}>
+            <option value="">Tất cả role</option>
+            {PRIMARY_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <select value={directoryData.filters.loginState} onChange={(e: any) => directoryData.setFilters({ ...directoryData.filters, loginState: e.target.value })} style={S.input}>
+            <option value="">Tất cả đăng nhập</option>
+            <option value="active">Đã từng đăng nhập</option>
+            <option value="never_logged_in">Chưa từng đăng nhập</option>
+          </select>
+        </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${userCanManage ? 5 : 3}, minmax(0, 1fr))`, gap: '12px' }}>
-        <select value={directoryData.filters.department} onChange={(e: any) => directoryData.setFilters({ ...directoryData.filters, department: e.target.value })} style={S.input}>
-          <option value="">Tất cả phòng ban</option>
-          {filterOptions.departments.map((department) => <option key={department} value={department}>{department}</option>)}
-        </select>
-        <select value={directoryData.filters.primaryRole} onChange={(e: any) => directoryData.setFilters({ ...directoryData.filters, primaryRole: e.target.value })} style={S.input}>
-          <option value="">Tất cả role</option>
-          {PRIMARY_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        {userCanManage ? (
-          <>
-            <select value={directoryData.filters.accountStatus} onChange={(e: any) => directoryData.setFilters({ ...directoryData.filters, accountStatus: e.target.value })} style={S.input}>
-              <option value="">Tất cả account status</option>
-              <option value="active">Active</option>
-              <option value="locked">Locked</option>
-              <option value="suspended">Suspended</option>
-            </select>
-            <select value={directoryData.filters.passwordState} onChange={(e: any) => directoryData.setFilters({ ...directoryData.filters, passwordState: e.target.value })} style={S.input}>
-              <option value="">Tất cả password state</option>
-              <option value="must_change">Yêu cầu đổi mật khẩu</option>
-              <option value="normal">Bình thường</option>
-            </select>
-          </>
-        ) : null}
-        <select value={directoryData.filters.loginState} onChange={(e: any) => directoryData.setFilters({ ...directoryData.filters, loginState: e.target.value })} style={S.input}>
-          <option value="">Tất cả đăng nhập</option>
-          <option value="active">Đã từng đăng nhập</option>
-          <option value="never_logged_in">Chưa từng đăng nhập</option>
-        </select>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderAdminDesktopTable = () => (
     <div style={{ overflowX: 'auto' }}>
@@ -902,25 +1165,50 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
         <thead>
           <tr>
             {adminColumns.map((column) => (
-              <th key={column.key} style={column.key === 'capabilities' || column.key === 'employment' || column.key === 'accountStatus' || column.key === 'passwordState' ? S.thStatic : S.thSortable} onClick={column.key === 'capabilities' || column.key === 'employment' || column.key === 'accountStatus' || column.key === 'passwordState' ? undefined : () => directoryData.requestSort(column.key as DirectorySortKey)}>
+              <th
+                key={column.key}
+                style={{
+                  padding: '20px 16px',
+                  textAlign: 'left',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  color: '#7187A2',
+                  borderBottom: `1px solid ${tokens.colors.border}`,
+                  background: '#F8FBFE',
+                  cursor: column.key === 'capabilities' || column.key === 'status' ? 'default' : 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+                onClick={column.key === 'capabilities' || column.key === 'status' ? undefined : () => directoryData.requestSort(column.key as DirectorySortKey)}
+              >
                 <span>{column.label}{directoryData.sortConfig.key === column.key ? (directoryData.sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ''}</span>
               </th>
             ))}
-            <th style={{ ...S.thStatic, textAlign: 'right' }}>Actions</th>
+            <th style={{ padding: '20px 16px', textAlign: 'right', fontSize: '13px', fontWeight: 700, color: '#7187A2', borderBottom: `1px solid ${tokens.colors.border}`, background: '#F8FBFE' }}>Thao tác</th>
           </tr>
         </thead>
         <tbody>
-          {directoryData.items.map((item: any) => (
-            <tr key={item.id} style={{ ...ui.table.row, borderTop: `1px solid ${tokens.colors.border}` }}>
-              <td style={{ ...S.td, minWidth: '240px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><UserAvatar avatar={item.avatar} fullName={item.fullName} size={36} /><div style={{ display: 'grid', gap: '4px' }}><div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.textPrimary }}>{item.fullName}</div><div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>{item.employeeCode || item.username || '-'}</div></div></div></td>
+          {directoryData.items.map((item: any, index: number) => (
+            <tr key={item.id} style={{ ...ui.table.row, borderTop: `1px solid ${tokens.colors.border}`, background: index % 2 === 0 ? tokens.colors.surface : '#FCFDFE' }}>
+              <td style={{ ...S.td, minWidth: '240px', paddingTop: '18px', paddingBottom: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <UserAvatar avatar={item.avatar} fullName={item.fullName} size={36} />
+                  <div style={{ display: 'grid', gap: '4px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.textPrimary }}>{item.fullName}</div>
+                    <div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>{item.employeeCode || item.username || '-'}</div>
+                  </div>
+                </div>
+              </td>
               <td style={S.td}>{item.department || '-'}</td>
-              <td style={{ ...S.td, minWidth: '150px' }}><span style={{ padding: '4px 10px', borderRadius: '999px', background: tokens.colors.background, border: `1px solid ${tokens.colors.border}`, fontSize: '11px', fontWeight: 800, color: tokens.colors.textSecondary, whiteSpace: 'nowrap', display: 'inline-flex' }}>{item.primaryRoleLabel}</span></td>
-              {hasSupplementalCapabilities ? <td style={{ ...S.td, minWidth: '220px' }}><CapabilitySummary roleCodes={item.roleCodes} systemRole={item.systemRole} /></td> : null}
-              <td style={S.td}><EmploymentStatusBadge status={item.status} /></td>
-              <td style={S.td}><AccountStatusBadge status={item.accountStatus} /></td>
-              <td style={S.td}><PasswordStateBadge mustChangePassword={item.mustChangePassword} /></td>
-              <td style={{ ...S.td, whiteSpace: 'nowrap', color: tokens.colors.textMuted }}>{formatDate(item.lastLoginAt)}</td>
-              <td style={{ ...S.td, textAlign: 'right' }}><div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}><button onClick={() => openUserPanel(item)} style={{ ...ui.btn.outline, padding: '6px 10px' }}>Xem</button>{userCanEdit ? <button onClick={() => setEditingUser(item)} style={{ ...ui.btn.outline, padding: '6px 10px' }}>Sửa</button> : null}</div></td>
+              <td style={{ ...S.td, minWidth: '160px' }}><TableRolePill label={item.primaryRoleLabel} /></td>
+              <td style={{ ...S.td, minWidth: '220px', color: '#52657E' }}>{getUserAccessSummary(item)}</td>
+              <td style={S.td}><TableStatusPill user={item} /></td>
+              <td style={{ ...S.td, whiteSpace: 'nowrap', color: !item.lastLoginAt ? tokens.colors.warningStrong : '#7187A2' }}>{formatDate(item.lastLoginAt)}</td>
+              <td style={{ ...S.td, textAlign: 'right' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <TableActionButton label="Xem" onClick={() => openUserPanel(item)} />
+                  {userCanEdit ? <TableActionButton label="Sửa" tone="primary" onClick={() => setEditingUser(item)} /> : null}
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -931,10 +1219,27 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
   const renderAdminMobileCards = () => (
     <div style={{ display: 'grid', gap: '12px' }}>
       {directoryData.items.map((item: any) => (
-        <div key={item.id} style={{ ...ui.card.base, border: `1px solid ${tokens.colors.border}`, padding: tokens.spacing.lg }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}><UserAvatar avatar={item.avatar} fullName={item.fullName} size={40} /><div style={{ display: 'grid', gap: '3px' }}><div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary }}>{item.fullName}</div><div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>{item.primaryRoleLabel} · {item.department || '-'}</div></div></div>
-          <div style={{ display: 'grid', gap: '10px' }}>{getSupplementalRoles(item.roleCodes, item.systemRole).length > 0 ? <CapabilitySummary roleCodes={item.roleCodes} systemRole={item.systemRole} /> : null}<div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}><EmploymentStatusBadge status={item.status} /><AccountStatusBadge status={item.accountStatus} /><PasswordStateBadge mustChangePassword={item.mustChangePassword} /></div><div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>Đăng nhập cuối: {formatDate(item.lastLoginAt)}</div></div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}><button onClick={() => openUserPanel(item)} style={{ ...ui.btn.outline, padding: '6px 10px' }}>Xem</button>{userCanEdit ? <button onClick={() => setEditingUser(item)} style={{ ...ui.btn.outline, padding: '6px 10px' }}>Sửa</button> : null}</div>
+        <div key={item.id} style={{ ...ui.card.base, border: `1px solid ${tokens.colors.border}`, padding: tokens.spacing.lg, borderRadius: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+            <UserAvatar avatar={item.avatar} fullName={item.fullName} size={40} />
+            <div style={{ display: 'grid', gap: '3px', minWidth: 0 }}>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary }}>{item.fullName}</div>
+              <div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>{item.employeeCode || item.username || '-'}</div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gap: '10px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <TableRolePill label={item.primaryRoleLabel} />
+              <TableStatusPill user={item} />
+            </div>
+            <div style={{ fontSize: '13px', color: '#52657E' }}><strong>Phòng ban:</strong> {item.department || '-'}</div>
+            <div style={{ fontSize: '13px', color: '#52657E' }}><strong>Quyền hạn:</strong> {getUserAccessSummary(item)}</div>
+            <div style={{ fontSize: '12px', color: !item.lastLoginAt ? tokens.colors.warningStrong : tokens.colors.textMuted }}>Đăng nhập gần nhất: {formatDate(item.lastLoginAt)}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
+            <TableActionButton label="Xem" onClick={() => openUserPanel(item)} />
+            {userCanEdit ? <TableActionButton label="Sửa" tone="primary" onClick={() => setEditingUser(item)} /> : null}
+          </div>
         </div>
       ))}
     </div>
@@ -974,16 +1279,52 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} variant="warning" confirmLabel="Xác nhận" />}
       {showAdd && <AddUserModal onClose={() => setShowAdd(false)} onSaved={loadData} token={token} />}
       {editingUser && <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSaved={loadData} token={token} />}
       <SidePanel open={!!viewingUser} title={viewingUser?.fullName || ''} subtitle={userCanManage ? 'Employee record & access profile' : 'Employee directory profile'} onClose={() => setViewingUser(null)}>
         {viewingUser ? <div style={{ display: 'grid', gap: '20px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><UserAvatar avatar={viewingUser.avatar} fullName={viewingUser.fullName} size={56} /><div style={{ display: 'grid', gap: '6px' }}><div style={{ fontSize: '18px', fontWeight: 900, color: tokens.colors.textPrimary }}>{viewingUser.fullName}</div><div style={{ fontSize: '13px', color: tokens.colors.textSecondary }}>{viewingUser.role || ROLE_LABELS[buildRoleProfile(viewingUser.roleCodes, viewingUser.systemRole).primaryRole]}</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}><EmploymentStatusBadge status={viewingUser.status} />{userCanManage ? <AccountStatusBadge status={viewingUser.accountStatus} /> : null}{userCanManage ? <PasswordStateBadge mustChangePassword={viewingUser.mustChangePassword} /> : null}</div></div></div>{userCanManage ? <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', borderBottom: `1px solid ${tokens.colors.border}`, paddingBottom: '12px' }}>{[{ key: 'profile', label: 'Profile' }, { key: 'access', label: 'Access' }, { key: 'security', label: 'Security' }, { key: 'activity', label: 'Activity' }].map((tab) => <button key={tab.key} onClick={() => setPanelTab(tab.key as any)} style={{ ...ui.btn.outline, padding: '8px 12px', background: panelTab === tab.key ? tokens.colors.primary : tokens.colors.surface, color: panelTab === tab.key ? tokens.colors.textOnPrimary : tokens.colors.textSecondary, borderColor: panelTab === tab.key ? tokens.colors.primary : tokens.colors.border }}>{tab.label}</button>)}</div> : null}{!userCanManage || panelTab === 'profile' ? <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}><DetailField label="Mã nhân sự" value={viewingUser.employeeCode} /><DetailField label="Phòng ban" value={viewingUser.department} /><DetailField label="Chức vụ" value={viewingUser.role} /><DetailField label="Email" value={viewingUser.email} /><DetailField label="Điện thoại" value={viewingUser.phone} /><DetailField label="Ngày vào công ty" value={viewingUser.startDate ? formatDate(viewingUser.startDate) : '-'} /><div style={{ gridColumn: '1 / -1' }}><DetailField label="Địa chỉ" value={viewingUser.address} /></div></div> : null}{userCanManage && panelTab === 'access' ? <div style={{ display: 'grid', gap: '18px' }}><DetailField label="Username" value={viewingUser.username} /><DetailField label="Primary role" value={ROLE_LABELS[buildRoleProfile(viewingUser.roleCodes, viewingUser.systemRole).primaryRole]} /><div style={{ display: 'grid', gap: '8px' }}><div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Capability roles</div><CapabilitySummary roleCodes={normalizeRoleCodes(viewingUser.roleCodes, viewingUser.systemRole)} systemRole={viewingUser.systemRole} emptyLabel="No extra capabilities" /></div></div> : null}{userCanManage && panelTab === 'security' ? <div style={{ display: 'grid', gap: '16px' }}><div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}><DetailField label="Account status" value={<AccountStatusBadge status={viewingUser.accountStatus} />} /><DetailField label="Password state" value={<PasswordStateBadge mustChangePassword={viewingUser.mustChangePassword} />} /><DetailField label="Last login" value={formatDate(viewingUser.lastLoginAt)} /><DetailField label="Employment status" value={<EmploymentStatusBadge status={viewingUser.status} />} /></div><div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}><button onClick={() => handleLockToggle(viewingUser)} style={ui.btn.outline}>{viewingUser.accountStatus === 'locked' || viewingUser.accountStatus === 'suspended' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}</button>{userCanEdit ? <button onClick={() => { setEditingUser(viewingUser); setViewingUser(null); }} style={ui.btn.primary}>Chỉnh username / mật khẩu tạm / force reset</button> : null}</div></div> : null}{userCanManage && panelTab === 'activity' ? <div style={{ display: 'grid', gap: '12px' }}><DetailField label="Last login" value={formatDate(viewingUser.lastLoginAt)} /><DetailField label="Language" value={viewingUser.language || 'vi'} /></div> : null}</div> : null}
       </SidePanel>
-      <input type="file" ref={fileInputRef} onChange={importCSV} style={{ display: 'none' }} accept=".csv" />
-      {userCanManage ? <div style={{ ...ui.card.base, padding: '22px', display: 'grid', gap: '14px', background: 'linear-gradient(135deg, rgba(0, 77, 53, 0.10) 0%, rgba(0, 151, 110, 0.05) 50%, rgba(255,255,255,1) 100%)' }}><div style={{ display: 'grid', gap: '8px' }}><div style={{ ...ui.badge.info, display: 'inline-flex', width: 'fit-content' }}>{roleProfile.personaMode === 'admin' ? 'Admin system-only' : 'User administration'}</div><div style={{ fontSize: '28px', fontWeight: 900, color: tokens.colors.textPrimary }}>User & Role Admin</div><div style={{ fontSize: '14px', lineHeight: 1.7, color: tokens.colors.textSecondary, maxWidth: '76ch' }}>Console này tách profile nhân sự, quyền truy cập và trạng thái bảo mật để admin rà soát user theo đúng logic enterprise.</div></div><div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: '12px' }}><div style={{ padding: '14px 16px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, background: tokens.colors.surface }}><div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Tổng user</div><div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 900, color: tokens.colors.primary }}>{stats.total}</div></div><div style={{ padding: '14px 16px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, background: tokens.colors.surface }}><div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Business approvers</div><div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 900, color: tokens.colors.warning }}>{adminCapabilities.accounting + adminCapabilities.legal + adminCapabilities.director}</div></div><div style={{ padding: '14px 16px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, background: tokens.colors.surface }}><div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>System admins</div><div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 900, color: tokens.colors.error }}>{adminCapabilities.admin}</div></div><div style={{ padding: '14px 16px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, background: tokens.colors.surface }}><div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Chưa từng đăng nhập</div><div style={{ marginTop: '8px', fontSize: '24px', fontWeight: 900, color: '#e65100' }}>{stats.neverLoggedIn}</div></div></div></div> : <div style={{ ...ui.card.base, padding: '22px', display: 'grid', gap: '10px', background: 'linear-gradient(135deg, rgba(1,87,155,0.08) 0%, rgba(255,255,255,1) 100%)' }}><div style={{ ...ui.badge.info, display: 'inline-flex', width: 'fit-content' }}>Employee directory</div><div style={{ fontSize: '28px', fontWeight: 900, color: tokens.colors.textPrimary }}>Danh bạ nội bộ</div><div style={{ fontSize: '14px', lineHeight: 1.7, color: tokens.colors.textSecondary, maxWidth: '70ch' }}>Tra cứu đồng nghiệp theo tên, phòng ban, role và thông tin liên hệ. Trạng thái tài khoản và action bảo mật được ẩn khỏi chế độ này.</div></div>}
-      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', gap: '12px' }}><div><h2 style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0 }}>{userCanManage ? t('admin.users.title') : 'Employee Directory'}</h2><p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0' }}>{userCanManage ? 'Rà soát profile, access và security theo từng user.' : 'Tìm nhanh email và số điện thoại nội bộ để phối hợp công việc.'}</p></div>{userCanManage ? <div style={{ display: 'flex', gap: '10px', ...(isMobile ? { overflowX: 'auto', maxWidth: '100%', flexWrap: 'nowrap', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' } : {}) }}><button style={S.btnOutline} onClick={downloadTemplate}>{t('common.csv_template')}</button><button style={S.btnOutline} onClick={() => fileInputRef.current?.click()}>{t('common.csv_import')}</button><button style={S.btnOutline} onClick={exportCSV}>{t('common.csv_export')}</button><button style={S.btnPrimary} onClick={() => setShowAdd(true)}>+ {t('admin.users.action.add')}</button></div> : null}</div>
+      <input type="file" ref={fileInputRef} onChange={importCSV} style={{ display: 'none' }} accept=".csv,.xlsx" />
+      {userCanManage ? (
+        <div style={{ display: 'grid', gap: '16px' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: '14px',
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <h2 style={{ fontSize: '30px', fontWeight: 900, color: '#102A43', margin: 0 }}>
+                {t('admin.users.title')}
+              </h2>
+              <p style={{ fontSize: '14px', color: '#6B7C93', margin: '6px 0 0', lineHeight: 1.6 }}>
+                {t('admin.users.subtitle')}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <SummaryChip label={`${stats.total} tài khoản`} tone="info" />
+              <SummaryChip label={`${stats.neverLoggedIn} chờ kích hoạt`} tone="warning" />
+              <SummaryChip label={`${stats.lockedAccounts} bị khóa`} tone="danger" />
+            </div>
+          </div>
+        </div>
+      ) : <div style={{ ...ui.card.base, padding: '22px', display: 'grid', gap: '10px', background: tokens.surface.heroGradientSubtle }}><div style={{ ...ui.badge.info, display: 'inline-flex', width: 'fit-content' }}>Employee directory</div><div style={{ fontSize: '28px', fontWeight: 900, color: tokens.colors.textPrimary }}>Danh bạ nội bộ</div><div style={{ fontSize: '14px', lineHeight: 1.7, color: tokens.colors.textSecondary, maxWidth: '70ch' }}>Tra cứu đồng nghiệp theo tên, phòng ban, role và thông tin liên hệ. Trạng thái tài khoản và action bảo mật được ẩn khỏi chế độ này.</div></div>}
       {renderDirectoryFilters()}
-      <div style={{ ...S.card, overflow: 'hidden', border: `1px solid ${tokens.colors.border}` }}>{loading ? <div style={{ padding: '80px', textAlign: 'center', color: tokens.colors.textMuted }}>Đang tải dữ liệu...</div> : directoryData.items.length === 0 ? <div style={{ padding: '48px 24px', textAlign: 'center', color: tokens.colors.textMuted }}>Không có nhân sự nào khớp với bộ lọc hiện tại.</div> : userCanManage ? (isMobile ? renderAdminMobileCards() : renderAdminDesktopTable()) : (isMobile ? renderDirectoryMobileCards() : renderDirectoryDesktopTable())}</div>
+      <div
+        style={{
+          ...S.card,
+          overflow: 'hidden',
+          border: `1px solid ${tokens.colors.border}`,
+          borderRadius: userCanManage ? '22px' : tokens.radius.lg,
+          boxShadow: userCanManage ? '0 14px 28px rgba(16, 42, 67, 0.06)' : tokens.shadow.sm,
+        }}
+      >
+        {loading ? <div style={{ padding: '80px', textAlign: 'center', color: tokens.colors.textMuted }}>Đang tải dữ liệu...</div> : directoryData.items.length === 0 ? <div style={{ padding: '72px 24px', textAlign: 'center', color: tokens.colors.textMuted }}>Không có người dùng nào khớp với bộ lọc hiện tại.</div> : userCanManage ? (isMobile ? renderAdminMobileCards() : renderAdminDesktopTable()) : (isMobile ? renderDirectoryMobileCards() : renderDirectoryDesktopTable())}
+      </div>
     </div>
   );
 }

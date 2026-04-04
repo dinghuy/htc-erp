@@ -17,7 +17,7 @@ export function EventLogRoute({
   onNavigate?: (route: string) => void;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai nhat ky hoat dong...">
+    <FeatureRouteShell fallbackMessage="Đang tải nhật ký hoạt động...">
       <EventLogScreen isMobile={isMobile} currentUser={currentUser} onNavigate={onNavigate} />
     </FeatureRouteShell>
   );

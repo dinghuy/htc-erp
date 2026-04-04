@@ -230,11 +230,16 @@ async function main() {
     assert.equal(viewerList.response.status, 200);
     assert.equal(viewerList.body.items.length, 1);
     assert.equal(viewerList.body.items[0].createdBy, 'viewer-user');
+    assert.equal(viewerList.body.items[0].actionAvailability.supportTab, 'Ticket');
+    assert.equal(viewerList.body.items[0].actionAvailability.canOpenTicket, true);
+    assert.equal(viewerList.body.items[0].actionAvailability.canManageTicket, false);
 
     assert.equal(adminList.response.status, 200);
     assert.equal(adminList.body.items.length, 2);
     assert.equal(adminList.body.items.some((item) => item.createdBy === 'viewer-user'), true);
     assert.equal(adminList.body.items.some((item) => item.createdBy === 'viewer-user-2'), true);
+    assert.equal(adminList.body.items.every((item) => item.actionAvailability.supportTab === 'Ticket'), true);
+    assert.equal(adminList.body.items.every((item) => item.actionAvailability.canManageTicket === true), true);
 
     assert.equal(adminMine.response.status, 200);
     assert.deepEqual(adminMine.body.items, []);

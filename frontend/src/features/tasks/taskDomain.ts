@@ -14,6 +14,14 @@ export type DrawerMode = 'create' | 'edit';
 export type TaskRecord = {
   id: string;
   projectId?: string | null;
+  parentTaskId?: string | null;
+  parentTaskName?: string | null;
+  sortOrder?: number | null;
+  subtaskCount?: number | null;
+  completedSubtaskCount?: number | null;
+  checklistCount?: number | null;
+  checklistCompletedCount?: number | null;
+  rollupCompletionPct?: number | null;
   projectName?: string | null;
   name: string;
   description?: string | null;
@@ -42,6 +50,14 @@ export type TaskRecord = {
   blockedReason?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  actionAvailability?: {
+    workspaceTab?: string | null;
+    canOpenTask?: boolean;
+    canOpenProject?: boolean;
+    canOpenQuotation?: boolean;
+    primaryActionLabel?: string | null;
+    blockers?: string[];
+  } | null;
 };
 
 export type TaskFormState = {
@@ -71,14 +87,14 @@ export const UI_STATUS_META: Record<UiTaskStatus, { label: string; accent: strin
   not_started: { label: 'Chưa bắt đầu', accent: '#9a7a10', soft: '#f7efc7' },
   in_progress: { label: 'Đang triển khai', accent: '#0ba360', soft: '#e7f5ee' },
   complete: { label: 'Hoàn tất', accent: '#2563eb', soft: '#eaf1ff' },
-  on_hold: { label: 'Tạm dừng', accent: '#c06b21', soft: '#fff2e6' },
-  cancelled: { label: 'Đã hủy', accent: '#5f6b7a', soft: '#eef1f5' },
+  on_hold: { label: 'Tạm dừng', accent: tokens.colors.warningSurfaceText, soft: tokens.colors.warningStrongBg },
+  cancelled: { label: 'Đã hủy', accent: '#5f6b7a', soft: tokens.colors.surfaceSubtle },
 };
 
 export const PRIORITY_META: Record<TaskPriority, { label: string; accent: string; soft: string }> = {
   high: { label: 'Cao', accent: '#b42318', soft: '#fdecea' },
-  medium: { label: 'Trung bình', accent: '#c46b1e', soft: '#fff3e0' },
-  low: { label: 'Thấp', accent: '#4b5563', soft: '#eef2f6' },
+  medium: { label: 'Trung bình', accent: tokens.colors.warningSurfaceText, soft: tokens.colors.warningStrongBg },
+  low: { label: 'Thấp', accent: '#4b5563', soft: tokens.colors.surfaceSubtle },
 };
 
 function pad(value: number) {
@@ -272,4 +288,4 @@ export function matchesTaskSearch(task: TaskRecord, query: string) {
     task.output,
   ].some((value) => String(value || '').toLowerCase().includes(q));
 }
-
+import { tokens } from '../../ui/tokens';

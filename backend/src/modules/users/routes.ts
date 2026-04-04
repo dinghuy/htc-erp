@@ -1,12 +1,9 @@
 import type { Express, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import bcrypt from 'bcryptjs';
-import { parse } from 'csv-parse/sync';
-import { getDb } from '../../../sqlite-db';
-import { normalizeGender } from '../../../gender';
-import { normalizeRoleCodes, resolvePrimaryRole, roleCodesToJson } from '../../shared/auth/roles';
+import { parseTabularRowsFromFile } from '../../shared/imports/tabular';
+import { optimizeUploadedImage } from '../../shared/uploads/imageOptimizer';
+import { usersService } from './service';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
 
@@ -20,6 +17,11 @@ type RegisterUserRoutesDeps = {
   mapGenderRecords: <T extends Array<{ gender?: unknown }>>(rows: T) => T;
 };
 
+function routeParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] || '';
+  return value || '';
+}
+
 export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
   const {
     ah,
@@ -32,188 +34,88 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
   } = deps;
 
   app.get('/api/users', requireAuth, ah(async (_req: Request, res: Response) => {
-    const rows = await getDb().all(
-      'SELECT id, fullName, gender, email, phone, role, department, status, username, systemRole, roleCodes, employeeCode, dateOfBirth, avatar, address, startDate, lastLoginAt, accountStatus, mustChangePassword, language FROM User ORDER BY fullName'
-    );
+    const rows = await usersService.listUsers();
     res.json(mapGenderRecords(rows));
   }));
 
   app.get('/api/users/:id', requireAuth, ah(async (req: Request, res: Response) => {
-    const row = await getDb().get(
-      'SELECT id, fullName, gender, email, phone, role, department, status, username, systemRole, roleCodes, employeeCode, dateOfBirth, avatar, address, startDate, lastLoginAt, accountStatus, mustChangePassword, language FROM User WHERE id = ?',
-      req.params.id
-    );
+    const userId = routeParam(req.params.id);
+    const row = await usersService.getUserById(userId);
     if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(mapGenderRecord(row));
   }));
 
   app.post('/api/users', requireAuth, requireRole('admin', 'manager'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
-    const id = uuidv4();
-    const {
-      fullName, gender, email, phone, role, department, status, username, password, systemRole,
-      roleCodes, employeeCode, dateOfBirth, address, startDate, accountStatus, language,
-    } = req.body;
-    const normalizedGender = normalizeGender(gender);
-    const normalizedLanguage = typeof language === 'string' && ['vi', 'en'].includes(language.trim().toLowerCase())
-      ? language.trim().toLowerCase()
-      : 'vi';
-    const normalizedRoles = normalizeRoleCodes(roleCodes, systemRole);
-    const persistedSystemRole = resolvePrimaryRole(normalizedRoles, systemRole);
-    let passwordHash: string | null = null;
-    if (password) {
-      passwordHash = await bcrypt.hash(password, 10);
-    }
-    await db.run(
-      `INSERT INTO User (id, fullName, gender, email, phone, role, department, status, username, passwordHash, systemRole, roleCodes, employeeCode, dateOfBirth, avatar, address, startDate, accountStatus, mustChangePassword, language)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id, fullName, normalizedGender, email, phone, role, department, status || 'Active',
-        username || null, passwordHash, persistedSystemRole, JSON.stringify(normalizedRoles),
-        employeeCode || null, dateOfBirth || null, null, address || null, startDate || null,
-        accountStatus || 'active', 1, normalizedLanguage,
-      ]
-    );
-    res.status(201).json(mapGenderRecord(await db.get(
-      'SELECT id, fullName, gender, email, phone, role, department, status, username, systemRole, roleCodes, employeeCode, dateOfBirth, avatar, address, startDate, lastLoginAt, accountStatus, mustChangePassword, language FROM User WHERE id = ?',
-      id
-    )));
+    const row = await usersService.createUser(req.body ?? {});
+    res.status(201).json(mapGenderRecord(row));
   }));
 
   app.put('/api/users/:id', requireAuth, requireRole('admin', 'manager'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
-    const {
-      fullName, gender, email, phone, role, department, status, username, password, systemRole,
-      roleCodes, employeeCode, dateOfBirth, address, startDate, accountStatus, mustChangePassword, language,
-    } = req.body;
-    const normalizedGender = normalizeGender(gender);
-    const normalizedLanguage = typeof language === 'string' && ['vi', 'en'].includes(language.trim().toLowerCase())
-      ? language.trim().toLowerCase()
-      : undefined;
-    const normalizedRoles = normalizeRoleCodes(roleCodes, systemRole);
-    const persistedSystemRole = resolvePrimaryRole(normalizedRoles, systemRole);
-    const existing = await db.get('SELECT passwordHash FROM User WHERE id = ?', req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Not found' });
-    let passwordHash = existing?.passwordHash ?? null;
-    if (password) {
-      passwordHash = await bcrypt.hash(password, 10);
-    }
-    await db.run(
-      `UPDATE User SET fullName=?, gender=?, email=?, phone=?, role=?, department=?, status=?, username=?, passwordHash=?, systemRole=?, roleCodes=?,
-        employeeCode=?, dateOfBirth=?, address=?, startDate=?, accountStatus=?, mustChangePassword=?, language=COALESCE(?, language) WHERE id=?`,
-      [
-        fullName, normalizedGender, email, phone, role, department, status, username || null, passwordHash, persistedSystemRole, JSON.stringify(normalizedRoles),
-        employeeCode ?? null, dateOfBirth ?? null, address ?? null, startDate ?? null,
-        accountStatus ?? 'active', mustChangePassword != null ? (mustChangePassword ? 1 : 0) : undefined,
-        normalizedLanguage ?? null,
-        req.params.id,
-      ]
-    );
-    res.json(mapGenderRecord(await db.get(
-      'SELECT id, fullName, gender, email, phone, role, department, status, username, systemRole, roleCodes, employeeCode, dateOfBirth, avatar, address, startDate, lastLoginAt, accountStatus, mustChangePassword, language FROM User WHERE id = ?',
-      req.params.id
-    )));
+    const userId = routeParam(req.params.id);
+    const row = await usersService.updateUser(userId, req.body ?? {});
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(mapGenderRecord(row));
   }));
 
   app.delete('/api/users/:id', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
     const u = (req as any).user;
-    if (u.id === req.params.id) return res.status(400).json({ error: 'Không thể xóa tài khoản đang đăng nhập' });
-    await getDb().run('DELETE FROM User WHERE id = ?', req.params.id);
+    const userId = routeParam(req.params.id);
+    if (u.id === userId) return res.status(400).json({ error: 'Không thể xóa tài khoản đang đăng nhập' });
+    await usersService.deleteUser(userId);
     res.json({ success: true });
   }));
 
   app.post('/api/users/:id/avatar', requireAuth, upload.single('avatar'), ah(async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const db = getDb();
-    const existing = await db.get('SELECT id FROM User WHERE id = ?', req.params.id);
+    const userId = routeParam(req.params.id);
+    const existing = await usersService.getUserById(userId);
     if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (!String(req.file.mimetype || '').startsWith('image/')) {
+      return res.status(400).json({ error: 'Avatar must be an image file' });
+    }
+    const optimized = await optimizeUploadedImage(req.file, 'avatar');
     fs.mkdirSync(avatarUploadDir, { recursive: true });
-    const ext = path.extname(req.file.originalname) || '.jpg';
-    const filename = `${req.params.id}${ext}`;
+    for (const candidate of fs.readdirSync(avatarUploadDir)) {
+      if (candidate === `${userId}${optimized.extension}`) continue;
+      if (candidate.startsWith(`${userId}.`)) {
+        fs.rmSync(path.join(avatarUploadDir, candidate), { force: true });
+      }
+    }
+    const ext = optimized.extension || '.jpg';
+    const filename = `${userId}${ext}`;
     const filePath = path.join(avatarUploadDir, filename);
-    fs.writeFileSync(filePath, req.file.buffer);
+    fs.writeFileSync(filePath, optimized.buffer);
     const avatarUrl = `/uploads/avatars/${filename}`;
-    await db.run('UPDATE User SET avatar = ? WHERE id = ?', [avatarUrl, req.params.id]);
-    res.json({ avatar: avatarUrl });
+    await usersService.updateAvatar(userId, avatarUrl);
+    res.json({
+      avatar: avatarUrl,
+      fileName: optimized.downloadFileName,
+      mimeType: optimized.mimeType,
+      size: optimized.size,
+    });
   }));
 
   app.post('/api/users/:id/lock', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
-    const existing = await db.get('SELECT id FROM User WHERE id = ?', req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Not found' });
-    await db.run("UPDATE User SET accountStatus = 'locked' WHERE id = ?", [req.params.id]);
-    res.json(mapGenderRecord(await db.get(
-      'SELECT id, fullName, gender, email, phone, role, department, status, username, systemRole, roleCodes, employeeCode, dateOfBirth, avatar, address, startDate, lastLoginAt, accountStatus, mustChangePassword, language FROM User WHERE id = ?',
-      req.params.id
-    )));
+    const userId = routeParam(req.params.id);
+    const row = await usersService.setAccountStatus(userId, 'locked');
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(mapGenderRecord(row));
   }));
 
   app.post('/api/users/:id/unlock', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
-    const existing = await db.get('SELECT id FROM User WHERE id = ?', req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Not found' });
-    await db.run("UPDATE User SET accountStatus = 'active' WHERE id = ?", [req.params.id]);
-    res.json(mapGenderRecord(await db.get(
-      'SELECT id, fullName, gender, email, phone, role, department, status, username, systemRole, roleCodes, employeeCode, dateOfBirth, avatar, address, startDate, lastLoginAt, accountStatus, mustChangePassword, language FROM User WHERE id = ?',
-      req.params.id
-    )));
+    const userId = routeParam(req.params.id);
+    const row = await usersService.setAccountStatus(userId, 'active');
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(mapGenderRecord(row));
   }));
 
   app.post('/api/users/import', requireAuth, requireRole('admin'), upload.single('file'), ah(async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const records = parse(req.file.buffer.toString('utf-8'), { columns: true, skip_empty_lines: true, trim: true });
-    const db = getDb();
-    let inserted = 0;
-    let skipped = 0;
-    for (const row of records as any[]) {
-      try {
-        await db.run(
-          `INSERT INTO User (id, fullName, gender, email, phone, role, department, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            uuidv4(),
-            row.fullName || row['Họ tên'] || '',
-            normalizeGender(row.gender || row['Danh xưng']),
-            row.email || '',
-            row.phone || '',
-            row.role || row['Chức vụ'] || '',
-            row.department || row['Phòng ban'] || '',
-            row.status || row['Trạng thái'] || 'Active',
-          ]
-        );
-        inserted++;
-      } catch {
-        skipped++;
-      }
-    }
-    res.json({ inserted, skipped, total: records.length });
+    const rows = parseTabularRowsFromFile(req.file);
+    res.json(await usersService.importUsers(rows));
   }));
 
   app.post('/api/users/normalize-project-managers', requireAuth, requireRole('admin'), ah(async (_req: Request, res: Response) => {
-    const db = getDb();
-    const rows = await db.all<{ id: string; systemRole: string; roleCodes: string | null }[]>(
-      'SELECT id, systemRole, roleCodes FROM User ORDER BY fullName',
-    );
-
-    let updated = 0;
-    for (const row of rows as any[]) {
-      const normalizedJson = roleCodesToJson(row.roleCodes, row.systemRole);
-      const normalizedRoles = JSON.parse(normalizedJson) as string[];
-      const hasProjectManager = normalizedRoles.includes('project_manager');
-      const rawRoleCodes = typeof row.roleCodes === 'string' ? row.roleCodes : '';
-      const hasLegacySalesProjectManager =
-        rawRoleCodes.includes('"sales"') &&
-        rawRoleCodes.includes('"project_manager"');
-
-      if (!hasProjectManager || !hasLegacySalesProjectManager) continue;
-
-      await db.run('UPDATE User SET roleCodes = ?, systemRole = ? WHERE id = ?', [
-        normalizedJson,
-        row.systemRole === 'sales' ? 'project_manager' : row.systemRole,
-        row.id,
-      ]);
-      updated += 1;
-    }
-
-    res.json({ updated });
+    res.json(await usersService.normalizeProjectManagers());
   }));
 }

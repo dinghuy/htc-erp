@@ -1,5 +1,5 @@
 import htcLogoSrc from './assets/htc-logo.png';
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 import { API_BASE } from './config';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
@@ -8,42 +8,22 @@ import { getRolePreviewPresetNavigation, isRolePreviewPresetActive, normalizePre
 import { useNotifications } from './ops/useNotifications';
 import { NotificationBell } from './ops/NotificationBell';
 import { useI18n } from './i18n';
+import { getShellNavigationGroups } from './layoutNavigation';
 import { setNavContext, type NavEntityType } from './navContext';
 import type { AppModule } from './shared/domain/contracts';
 import { QA_TEST_IDS, navItemTestId, previewPresetTestId } from './testing/testIds';
 import {
-  BriefcaseIcon,
-  BuildingIcon,
-  CalendarIcon,
   ChatIcon,
-  CheckSquareIcon,
-  ClipboardIcon,
   CloseIcon,
-  CompassIcon,
-  DashboardIcon,
-  FolderIcon,
-  HandshakeIcon,
-  HeadphonesIcon,
   LoaderIcon,
   LogOutIcon,
   MenuIcon,
-  MoneyIcon,
   MoonIcon,
-  PackageIcon,
   PlusIcon,
-  ReceiptIcon,
-  ReportIcon,
   SearchIcon,
-  SettingsIcon,
   SunIcon,
-  TargetIcon,
-  TrendingIcon,
-  TruckIcon,
-  UserIcon,
-  UsersIcon,
 } from './ui/icons';
 
-type TabName = 'Workspace' | 'Records' | 'Admin';
 type SearchEntityKind = NavEntityType | 'Product';
 type SearchResultItem = {
   id: string;
@@ -76,78 +56,6 @@ const SECTION_I18N_KEYS: Record<string, string> = {
   'QUẢN TRỊ HỆ THỐNG': 'nav.section.system_admin',
   'CÀI ĐẶT': 'nav.section.settings',
 };
-
-const NAV_GROUPS: Record<TabName, { section: string; items: { label: AppModule; icon: (props: { size?: number; color?: string; strokeWidth?: number }) => any }[] }[]> = {
-  Workspace: [
-    {
-      section: 'WORKSPACE',
-      items: [
-        { label: 'Home', icon: DashboardIcon },
-        { label: 'My Work', icon: BriefcaseIcon },
-        { label: 'Inbox', icon: ClipboardIcon },
-        { label: 'Approvals', icon: CheckSquareIcon },
-        { label: 'Projects', icon: FolderIcon },
-        { label: 'Tasks', icon: CheckSquareIcon },
-      ],
-    },
-    {
-      section: 'OPERATIONS',
-      items: [
-        { label: 'ERP Orders', icon: ReceiptIcon },
-        { label: 'Ops Overview', icon: CompassIcon },
-        { label: 'Gantt', icon: CalendarIcon },
-        { label: 'Ops Staff', icon: BriefcaseIcon },
-        { label: 'Ops Chat', icon: ChatIcon },
-      ],
-    },
-    {
-      section: 'ANALYTICS',
-      items: [
-        { label: 'Reports', icon: ReportIcon },
-      ],
-    },
-  ],
-  Records: [
-    {
-      section: 'COMMERCIAL',
-      items: [
-        { label: 'Sales', icon: MoneyIcon },
-        { label: 'Leads', icon: TargetIcon },
-        { label: 'Accounts', icon: BuildingIcon },
-        { label: 'Contacts', icon: UserIcon },
-        { label: 'Partners', icon: HandshakeIcon },
-      ],
-    },
-    {
-      section: 'MASTER DATA',
-      items: [
-        { label: 'Equipment', icon: PackageIcon },
-        { label: 'Suppliers', icon: TruckIcon },
-        { label: 'Pricing', icon: TrendingIcon },
-      ],
-    },
-  ],
-  Admin: [
-    {
-      section: 'QUẢN TRỊ HỆ THỐNG',
-      items: [
-        { label: 'Users', icon: UsersIcon },
-        { label: 'EventLog', icon: ClipboardIcon },
-      ],
-    },
-    {
-      section: 'CÀI ĐẶT',
-      items: [
-        { label: 'Settings', icon: SettingsIcon },
-        { label: 'Support', icon: HeadphonesIcon },
-      ],
-    },
-  ],
-};
-
-const WORKSPACE_ROUTES = ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'ERP Orders', 'Reports', 'Ops Overview', 'Gantt', 'Ops Staff', 'Ops Chat'];
-const RECORD_ROUTES = ['Leads', 'Accounts', 'Contacts', 'Equipment', 'Suppliers', 'Partners', 'Sales', 'Pricing'];
-const ADMIN_ROUTES = ['Users', 'EventLog', 'Settings', 'Support'];
 
 const SEARCH_ROUTE_BY_ENTITY: Partial<Record<SearchEntityKind, AppModule>> = {
   Account: 'Accounts',
@@ -225,6 +133,17 @@ function canAccessSearchRoute(route: AppModule | '', allowedModules: AppModule[]
   return allowedModules.includes(route);
 }
 
+function getAvatarInitials(fullName?: string | null) {
+  const parts = String(fullName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) return 'U';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase();
+}
+
 export const Layout = ({
   children,
   currentRoute,
@@ -251,27 +170,24 @@ export const Layout = ({
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabName>('Workspace');
+  const contentScrollRef = useRef<HTMLDivElement | null>(null);
   const notifications = useNotifications(currentUser?.token ?? null);
 
   const roleProfile = currentUser ? buildRoleProfile(currentUser.roleCodes, currentUser.systemRole) : null;
   const allowedModules = roleProfile?.allowedModules ?? [];
   const trimmedSearchQuery = searchQuery.trim();
   const hasSearchQuery = trimmedSearchQuery.length > 1;
-  const visibleTabs = (['Workspace', 'Records', 'Admin'] as TabName[]).filter((tab) =>
-    NAV_GROUPS[tab].some((group) => group.items.some((item) => allowedModules.includes(item.label))),
-  );
+  const shellNavigationGroups = getShellNavigationGroups(allowedModules, (group, fallback) => {
+    if (group === 'Workspace') return t('nav.tab.workspace');
+    if (group === 'Records') return t('nav.tab.master_data');
+    if (group === 'Admin') return t('nav.tab.admin_primary');
+    return fallback;
+  });
   const searchSections = searchResults
     ? Object.entries(searchResults)
         .map(([key, list]) => [key, list.filter((item) => canAccessSearchRoute(getSearchRoute(key, item), allowedModules))] as const)
         .filter(([, list]) => list.length > 0)
     : [];
-
-  useEffect(() => {
-    if (WORKSPACE_ROUTES.includes(currentRoute || '')) setActiveTab('Workspace');
-    else if (RECORD_ROUTES.includes(currentRoute || '')) setActiveTab('Records');
-    else if (ADMIN_ROUTES.includes(currentRoute || '')) setActiveTab('Admin');
-  }, [currentRoute]);
 
   useEffect(() => {
     if (!isDrawerOpen || !isMobile) return;
@@ -324,200 +240,126 @@ export const Layout = ({
   }, [trimmedSearchQuery, hasSearchQuery]);
 
   useEffect(() => {
-    if (visibleTabs.length === 0) return;
-    if (!visibleTabs.includes(activeTab)) {
-      setActiveTab(visibleTabs[0]);
-    }
-  }, [activeTab, visibleTabs]);
+    contentScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [currentRoute]);
 
-  const navigateToTab = (tab: TabName) => {
-    setActiveTab(tab);
-    const groups = NAV_GROUPS[tab];
-    for (const group of groups) {
-      for (const item of group.items) {
-        if (allowedModules.includes(item.label)) {
-          onNavigate?.(item.label);
-          return;
-        }
-      }
-    }
-  };
+  const renderNavGroups = (onItemClick?: () => void) => {
+    return shellNavigationGroups.map((category) => {
+      const renderedSections = category.groups.map((group) => {
+        const sectionKey = SECTION_I18N_KEYS[group.section];
+        const sectionLabel = sectionKey ? t(sectionKey) : group.section;
 
-  const handleTabClick = (tab: TabName) => {
-    const routeAlreadyInTab =
-      (tab === 'Workspace' && WORKSPACE_ROUTES.includes(currentRoute || '')) ||
-      (tab === 'Records' && RECORD_ROUTES.includes(currentRoute || '')) ||
-      (tab === 'Admin' && ADMIN_ROUTES.includes(currentRoute || ''));
-
-    if (routeAlreadyInTab) {
-      setActiveTab(tab);
-    } else {
-      navigateToTab(tab);
-    }
-  };
-
-  const tabLabel = (tab: TabName) => {
-    if (tab === 'Workspace') return t('nav.tab.workspace');
-    if (tab === 'Records') return t('nav.tab.master_data');
-    return t('nav.tab.admin_primary');
-  };
-
-  const renderTabButton = (tab: TabName, compact = false) => {
-    const active = activeTab === tab;
-
-    if (compact) {
-      return (
-        <button
-          key={tab}
-          type="button"
-          onClick={() => handleTabClick(tab)}
-          style={{
-            fontSize: '12px',
-            fontWeight: 600,
-            color: active ? tokens.colors.primary : tokens.colors.textSecondary,
-            background: active ? tokens.colors.badgeBgSuccess : tokens.colors.background,
-            border: `1px solid ${active ? tokens.colors.primary : tokens.colors.border}`,
-            borderRadius: tokens.radius.md,
-            padding: '6px 10px',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-          aria-current={active ? 'page' : undefined}
-        >
-          {tabLabel(tab)}
-        </button>
-      );
-    }
-
-    return (
-      <button
-        key={tab}
-        type="button"
-        onClick={() => handleTabClick(tab)}
-        style={{
-          fontSize: '14px',
-          fontWeight: 600,
-          color: active ? tokens.colors.primary : tokens.colors.textSecondary,
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          cursor: 'pointer',
-          borderBottom: active ? `2px solid ${tokens.colors.primary}` : '2px solid transparent',
-          transition: 'color 0.2s ease, border-color 0.2s ease',
-          background: 'transparent',
-          borderLeft: 'none',
-          borderRight: 'none',
-          borderTop: 'none',
-          padding: 0,
-        }}
-        aria-current={active ? 'page' : undefined}
-      >
-        {tabLabel(tab)}
-      </button>
-    );
-  };
-
-  const renderNavGroups = (tab: TabName, onItemClick?: () => void) => {
-    return NAV_GROUPS[tab].map((group) => {
-      const visibleItems = group.items.filter((item) => allowedModules.includes(item.label));
-      if (visibleItems.length === 0) return null;
-
-      const sectionKey = SECTION_I18N_KEYS[group.section];
-      const sectionLabel = sectionKey ? t(sectionKey) : group.section;
-
-      return (
-        <div key={group.section}>
-          <div
-            style={{
-              padding: '16px 16px 4px',
-              fontSize: '10px',
-              fontWeight: 800,
-              color: tokens.colors.textMuted,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}
-          >
-            {sectionLabel}
-          </div>
-          {visibleItems.map((item) => {
-            const isActive = currentRoute === item.label;
-            const routeKey = `route.${item.label}`;
-            const Icon = item.icon;
-            const routeLabel = (() => {
-              const translated = t(routeKey);
-              return translated === routeKey ? item.label : translated;
-            })();
-
-            return (
-              <button
-                type="button"
-                key={item.label}
-                data-testid={navItemTestId(item.label)}
-                onClick={() => {
-                  onItemClick?.();
-                  onNavigate?.(item.label);
-                }}
+        return (
+          <div key={`${category.key}-${group.section}`}>
+            {group.showSectionLabel ? (
+              <div
                 style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  padding: '10px 16px',
-                  borderRadius: tokens.radius.lg,
-                  marginBottom: '4px',
-                  textDecoration: 'none',
-                  fontSize: '14px',
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive ? tokens.colors.primary : tokens.colors.textSecondary,
-                  backgroundColor: isActive ? tokens.colors.badgeBgSuccess : 'transparent',
-                  transition: 'all 0.2s ease',
-                  borderRight: isActive ? `3px solid ${tokens.colors.primary}` : '3px solid transparent',
-                  borderTop: 'none',
-                  borderLeft: 'none',
-                  borderBottom: 'none',
-                  textAlign: 'left',
+                  padding: '8px 16px 4px',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  color: tokens.colors.textMuted,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
                 }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                  <span
-                    style={{
-                      width: '18px',
-                      height: '18px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: isActive ? tokens.colors.primary : tokens.colors.textMuted,
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Icon size={18} strokeWidth={1.85} />
-                  </span>
+                {sectionLabel}
+              </div>
+            ) : null}
+            {group.items.map((item) => {
+              const isActive = currentRoute === item.label;
+              const routeKey = `route.${item.label}`;
+              const Icon = item.icon;
+              const translated = t(routeKey);
+              const routeLabel = translated === routeKey ? item.label : translated;
+
+              return (
+                <button
+                  type="button"
+                  key={item.label}
+                  data-testid={navItemTestId(item.label)}
+                  onClick={() => {
+                    onItemClick?.();
+                    onNavigate?.(item.label);
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    padding: '10px 16px',
+                    borderRadius: tokens.radius.lg,
+                    marginBottom: '4px',
+                    textDecoration: 'none',
+                    fontSize: '14px',
+                    fontWeight: isActive ? 600 : 500,
+                    color: isActive ? tokens.colors.primary : tokens.colors.textSecondary,
+                    backgroundColor: isActive ? tokens.colors.badgeBgSuccess : 'transparent',
+                    transition: 'all 0.2s ease',
+                    borderRight: isActive ? `3px solid ${tokens.colors.primary}` : '3px solid transparent',
+                    borderTop: 'none',
+                    borderLeft: 'none',
+                    borderBottom: 'none',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                    <span
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: isActive ? tokens.colors.primary : tokens.colors.textMuted,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon size={18} strokeWidth={1.85} />
+                    </span>
                     <span>{routeLabel}</span>
                   </span>
-                {item.label === 'Ops Chat' && notifications.unreadCount > 0 && (
-                  <span
-                    style={{
-                      minWidth: '20px',
-                      height: '20px',
-                      padding: '0 6px',
-                      borderRadius: '999px',
-                      background: tokens.colors.warning,
-                      color: '#fff',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                  {item.label === 'Ops Chat' && notifications.unreadCount > 0 ? (
+                    <span
+                      style={{
+                        minWidth: '20px',
+                        height: '20px',
+                        padding: '0 6px',
+                        borderRadius: '999px',
+                        background: tokens.colors.warning,
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        );
+      });
+
+      return (
+        <div key={category.key} style={{ display: 'grid', gap: '4px' }}>
+          <div
+            style={{
+              padding: '18px 16px 6px',
+              fontSize: '11px',
+              fontWeight: 800,
+              color: tokens.colors.textPrimary,
+              letterSpacing: '0.01em',
+            }}
+          >
+            {category.label}
+          </div>
+          {renderedSections}
         </div>
       );
     });
@@ -561,12 +403,19 @@ export const Layout = ({
   const roleSummary = roleProfile
     ? Array.from(new Set(roleProfile.roleCodes.map((roleCode) => ROLE_LABELS[roleCode]).filter(Boolean))).join(', ')
     : '';
+  const canManageRolePreview = Boolean(
+    currentUser?.baseRoleCodes?.includes('admin')
+      || currentUser?.roleCodes?.includes?.('admin')
+      || currentUser?.systemRole === 'admin'
+      || currentUser?.baseSystemRole === 'admin',
+  );
   const isRolePreviewActive = Boolean(currentUser?.isRolePreviewActive && currentUser?.previewRoleCodes?.length);
   const previewRoleCodes = normalizePreviewRoleCodes(currentUser?.previewRoleCodes);
-  const previewLabel = previewRoleCodes.map((roleCode) => ROLE_LABELS[roleCode]).join(' + ') || '';
+  const previewLabel = previewRoleCodes.map((roleCode) => ROLE_LABELS[roleCode]).join(' + ') || 'Admin';
+  const avatarInitials = getAvatarInitials(currentUser?.fullName);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'var(--font-family-sans)', overflow: 'hidden', backgroundColor: tokens.colors.background }}>
+    <div style={{ display: 'flex', height: '100vh', width: '100%', maxWidth: '100vw', fontFamily: 'var(--font-family-sans)', overflow: 'hidden', backgroundColor: tokens.colors.background }}>
       {/* Desktop Side Navigation */}
       <aside style={{
         width: '240px',
@@ -575,11 +424,11 @@ export const Layout = ({
         flexDirection: 'column',
         flexShrink: 0,
         borderRight: `1px solid ${tokens.colors.border}`,
-        zIndex: 10,
+        zIndex: tokens.zIndex.sticky,
         transition: 'background-color 0.3s ease, border-color 0.3s ease',
       }}>
         {/* Logo area */}
-        <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ padding: tokens.spacing.lg, display: 'flex', alignItems: 'center', gap: tokens.spacing.md }}>
           <img src={htcLogoSrc} alt="HTC Logo" style={{ width: '44px', height: '44px', objectFit: 'contain', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.primary, letterSpacing: '-0.02em', lineHeight: 1 }}>Huynh Thy Group</div>
@@ -588,12 +437,12 @@ export const Layout = ({
         </div>
 
         {/* Grouped Nav */}
-        <nav data-testid={QA_TEST_IDS.layout.sidebar} style={{ flex: 1, padding: '0 12px', overflowY: 'auto' }}>
-          {renderNavGroups(activeTab)}
+        <nav className="scrollbar-none" data-testid={QA_TEST_IDS.layout.sidebar} style={{ flex: 1, padding: `0 ${tokens.spacing.md}`, overflowY: 'auto' }}>
+          {renderNavGroups()}
         </nav>
 
         {/* Footer */}
-        <div style={{ padding: '16px 20px', borderTop: `1px solid ${tokens.colors.border}`, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ padding: `${tokens.spacing.lg} ${tokens.spacing.xl}`, borderTop: `1px solid ${tokens.colors.border}`, display: 'flex', flexDirection: 'column', gap: tokens.spacing.sm }}>
           {allowedModules.includes('Sales') && (
             <button
               type="button"
@@ -633,8 +482,10 @@ export const Layout = ({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.35)',
-            zIndex: 40,
+            background: tokens.overlay.softBackdrop,
+            backdropFilter: `blur(${tokens.overlay.backdropBlur})`,
+            WebkitBackdropFilter: `blur(${tokens.overlay.backdropBlur})`,
+            zIndex: tokens.zIndex.overlayBackdrop,
             border: 'none',
             padding: 0,
           }}
@@ -657,7 +508,7 @@ export const Layout = ({
             borderRight: `1px solid ${tokens.colors.border}`,
             transform: isDrawerOpen ? 'translateX(0)' : 'translateX(-100%)',
             transition: 'transform 0.25s ease',
-            zIndex: 50,
+            zIndex: tokens.zIndex.drawer,
             display: 'flex',
             flexDirection: 'column',
           }}
@@ -686,14 +537,9 @@ export const Layout = ({
             </button>
           </div>
 
-          {/* Drawer Tab Pills */}
-            <div style={{ padding: '12px 16px', display: 'flex', gap: '8px', borderBottom: `1px solid ${tokens.colors.border}` }}>
-            {visibleTabs.map((tab) => renderTabButton(tab, true))}
-          </div>
-
           {/* Drawer Nav */}
-          <nav style={{ flex: 1, padding: '0 12px', overflowY: 'auto' }}>
-            {renderNavGroups(activeTab, () => setIsDrawerOpen(false))}
+          <nav className="scrollbar-none" style={{ flex: 1, padding: '0 12px', overflowY: 'auto' }}>
+            {renderNavGroups(() => setIsDrawerOpen(false))}
           </nav>
 
           {/* Drawer Footer */}
@@ -736,7 +582,7 @@ export const Layout = ({
       )}
 
       {/* Main Content Area */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <main style={{ flex: 1, minWidth: 0, width: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Top Header */}
         <header style={{
           height: isMobile ? 'auto' : '64px',
@@ -744,14 +590,14 @@ export const Layout = ({
           display: 'flex',
           alignItems: isMobile ? 'stretch' : 'center',
           justifyContent: 'space-between',
-          padding: isMobile ? '12px 16px' : '0 24px',
+          padding: isMobile ? `${tokens.spacing.md} ${tokens.spacing.lg}` : `0 ${tokens.spacing.xxl}`,
           flexShrink: 0,
           borderBottom: `1px solid ${tokens.colors.border}`,
           transition: 'background-color 0.3s ease, border-color 0.3s ease',
           flexDirection: isMobile ? 'column' : 'row',
-          gap: isMobile ? '10px' : '0',
+          gap: isMobile ? tokens.spacing.md : '0',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? tokens.spacing.md : tokens.spacing.xl, minWidth: 0, flex: 1 }}>
             {isMobile && (
               <button
                 type="button"
@@ -776,7 +622,7 @@ export const Layout = ({
             )}
 
             {/* Search */}
-            <div style={{ position: 'relative', flex: isMobile ? 1 : undefined }}>
+            <div style={{ position: 'relative', flex: isMobile ? 1 : undefined, minWidth: 0 }}>
               <input
                 id="global-search"
                 name="globalSearch"
@@ -784,6 +630,7 @@ export const Layout = ({
                 value={searchQuery}
                 onInput={(e: any) => setSearchQuery(e.target.value)}
                 placeholder={t('nav.search.placeholder')}
+                aria-label={t('nav.search.placeholder')}
                 data-testid={QA_TEST_IDS.layout.searchInput}
                 style={{
                   ...ui.input.base,
@@ -808,12 +655,10 @@ export const Layout = ({
                   right: isMobile ? 0 : undefined,
                   width: isMobile ? '100%' : '400px',
                   maxWidth: isMobile ? '100%' : '400px',
-                  background: tokens.colors.surface,
-                  border: `1px solid ${tokens.colors.border}`,
+                  ...ui.overlay.menu,
                   borderRadius: tokens.radius.lg,
-                  boxShadow: tokens.shadow.md,
                   overflow: 'hidden',
-                  zIndex: 1000,
+                  zIndex: tokens.zIndex.popover,
                   padding: '8px 0',
                 }}>
                   {isSearching && (
@@ -836,21 +681,15 @@ export const Layout = ({
                 </div>
               )}
             </div>
-
-            {/* Desktop Header Tabs */}
-            {!isMobile && (
-              <nav data-testid={QA_TEST_IDS.layout.topTabs} style={{ display: 'flex', gap: '20px', height: '64px', alignItems: 'center' }}>
-                {visibleTabs.map((tab) => renderTabButton(tab))}
-              </nav>
-            )}
           </div>
 
           {/* Right side: dark mode, notifications, avatar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '18px', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
-            <div style={{ display: 'flex', gap: isMobile ? '10px' : '16px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? tokens.spacing.md : tokens.spacing.xl, justifyContent: isMobile ? 'space-between' : 'flex-end', minWidth: 0 }}>
+            <div style={{ display: 'flex', gap: isMobile ? tokens.spacing.smPlus : tokens.spacing.md, alignItems: 'center', minWidth: 0 }}>
               <button
                 type="button"
                 onClick={toggleDarkMode}
+                aria-label={isDarkMode ? t('nav.theme.light') : t('nav.theme.dark')}
                 style={{
                   background: tokens.colors.background,
                   border: `1px solid ${tokens.colors.border}`,
@@ -908,7 +747,7 @@ export const Layout = ({
               ) : null}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '10px', borderLeft: isMobile ? 'none' : `1px solid ${tokens.colors.border}`, paddingLeft: isMobile ? '0' : '18px', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? tokens.spacing.sm : tokens.spacing.md, borderLeft: isMobile ? 'none' : `1px solid ${tokens.colors.border}`, paddingLeft: isMobile ? '0' : tokens.spacing.lg, minWidth: 0 }}>
               <div
                 style={{
                   width: isMobile ? '34px' : '38px',
@@ -923,10 +762,23 @@ export const Layout = ({
                   flexShrink: 0,
                 }}
               >
-                <img
-                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent((currentUser?.fullName ?? 'U').slice(0, 2))}&background=${isDarkMode ? '1E293B' : '009B6E'}&color=fff`}
-                  alt="User"
-                />
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: isDarkMode ? tokens.colors.textPrimary : tokens.colors.primary,
+                    color: tokens.colors.textOnPrimary,
+                    fontSize: isMobile ? '14px' : '16px',
+                    fontWeight: 800,
+                    letterSpacing: '-0.02em',
+                  }}
+                >
+                  {avatarInitials}
+                </span>
               </div>
               <div style={{ textAlign: 'right', display: 'grid', gap: '2px', minWidth: 0 }}>
                 <div
@@ -962,11 +814,19 @@ export const Layout = ({
 
         </header>
 
-        {isRolePreviewActive ? (
-          <div data-testid={QA_TEST_IDS.layout.previewBanner} style={{ padding: isMobile ? '10px 12px' : '10px 16px', borderBottom: `1px solid ${tokens.colors.border}`, background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(234, 179, 8, 0.05) 100%)', display: 'grid', gap: '10px' }}>
+        {canManageRolePreview ? (
+          <div data-testid={QA_TEST_IDS.layout.previewBanner} style={{ padding: isMobile ? '10px 12px' : '10px 16px', borderBottom: `1px solid ${tokens.colors.border}`, background: `linear-gradient(135deg, ${tokens.colors.warningTint} 0%, ${tokens.colors.warningBg} 100%)`, display: 'grid', gap: '10px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ fontSize: '13px', color: tokens.colors.textPrimary, lineHeight: 1.5 }}>
-                <strong>Role preview:</strong> đang xem hệ thống như <strong>{previewLabel}</strong>. {previewRoleCodes.length === 1 && previewRoleCodes[0] === 'viewer' ? 'Viewer preview chỉ mở bề mặt read-only và không dùng chung với trạng thái admin gốc.' : 'Base admin identity vẫn được giữ để thoát preview hoặc quay lại kiểm tra hệ thống.'}
+                {isRolePreviewActive ? (
+                  <>
+                    <strong>Role preview:</strong> đang xem hệ thống như <strong>{previewLabel}</strong>. {previewRoleCodes.length === 1 && previewRoleCodes[0] === 'viewer' ? 'Viewer preview chỉ mở bề mặt read-only và không dùng chung với trạng thái admin gốc.' : 'Base admin identity vẫn được giữ để thoát preview hoặc quay lại kiểm tra hệ thống.'}
+                  </>
+                ) : (
+                  <>
+                    <strong>Role preview controls:</strong> bạn đang ở <strong>admin gốc</strong>. Chọn preset ngay trên banner để bật QA preview nhanh mà không cần mở Settings trước.
+                  </>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
@@ -1010,7 +870,7 @@ export const Layout = ({
         ) : null}
 
         {/* Dynamic Page Content */}
-        <div data-testid={contentTestId || QA_TEST_IDS.appContent} style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '10px' }}>
+        <div ref={contentScrollRef} data-testid={contentTestId || QA_TEST_IDS.appContent} style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: isMobile ? tokens.spacing.md : tokens.spacing.lg }}>
           {children}
         </div>
       </main>

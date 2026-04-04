@@ -15,7 +15,7 @@ export function OpsChatRoute({
   isMobile?: boolean;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai trao doi van hanh...">
+    <FeatureRouteShell fallbackMessage="Đang tải trao đổi vận hành...">
       <ChatPanelScreen currentUser={currentUser} isMobile={isMobile} />
     </FeatureRouteShell>
   );

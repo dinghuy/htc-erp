@@ -13,7 +13,7 @@ export function GanttRoute({
   currentUser: CurrentUser;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai gantt van hanh...">
+    <FeatureRouteShell fallbackMessage="Đang tải gantt vận hành...">
       <GanttScreen token={currentUser.token} currentUser={currentUser} />
     </FeatureRouteShell>
   );

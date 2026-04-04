@@ -15,6 +15,7 @@ export function registerQuotationRoutes(app: Express, deps: RegisterQuotationRou
     markWinningQuotation: deps.markWinningQuotation,
     createProjectTasksFromTemplate: deps.createProjectTasksFromTemplate,
     triggerQuotationAutomation: deps.triggerQuotationAutomation,
+    createProjectTimelineEvent: deps.createProjectTimelineEvent,
     logAct: deps.logAct,
   });
   const quotationRepository = createQuotationRepository();

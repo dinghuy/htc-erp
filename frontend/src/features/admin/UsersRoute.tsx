@@ -15,7 +15,7 @@ export function UsersRoute({
   currentUser: CurrentUser;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai quan ly nguoi dung...">
+    <FeatureRouteShell fallbackMessage="Đang tải quản lý người dùng...">
       <UsersScreen isMobile={isMobile} currentUser={currentUser} />
     </FeatureRouteShell>
   );

@@ -19,7 +19,7 @@ export function QuotationsRoute({
   currentUser: CurrentUser;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai khu vuc bao gia...">
+    <FeatureRouteShell fallbackMessage="Đang tải khu vực báo giá...">
       <QuotationsScreen
         autoOpenForm={autoOpenForm}
         onFormOpened={onFormOpened}

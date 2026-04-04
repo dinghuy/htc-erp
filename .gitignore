@@ -32,16 +32,29 @@ coverage/
 *.tsbuildinfo
 
 # Temporary and generated workspaces
+.omx/
 tmp/
 test-results/
 .worktrees/
 worktrees/
 .npm-cache/
+.npm-cache-local/
 .codex/npm-cache/
 __pycache__/
 *.pyc
 .superpowers/
 tmp-*.js
+
+# Runtime uploads and local vendor artifacts
+backend/uploads/
+backend/src/uploads/
+backend/vendor/
+
+# Frontend QA / local artifacts
+frontend/artifacts/
+frontend/tmp-*/
+frontend/qa-product-form-*.md
+frontend/qa-product-form-*.png
 
 # IDE / OS
 .DS_Store

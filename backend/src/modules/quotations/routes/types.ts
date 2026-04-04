@@ -20,6 +20,7 @@ export type RegisterQuotationRoutesDeps = {
     actorUserId: string | null,
     extra?: { triggerSource?: string; projectId?: string | null; leadId?: string | null }
   ) => Promise<any>;
+  createProjectTimelineEvent: (db: any, event: any) => Promise<any>;
   logAct: (...args: any[]) => Promise<void>;
 };
 

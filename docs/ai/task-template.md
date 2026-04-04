@@ -4,6 +4,13 @@
 
 One sentence describing the user-visible or domain-visible outcome.
 
+## Suggested OMX Skill
+
+- Default:
+- If frontend-heavy:
+- If backend-heavy:
+- If release/handoff focused:
+
 ## Scope
 
 - In scope:

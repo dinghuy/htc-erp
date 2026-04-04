@@ -1,8 +1,8 @@
 import {
-  buildTimelineRange,
+  buildTimelineWindowRange,
   calcProjectProgress,
   calcTaskProgress,
-  isRangeOverlappingMonth,
+  isRangeOverlappingTimelineWindow,
   normalizeSearch,
   parseDate,
   projectMatchesQuery,
@@ -531,7 +531,7 @@ function buildTaskRow(task: GanttTask, input: {
   assigneeLoad: Map<string, LoadSnapshot>;
 }): DerivedTaskRow {
   const timelineMissing = isTimelineMissing(task);
-  const timelineRange = timelineMissing ? null : buildTimelineRange(task.startDate, task.dueDate, input.selectedMonth);
+  const timelineRange = timelineMissing ? null : buildTimelineWindowRange(task.startDate, task.dueDate, input.selectedMonth);
   const risk = classifyTaskRisk(task, { today: input.today, assigneeLoad: input.assigneeLoad });
   const dueDelta = getDueDateDelta(task, input.today);
   const isClosed = isCompletedStatus(task.status) || isCancelledStatus(task.status);
@@ -583,7 +583,7 @@ function buildBaseFallbackRows(projects: GanttProject[], tasks: GanttTask[], sel
       taskCount: projectTasks.length,
       visibleTaskCount: projectTasks.length,
       overdueTaskCount: 0,
-      timelineRange: buildTimelineRange(project.startDate, project.endDate, selectedMonth),
+      timelineRange: buildTimelineWindowRange(project.startDate, project.endDate, selectedMonth),
     };
 
     const taskRows = projectTasks.map<DerivedTaskRow>(task => ({
@@ -602,7 +602,7 @@ function buildBaseFallbackRows(projects: GanttProject[], tasks: GanttTask[], sel
       overdue: false,
       dueSoon: false,
       timelineMissing: isTimelineMissing(task),
-      timelineRange: buildTimelineRange(task.startDate, task.dueDate, selectedMonth),
+      timelineRange: buildTimelineWindowRange(task.startDate, task.dueDate, selectedMonth),
       isFallbackRow: isTimelineMissing(task),
       assigneeLoad: { activeCount: 0, urgentHighCount: 0, isOverloaded: false },
     }));
@@ -630,7 +630,7 @@ export function buildGanttDerivedState(input: BuildGanttDerivedStateInput): Deri
       const project = input.projects.find(candidate => candidate.id === projectId);
       const projectMatches = project ? projectMatchesQuery(project, searchQuery) : false;
       const taskSearchMatch = taskMatchesQuery(task, searchQuery);
-      const matchesMonth = row.timelineMissing || isRangeOverlappingMonth(task.startDate, task.dueDate, input.selectedMonth);
+      const matchesMonth = row.timelineMissing || isRangeOverlappingTimelineWindow(task.startDate, task.dueDate, input.selectedMonth);
       const matchesPreset = getPresetMatch({ presetKey: selectedPresetKey, row });
       const matchesSearch = !searchQuery || projectMatches || taskSearchMatch;
       const matchesAssignee = !selectedAssignee || normalizeFilterValue(row.assigneeName) === selectedAssignee;
@@ -656,7 +656,7 @@ export function buildGanttDerivedState(input: BuildGanttDerivedStateInput): Deri
     const projectSummaries: ProjectSummary[] = input.projects.map(project => {
       const projectTasks = derivedTaskMeta.filter(task => task.projectId === project.id);
       const visibleProjectTasks = projectTasks.filter(task => task.visible).map(task => task.row);
-      const projectTimelineVisible = isRangeOverlappingMonth(project.startDate, project.endDate, input.selectedMonth);
+      const projectTimelineVisible = isRangeOverlappingTimelineWindow(project.startDate, project.endDate, input.selectedMonth);
       const projectMatchesActiveSearch = searchQuery ? projectMatchesQuery(project, searchQuery) : true;
       const projectVisible = searchQuery
         ? projectMatchesActiveSearch || visibleProjectTasks.length > 0
@@ -693,7 +693,7 @@ export function buildGanttDerivedState(input: BuildGanttDerivedStateInput): Deri
         taskCount: projectSummary.allDerivedTasks.length,
         visibleTaskCount: projectSummary.visibleTaskRows.length,
         overdueTaskCount: projectSummary.visibleTaskRows.filter(task => task.overdue).length,
-        timelineRange: buildTimelineRange(
+        timelineRange: buildTimelineWindowRange(
           projectSummary.project.startDate,
           projectSummary.project.endDate,
           input.selectedMonth,

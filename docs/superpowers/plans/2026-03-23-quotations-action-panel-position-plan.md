@@ -11,7 +11,7 @@
 ---
 
 ## File Map
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
   - Right column render order (action panel before preview)
   - Sticky positioning + spacing to prevent overlap
 
@@ -20,7 +20,7 @@
 ### Task 1: Reorder Right Column and Add Sticky Action Panel (Desktop)
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
 
 - [ ] **Step 1: Locate right-column JSX**
   - In desktop layout block, find the right column wrapper that currently renders `{previewPanel}` then `{actionButtons}`.
@@ -46,7 +46,7 @@
 ### Task 2: Clean Up and Validate Styles
 
 **Files:**
-- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\crm-app\frontend\src\Quotations.tsx`
+- Modify: `C:\Users\dinghuy\OneDrive - HUYNH THY GROUP\Antigravity Workspace\htc-erp\frontend\src\Quotations.tsx`
 
 - [ ] **Step 1: Ensure inline style consistency**
   - Keep style updates in the existing inline pattern; avoid new CSS classes.
@@ -63,3 +63,4 @@
 ## Notes
 - User requested no git commits.
 - No automated tests required; manual UI verification is sufficient.
+

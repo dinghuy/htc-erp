@@ -2,7 +2,7 @@ import { computeIsRemind } from '../../../quotation-status';
 import { getDb } from '../../../sqlite-db';
 import type { AuthenticatedUser } from '../../shared/contracts/domain';
 import { userHasAnyRole } from '../../shared/auth/roles';
-import { canCreateSalesOrderFromQuotation, normalizeLegacyQuotationStatus } from '../../shared/workflow/revenueFlow';
+import { canCreateSalesOrderFromQuotation, normalizeLegacyQuotationStatus, resolveHandoffActivation } from '../../shared/workflow/revenueFlow';
 import { createQuotationRepository } from './repository';
 
 const quotationRepository = createQuotationRepository();
@@ -92,13 +92,32 @@ async function listSalesOrdersByQuotationIds(quotationIds: string[]) {
   );
 }
 
+async function listReleaseApprovalsByProjectIds(projectIds: string[]) {
+  if (!projectIds.length) return [];
+  const placeholders = projectIds.map(() => '?').join(', ');
+  return getDb().all(
+    `SELECT ar.*,
+            approver.fullName AS approverName,
+            requester.fullName AS requestedByName
+     FROM ApprovalRequest ar
+     LEFT JOIN User approver ON ar.approverUserId = approver.id
+     LEFT JOIN User requester ON ar.requestedBy = requester.id
+     WHERE ar.requestType = 'sales_order_release'
+       AND ar.projectId IN (${placeholders})
+     ORDER BY ar.createdAt DESC, ar.id DESC`,
+    projectIds,
+  );
+}
+
 export async function listQuotations(currentUser?: AuthenticatedUser | null) {
   const rows = await quotationRepository.listDetailed();
   const nowMs = Date.now();
   const quotationIds = rows.map((row: any) => String(row.id || '')).filter(Boolean);
-  const [approvalRows, salesOrderRows] = await Promise.all([
+  const projectIds = Array.from(new Set(rows.map((row: any) => String(row.projectId || '')).filter(Boolean)));
+  const [approvalRows, salesOrderRows, releaseApprovalRows] = await Promise.all([
     listCommercialApprovalsByQuotationIds(quotationIds),
     listSalesOrdersByQuotationIds(quotationIds),
+    listReleaseApprovalsByProjectIds(projectIds),
   ]);
 
   const approvalsByQuotationId = new Map<string, any[]>();
@@ -117,14 +136,34 @@ export async function listQuotations(currentUser?: AuthenticatedUser | null) {
     salesOrdersByQuotationId.set(quotationId, salesOrder);
   }
 
+  const releaseApprovalsByProjectId = new Map<string, any[]>();
+  for (const approval of releaseApprovalRows) {
+    const projectId = String(approval?.projectId || '').trim();
+    if (!projectId) continue;
+    const bucket = releaseApprovalsByProjectId.get(projectId) || [];
+    bucket.push(approval);
+    releaseApprovalsByProjectId.set(projectId, bucket);
+  }
+
   return rows.map((row: any) => {
     const commercialApprovalState = buildCommercialApprovalState(approvalsByQuotationId.get(String(row.id || '')) || []);
     const linkedSalesOrder = salesOrdersByQuotationId.get(String(row.id || ''));
+    const releaseApprovalState = buildCommercialApprovalState(releaseApprovalsByProjectId.get(String(row.projectId || '')) || []);
+    const actionAvailability = buildQuotationActionAvailability(row, currentUser, commercialApprovalState, linkedSalesOrder);
     return {
       ...row,
       isRemind: computeIsRemind(row.status, row.createdAt, nowMs),
       approvalGateState: commercialApprovalState,
-      actionAvailability: buildQuotationActionAvailability(row, currentUser, commercialApprovalState, linkedSalesOrder),
+      actionAvailability,
+      handoffActivation: resolveHandoffActivation({
+        quotationId: row.id,
+        quotationStatus: row.status,
+        salesOrderId: linkedSalesOrder?.id || null,
+        salesOrderStatus: linkedSalesOrder?.status || null,
+        releaseGateStatus: releaseApprovalState?.status || null,
+        canCreateSalesOrder: actionAvailability?.canCreateSalesOrder,
+        quotationBlockers: actionAvailability?.blockers,
+      }),
     };
   });
 }
@@ -132,16 +171,28 @@ export async function listQuotations(currentUser?: AuthenticatedUser | null) {
 export async function getQuotationById(id: string, currentUser?: AuthenticatedUser | null) {
   const row = await quotationRepository.findDetailedById(id);
   if (!row) return null;
-  const [approvalRows, salesOrderRows] = await Promise.all([
+  const [approvalRows, salesOrderRows, releaseApprovalRows] = await Promise.all([
     listCommercialApprovalsByQuotationIds([id]),
     listSalesOrdersByQuotationIds([id]),
+    listReleaseApprovalsByProjectIds(row?.projectId ? [String(row.projectId)] : []),
   ]);
   const commercialApprovalState = buildCommercialApprovalState(approvalRows);
   const linkedSalesOrder = salesOrderRows[0] || null;
+  const releaseApprovalState = buildCommercialApprovalState(releaseApprovalRows);
+  const actionAvailability = buildQuotationActionAvailability(row, currentUser, commercialApprovalState, linkedSalesOrder);
   return {
     ...row,
     isRemind: computeIsRemind(row.status, row.createdAt),
     approvalGateState: commercialApprovalState,
-    actionAvailability: buildQuotationActionAvailability(row, currentUser, commercialApprovalState, linkedSalesOrder),
+    actionAvailability,
+    handoffActivation: resolveHandoffActivation({
+      quotationId: row.id,
+      quotationStatus: row.status,
+      salesOrderId: linkedSalesOrder?.id || null,
+      salesOrderStatus: linkedSalesOrder?.status || null,
+      releaseGateStatus: releaseApprovalState?.status || null,
+      canCreateSalesOrder: actionAvailability?.canCreateSalesOrder,
+      quotationBlockers: actionAvailability?.blockers,
+    }),
   };
 }

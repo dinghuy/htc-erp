@@ -17,7 +17,7 @@ export function OpsOverviewRoute({
   onNavigate?: (route: string) => void;
 }) {
   return (
-    <FeatureRouteShell fallbackMessage="Dang tai tong quan van hanh...">
+    <FeatureRouteShell fallbackMessage="Đang tải tổng quan vận hành...">
       <OperationsOverviewScreen isMobile={isMobile} currentUser={currentUser} onNavigate={onNavigate} />
     </FeatureRouteShell>
   );

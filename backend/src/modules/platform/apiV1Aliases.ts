@@ -2,12 +2,15 @@ import type { NextFunction, Request, Response } from 'express';
 
 const API_V1_PASSTHROUGH_PREFIXES = [
   '/api/v1/integrations/erp/outbox',
-  '/api/v1/integrations/erp/sync/run',
+  '/api/v1/integrations/erp/outbox/run',
 ] as const;
 
 const API_V1_PREFIXES: Array<{ from: string; to: string }> = [
   { from: '/api/v1/auth', to: '/api/auth' },
   { from: '/api/v1/me', to: '/api/me' },
+  { from: '/api/v1/leads', to: '/api/leads' },
+  { from: '/api/v1/accounts', to: '/api/accounts' },
+  { from: '/api/v1/contacts', to: '/api/contacts' },
   { from: '/api/v1/projects', to: '/api/projects' },
   { from: '/api/v1/tasks', to: '/api/tasks' },
   { from: '/api/v1/quotations', to: '/api/quotations' },

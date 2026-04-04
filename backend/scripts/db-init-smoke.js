@@ -1,7 +1,6 @@
 require('ts-node/register');
 
 process.env.DB_PATH = 'C:/Users/dinghuy/OneDrive - HUYNH THY GROUP/Antigravity Workspace/crm-app/backend/tmp/test-crm.db';
-process.env.SEED_DB = 'false';
 
 const { initDb, getDb } = require('../sqlite-db');
 

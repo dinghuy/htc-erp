@@ -3,7 +3,10 @@ import type { CurrentUser } from './auth';
 import { buildRoleProfile, ROLE_LABELS } from './auth';
 import { API_BASE } from './config';
 import { setNavContext } from './navContext';
+import { HomeExecutiveView } from './home/HomeExecutiveView';
 import { buildHomeHighlightNavigation, buildHomePriorityNavigation } from './home/homeNavigation';
+import { HomeOperatorView } from './home/HomeOperatorView';
+import { buildHomeTemplateViewModel } from './home/homeViewModel';
 import { requestJsonWithAuth } from './shared/api/client';
 import type { ProjectWorkspaceTabKey } from './shared/domain/contracts';
 import { tokens } from './ui/tokens';
@@ -27,6 +30,14 @@ type ResolvedHomeActionAvailability = {
   blockers: string[];
 };
 
+type HandoffActivation = {
+  status?: string | null;
+  isActivated?: boolean;
+  nextActionKey?: string | null;
+  nextActionLabel?: string | null;
+  blockers?: string[] | null;
+};
+
 type HomeHighlight = {
   projectId: string;
   projectCode?: string | null;
@@ -46,6 +57,7 @@ type HomeHighlight = {
     approverRole?: string | null;
     approverName?: string | null;
   }> | null;
+  handoffActivation?: HandoffActivation | null;
   actionAvailability?: {
     quotation?: {
       canCreateSalesOrder?: boolean;
@@ -80,7 +92,7 @@ function toneColor(tone?: string) {
     case 'bad':
       return { fg: tokens.colors.error, bg: tokens.colors.badgeBgError };
     default:
-      return { fg: tokens.colors.primary, bg: '#e8f4fd' };
+      return { fg: tokens.colors.primary, bg: tokens.colors.infoAccentBg };
   }
 }
 
@@ -89,15 +101,15 @@ function workflowGateLabel(gateType?: string | null) {
     case 'quotation_commercial':
       return 'Thương mại';
     case 'sales_order_release':
-      return 'Release SO';
+      return 'Phát hành SO';
     case 'procurement_commitment':
       return 'Mua hàng';
     case 'delivery_release':
-      return 'Release giao hàng';
+      return 'Phát hành giao hàng';
     case 'delivery_completion':
       return 'Hoàn tất giao hàng';
     default:
-      return 'Workflow';
+      return 'Quy trình';
   }
 }
 
@@ -117,16 +129,46 @@ function resolveHomeWorkspaceTab(item: HomeHighlight): ProjectWorkspaceTabKey {
 
 function resolveHomeHighlightActionAvailability(item: HomeHighlight): ResolvedHomeActionAvailability {
   const workspaceTab = resolveHomeWorkspaceTab(item);
+  const handoffActivation = item.handoffActivation;
   const quotationAvailability = item.actionAvailability?.quotation;
   const salesOrderAvailability = item.actionAvailability?.salesOrder;
   const blockers = Array.isArray(item.actionAvailability?.project?.blockers)
     ? item.actionAvailability?.project?.blockers.filter(Boolean)
     : [];
 
+  if (handoffActivation?.nextActionLabel || handoffActivation?.status) {
+    const handoffBlockers = Array.isArray(handoffActivation.blockers) ? handoffActivation.blockers.filter(Boolean) : [];
+    const activationStatus = String(handoffActivation.status || '').trim().toLowerCase();
+    const hintByStatus: Record<string, string> = {
+      ready_to_create_sales_order: 'Báo giá đã thắng và đang chờ tạo sales order để kích hoạt handoff.',
+      awaiting_release_approval: 'Sales order đã có nhưng vẫn đang chờ cổng phê duyệt release trước khi bàn giao thật sự chạy.',
+      ready_to_release: 'Sales order đã đủ điều kiện để phát hành sang execution.',
+      activated: 'Handoff đã được kích hoạt và đang có bước triển khai tiếp theo.',
+      blocked: handoffBlockers[0] || 'Handoff đang bị chặn bởi điều kiện workflow hiện tại.',
+    };
+    return {
+      nextActionLabel: handoffActivation.nextActionLabel || 'Rà trạng thái handoff',
+      nextActionHint: hintByStatus[activationStatus] || handoffBlockers[0] || 'Đi vào workspace để xem trạng thái handoff hiện tại.',
+      workspaceTab: activationStatus === 'activated'
+        ? 'timeline'
+        : activationStatus === 'blocked' && toSafeCount(item.missingDocumentCount) > 0
+          ? 'documents'
+          : 'commercial',
+      tone: activationStatus === 'blocked'
+        ? 'bad'
+        : activationStatus === 'awaiting_release_approval'
+          ? 'warn'
+          : activationStatus === 'ready_to_release'
+            ? 'good'
+            : 'info',
+      blockers: handoffBlockers.length ? handoffBlockers : blockers,
+    };
+  }
+
   if (quotationAvailability?.canCreateSalesOrder) {
     return {
       nextActionLabel: 'Tạo sales order',
-      nextActionHint: 'Báo giá đã approved/won và sẵn sàng handoff sang sales order.',
+      nextActionHint: 'Báo giá đã được duyệt/chốt và sẵn sàng bàn giao sang sales order.',
       workspaceTab: 'commercial',
       tone: 'good',
       blockers,
@@ -134,8 +176,8 @@ function resolveHomeHighlightActionAvailability(item: HomeHighlight): ResolvedHo
   }
   if (salesOrderAvailability?.canReleaseLatest) {
     return {
-      nextActionLabel: 'Release sales order',
-      nextActionHint: 'Sales order mới nhất đã sẵn sàng để release cho execution.',
+      nextActionLabel: 'Phát hành sales order',
+      nextActionHint: 'Sales order mới nhất đã sẵn sàng để chuyển sang triển khai.',
       workspaceTab: 'commercial',
       tone: 'warn',
       blockers,
@@ -143,7 +185,7 @@ function resolveHomeHighlightActionAvailability(item: HomeHighlight): ResolvedHo
   }
   if (blockers.length > 0) {
     return {
-      nextActionLabel: 'Gỡ workflow blockers',
+      nextActionLabel: 'Gỡ chặn quy trình',
       nextActionHint: blockers[0],
       workspaceTab,
       tone: 'bad',
@@ -156,15 +198,15 @@ function resolveHomeHighlightActionAvailability(item: HomeHighlight): ResolvedHo
   const openTasks = toSafeCount(item.openTaskCount);
   const stage = String(item.projectStage || '').trim().toLowerCase();
   const derivedBlockers = [
-    pendingApprovals > 0 ? `${pendingApprovals} approval đang chờ` : '',
+    pendingApprovals > 0 ? `${pendingApprovals} phê duyệt đang chờ` : '',
     missingDocuments > 0 ? `${missingDocuments} hồ sơ còn thiếu` : '',
     openTasks > 0 ? `${openTasks} task đang mở` : '',
   ].filter(Boolean);
 
   if (pendingApprovals > 0) {
     return {
-      nextActionLabel: 'Dọn hàng đợi approval',
-      nextActionHint: `${pendingApprovals} approval đang chặn bước workflow kế tiếp của dự án này.`,
+      nextActionLabel: 'Dọn hàng đợi phê duyệt',
+      nextActionHint: `${pendingApprovals} phê duyệt đang chặn bước kế tiếp của dự án này.`,
       workspaceTab,
       tone: 'warn',
       blockers: derivedBlockers,
@@ -182,7 +224,7 @@ function resolveHomeHighlightActionAvailability(item: HomeHighlight): ResolvedHo
   if (['order_released', 'procurement_active'].includes(stage)) {
     return {
       nextActionLabel: 'Đẩy procurement',
-      nextActionHint: 'Dự án đã rời cổng thương mại và đang chờ follow-through từ mua hàng/inbound.',
+      nextActionHint: 'Dự án đã rời cổng thương mại và đang chờ bám tiếp từ mua hàng/inbound.',
       workspaceTab: 'procurement',
       tone: 'info',
       blockers: derivedBlockers,
@@ -200,7 +242,7 @@ function resolveHomeHighlightActionAvailability(item: HomeHighlight): ResolvedHo
   if (openTasks > 0) {
     return {
       nextActionLabel: 'Xử lý task mở',
-      nextActionHint: `${openTasks} task đang mở cần được kéo tiếp.`,
+      nextActionHint: `${openTasks} công việc đang mở cần được kéo tiếp.`,
       workspaceTab: 'timeline',
       tone: 'info',
       blockers: derivedBlockers,
@@ -208,8 +250,8 @@ function resolveHomeHighlightActionAvailability(item: HomeHighlight): ResolvedHo
   }
 
   return {
-    nextActionLabel: 'Mở workspace',
-    nextActionHint: 'Dự án chưa có blocker nổi bật; rà bước kế tiếp trong workspace.',
+    nextActionLabel: 'Mở không gian dự án',
+    nextActionHint: 'Dự án chưa có điểm nghẽn nổi bật; rà bước kế tiếp trong không gian làm việc.',
     workspaceTab,
     tone: 'info',
     blockers: derivedBlockers,
@@ -227,21 +269,21 @@ function buildSuggestedActions(
   const baseByMode: Record<string, Array<{ label: string; hint: string; route: string; navContext?: any; tone: 'primary' | 'secondary' | 'ghost' }>> = {
     sales: [
       {
-        label: topPriority?.metricKey?.includes('approval') ? 'Dọn hàng đợi approval' : 'Đẩy quotation tiếp theo',
+        label: topPriority?.metricKey?.includes('approval') ? 'Dọn hàng đợi phê duyệt' : 'Đẩy báo giá tiếp theo',
         hint: topPriority ? `${topPriority.label}: ${topPriority.value}` : 'Đi thẳng vào hàng đợi thương mại ưu tiên.',
         route: topPriority?.metricKey?.includes('approval') ? 'Approvals' : 'Sales',
         tone: 'primary',
       },
       {
         label: 'Mở My Work',
-        hint: 'Xử lý follow-up, handoff và deals đang chờ.',
+        hint: 'Xử lý theo dõi tiếp, bàn giao và các deal đang chờ.',
         route: 'My Work',
         navContext: { route: 'My Work', filters: { workFocus: 'commercial' } },
         tone: 'secondary',
       },
       {
         label: 'Rà project nóng',
-        hint: hotProject ? `${hotProject.projectCode || hotProject.projectName} đang có approval hoặc hồ sơ chờ xử lý.` : 'Đi vào dự án nóng nhất của bạn.',
+        hint: hotProject ? `${hotProject.projectCode || hotProject.projectName} đang có phê duyệt hoặc hồ sơ chờ xử lý.` : 'Đi vào dự án nóng nhất của bạn.',
         route: 'Projects',
         navContext: hotProject ? { route: 'Projects', entityType: 'Project', entityId: hotProject.projectId, filters: { workspaceTab: 'commercial' } } : undefined,
         tone: 'ghost',
@@ -249,7 +291,7 @@ function buildSuggestedActions(
     ],
     project_manager: [
       {
-        label: 'Giữ nhịp commercial -> execution',
+        label: 'Giữ nhịp thương mại -> triển khai',
         hint: topPriority ? `${topPriority.label}: ${topPriority.value}` : 'Đi vào queue hợp nhất của PM.',
         route: 'My Work',
         navContext: { route: 'My Work', filters: { workFocus: 'execution' } },
@@ -264,15 +306,15 @@ function buildSuggestedActions(
       },
       {
         label: 'Rà blocker approval',
-        hint: 'Kiểm tra approval nào đang đe dọa margin hoặc timeline.',
+        hint: 'Kiểm tra phê duyệt nào đang đe dọa biên lợi nhuận hoặc tiến độ.',
         route: 'Approvals',
         tone: 'ghost',
       },
     ],
     procurement: [
       {
-        label: 'Xử lý supply exceptions',
-        hint: topPriority ? `${topPriority.label}: ${topPriority.value}` : 'Đi vào queue ETA, shortage và vendor exceptions.',
+        label: 'Xử lý ngoại lệ nguồn cung',
+        hint: topPriority ? `${topPriority.label}: ${topPriority.value}` : 'Đi vào hàng đợi ETA, thiếu hàng và ngoại lệ từ nhà cung cấp.',
         route: 'Inbox',
         navContext: { route: 'Inbox', filters: { department: 'procurement' } },
         tone: 'primary',
@@ -285,7 +327,7 @@ function buildSuggestedActions(
         tone: 'secondary',
       },
       {
-        label: 'Xem reports',
+        label: 'Xem báo cáo',
         hint: 'Theo dõi cockpit dự án theo góc nhìn nguồn cung.',
         route: 'Reports',
         tone: 'ghost',
@@ -293,7 +335,7 @@ function buildSuggestedActions(
     ],
     accounting: [
       {
-        label: 'Xử lý approval tài chính',
+        label: 'Xử lý phê duyệt tài chính',
         hint: topPriority ? `${topPriority.label}: ${topPriority.value}` : 'Đi thẳng vào lane tài chính đang chờ.',
         route: 'Approvals',
         navContext: { route: 'Approvals', filters: { approvalLane: 'finance' } },
@@ -307,16 +349,16 @@ function buildSuggestedActions(
         tone: 'secondary',
       },
       {
-        label: 'Xem role cockpit',
-        hint: 'Mở dashboard tài chính theo persona.',
+        label: 'Xem cockpit vai trò',
+        hint: 'Mở dashboard tài chính theo vai trò.',
         route: 'Reports',
         tone: 'ghost',
       },
     ],
     legal: [
       {
-        label: 'Xử lý approval pháp lý',
-        hint: topPriority ? `${topPriority.label}: ${topPriority.value}` : 'Đi thẳng vào hàng đợi approval pháp lý.',
+        label: 'Xử lý phê duyệt pháp lý',
+        hint: topPriority ? `${topPriority.label}: ${topPriority.value}` : 'Đi thẳng vào hàng đợi phê duyệt pháp lý.',
         route: 'Approvals',
         navContext: { route: 'Approvals', filters: { approvalLane: 'legal' } },
         tone: 'primary',
@@ -359,14 +401,14 @@ function buildSuggestedActions(
     ],
     admin: [
       {
-        label: 'Theo dõi watchlist hệ thống',
-        hint: topPriority ? `${topPriority.label}: ${topPriority.value}` : 'Đi vào watchlist approval/inbox toàn cục.',
+        label: 'Theo dõi danh sách hệ thống',
+        hint: topPriority ? `${topPriority.label}: ${topPriority.value}` : 'Đi vào danh sách phê duyệt/inbox toàn cục.',
         route: 'Reports',
         tone: 'primary',
       },
       {
         label: 'Quản lý Users',
-        hint: 'Rà capability roles, trạng thái account và các persona kết hợp.',
+        hint: 'Rà quyền, trạng thái account và các persona kết hợp.',
         route: 'Users',
         tone: 'secondary',
       },
@@ -381,7 +423,7 @@ function buildSuggestedActions(
     viewer: [
       {
         label: 'Xem dự án',
-        hint: 'Đi vào danh sách dự án trong chế độ read-only.',
+        hint: 'Đi vào danh sách dự án trong chế độ chỉ xem.',
         route: 'Projects',
         tone: 'primary',
       },
@@ -393,7 +435,7 @@ function buildSuggestedActions(
       },
       {
         label: 'Xem cockpit vai trò',
-        hint: 'Mở dashboard tổng quan read-only.',
+        hint: 'Mở dashboard tổng quan ở chế độ chỉ xem.',
         route: 'Reports',
         tone: 'ghost',
       },
@@ -460,9 +502,9 @@ export function Home({
     accounting: 'Theo dõi mốc thanh toán, lỗi ERP và công nợ cần xử lý.',
     legal: 'Tập trung hồ sơ thiếu, hợp đồng chờ review và deviation cần phản hồi.',
     director: 'Profit + risk cockpit cho các dự án cần quyết định hoặc can thiệp.',
-    sales: 'Quản lý pipeline, quotation, handoff pending và follow-up thương mại.',
+    sales: 'Quản lý pipeline, báo giá, bàn giao đang chờ và theo dõi thương mại.',
     admin: 'Theo dõi hoạt động liên phòng ban, phân quyền và những điểm nghẽn hệ thống.',
-    viewer: 'Xem các highlights quan trọng mà không can thiệp workflow.',
+    viewer: 'Xem các điểm nổi bật quan trọng mà không can thiệp quy trình.',
   };
   const quickActionsByMode: Record<string, Array<{ label: string; route: string }>> = {
     sales: [
@@ -509,11 +551,11 @@ export function Home({
   const highlightTitleByMode: Record<string, { title: string; description: string }> = {
     sales: {
       title: 'Điểm nóng thương mại',
-      description: 'Các deal hoặc dự án đang kéo quotation, approval hoặc hồ sơ bổ sung vào cùng một điểm nhìn.',
+      description: 'Các deal hoặc dự án đang kéo báo giá, phê duyệt hoặc hồ sơ bổ sung vào cùng một điểm nhìn.',
     },
     project_manager: {
       title: 'Điểm nóng từ deal tới delivery',
-      description: 'Các dự án đang kéo công việc, approval hoặc hồ sơ thiếu vào cùng một điểm nhìn từ thương mại sang delivery.',
+      description: 'Các dự án đang kéo công việc, phê duyệt hoặc hồ sơ thiếu vào cùng một điểm nhìn từ thương mại sang giao hàng.',
     },
     procurement: {
       title: 'Điểm nóng nguồn cung',
@@ -525,7 +567,7 @@ export function Home({
     },
     legal: {
       title: 'Điểm nóng pháp lý',
-      description: 'Những dự án có contract review pending, hồ sơ thiếu hoặc legal blockers cần phản hồi.',
+      description: 'Những dự án có hợp đồng chờ review, hồ sơ thiếu hoặc điểm nghẽn pháp lý cần phản hồi.',
     },
     director: {
       title: 'Điểm nóng điều hành',
@@ -533,16 +575,25 @@ export function Home({
     },
     admin: {
       title: 'Giám sát hệ thống',
-      description: 'Điểm nhìn toàn cục để support workflow, kiểm tra phân quyền và xác định project đang cần can thiệp hệ thống.',
+      description: 'Điểm nhìn toàn cục để hỗ trợ quy trình, kiểm tra phân quyền và xác định dự án đang cần can thiệp hệ thống.',
     },
     viewer: {
       title: 'Điểm nổi bật của dự án',
-      description: 'Các dự án quan trọng mà bạn đang theo dõi trong chế độ read-only.',
+      description: 'Các dự án quan trọng mà bạn đang theo dõi trong chế độ chỉ xem.',
     },
   };
   const quickActions = quickActionsByMode[profile.personaMode] || quickActionsByMode.viewer;
   const suggestedActions = buildSuggestedActions(profile.personaMode, priorities, resolvedHighlights);
   const highlightCopy = highlightTitleByMode[profile.personaMode] || highlightTitleByMode.viewer;
+  const templateView = buildHomeTemplateViewModel(profile.personaMode);
+  const heroActions = quickActions.slice(0, templateView.template === 'operator' ? 3 : 2);
+  const visibleSuggestedActions = suggestedActions.slice(0, templateView.template === 'operator' ? 3 : 2);
+  const visiblePriorities =
+    templateView.template === 'executive'
+      ? priorities.slice(0, 4)
+      : templateView.template === 'executive-lite'
+        ? priorities.slice(0, 3)
+        : priorities.slice(0, 3);
   const navigateFromTarget = (target: { route: string; navContext?: any }) => {
     if (target.navContext) {
       setNavContext(target.navContext);
@@ -550,124 +601,157 @@ export function Home({
     onNavigate?.(target.route);
   };
 
-  return (
-    <div style={{ display: 'grid', gap: '24px' }}>
-      <PageHero
-        eyebrow={ROLE_LABELS[profile.primaryRole]}
-        title="Tổng quan theo vai trò"
-        description={
-          priorities[0]
-            ? `${subtitleByMode[profile.personaMode]} Hôm nay ưu tiên: ${priorities[0].label} · ${priorities[0].value}.`
-            : subtitleByMode[profile.personaMode]
-        }
-        actions={quickActions.map((action, index) => ({
-          key: `${action.route}-${action.label}`,
-          label: action.label,
-          onClick: () => onNavigate?.(action.route),
-          variant: index === 0 ? 'primary' : 'outline',
-        }))}
+  const heroSection = (
+    <PageHero
+      eyebrow={ROLE_LABELS[profile.primaryRole]}
+      title={templateView.template === 'operator' ? 'Việc cần kéo tiếp' : 'Cockpit theo vai trò'}
+      description={
+        priorities[0]
+          ? `${subtitleByMode[profile.personaMode]} Hôm nay ưu tiên: ${priorities[0].label} · ${priorities[0].value}.`
+          : subtitleByMode[profile.personaMode]
+      }
+      actions={heroActions.map((action, index) => ({
+        key: `${action.route}-${action.label}`,
+        label: action.label,
+        onClick: () => onNavigate?.(action.route),
+        variant: index === 0 ? 'primary' : 'outline',
+      }))}
+    />
+  );
+
+  const actionsSection = visibleSuggestedActions.length > 0 ? (
+    <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: tokens.spacing.mdPlus, alignItems: 'stretch' }}>
+      {visibleSuggestedActions.map((action) => (
+        <ActionCard
+          key={`${action.route}-${action.label}`}
+          eyebrow={action.tone === 'primary' ? 'Ưu tiên chính' : action.tone === 'secondary' ? 'Bước kế tiếp' : 'Theo dõi'}
+          title={action.label}
+          description={action.hint}
+          tone={action.tone === 'primary' ? 'info' : action.tone === 'secondary' ? 'warn' : 'neutral'}
+          onClick={() => navigateFromTarget({ route: action.route, navContext: action.navContext })}
+        />
+      ))}
+    </section>
+  ) : null;
+
+  const errorSection = error ? (
+    <div style={{ ...ui.card.base, padding: tokens.spacing.xlPlus, color: tokens.colors.error }}>{error}</div>
+  ) : null;
+
+  const metricItems = loading
+    ? Array.from({ length: templateView.template === 'executive' ? 4 : 3 }).map((_, index) => ({
+        metricKey: `loading-${index}`,
+        label: 'Đang tải',
+        value: 0,
+        tone: 'good' as const,
+      }))
+    : visiblePriorities;
+
+  const metricsSection = (
+    <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: tokens.spacing.mdPlus, alignItems: 'start' }}>
+      {metricItems.map((item) => {
+        const target = buildHomePriorityNavigation(item.metricKey, profile.personaMode);
+        return (
+          <button
+            type="button"
+            key={item.metricKey}
+            disabled={loading}
+            onClick={() => navigateFromTarget(target)}
+            style={{ border: 'none', padding: 0, background: 'transparent', textAlign: 'left', cursor: loading ? 'default' : 'pointer' }}
+          >
+            <MetricCard
+              label={item.label}
+              value={item.value}
+              accent={toneColor(item.tone).fg}
+              hint={item.metricKey.includes('approval') ? 'Hàng đợi phê duyệt hiện tại' : item.metricKey.includes('project') ? 'Dự án cần theo dõi' : undefined}
+            />
+          </button>
+        );
+      })}
+    </section>
+  );
+
+  const highlightsSection = (
+    <section style={{ ...ui.card.base, padding: tokens.spacing.xlPlus, display: 'grid', gap: tokens.spacing.lg }}>
+      <PageSectionHeader
+        title={highlightCopy.title}
+        description={highlightCopy.description}
+        action={<button type="button" style={ui.btn.outline as any} onClick={() => onNavigate?.('Inbox')}>Mở Inbox</button>}
       />
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '14px' }}>
-        {suggestedActions.slice(0, 3).map((action) => (
-          <ActionCard
-            key={`${action.route}-${action.label}`}
-            eyebrow={action.tone === 'primary' ? 'Ưu tiên chính' : action.tone === 'secondary' ? 'Bước kế tiếp' : 'Theo dõi'}
-            title={action.label}
-            description={action.hint}
-            tone={action.tone === 'primary' ? 'info' : action.tone === 'secondary' ? 'warn' : 'neutral'}
-            onClick={() => navigateFromTarget({ route: action.route, navContext: action.navContext })}
-          />
-        ))}
-      </section>
+      {loading ? (
+        <div style={{ color: tokens.colors.textMuted, fontSize: tokens.fontSize.md }}>Đang tải highlights...</div>
+      ) : resolvedHighlights.length === 0 ? (
+        <div style={{ color: tokens.colors.textMuted, fontSize: tokens.fontSize.md }}>Chưa có dự án nổi bật phù hợp với vai trò hiện tại.</div>
+      ) : (
+        <div style={{ display: 'grid', gap: tokens.spacing.md, alignItems: 'start' }}>
+          {resolvedHighlights.map((item) => {
+            const pendingGates = Array.isArray(item.approvalGateStates)
+              ? item.approvalGateStates.filter((gate) => String(gate?.status || '').toLowerCase() === 'pending')
+              : [];
+            const pendingApprovers = Array.isArray(item.pendingApproverState) ? item.pendingApproverState : [];
+            const supportChips = [
+              { key: `${item.projectId}-tasks`, label: `${Number(item.openTaskCount || 0)} công việc mở`, tone: 'info' as const },
+              { key: `${item.projectId}-approvals`, label: `${Number(item.pendingApprovalCount || 0)} phê duyệt`, tone: Number(item.pendingApprovalCount || 0) > 0 ? 'warn' as const : 'good' as const },
+              { key: `${item.projectId}-docs`, label: `${Number(item.missingDocumentCount || 0)} hồ sơ thiếu`, tone: Number(item.missingDocumentCount || 0) > 0 ? 'bad' as const : 'good' as const },
+              ...(item.handoffActivation?.status === 'ready_to_create_sales_order' ? [{ key: `${item.projectId}-so-ready`, label: 'Sẵn sàng tạo SO', tone: 'info' as const }] : []),
+              ...(item.handoffActivation?.status === 'ready_to_release' ? [{ key: `${item.projectId}-release-ready`, label: 'Sẵn sàng release', tone: 'good' as const }] : []),
+              ...(item.handoffActivation?.status === 'awaiting_release_approval' ? [{ key: `${item.projectId}-awaiting-release`, label: 'Chờ duyệt release', tone: 'warn' as const }] : []),
+              ...(item.handoffActivation?.status === 'activated' ? [{ key: `${item.projectId}-handoff-live`, label: 'Handoff đã kích hoạt', tone: 'good' as const }] : []),
+              ...pendingGates.slice(0, 1).map((gate, index) => ({
+                key: `${item.projectId}-gate-${gate.gateType || 'pending'}-${index}`,
+                label: `Cổng ${workflowGateLabel(gate.gateType)}`,
+                tone: String(gate.status || '').toLowerCase() === 'pending' ? 'warn' as const : 'neutral' as const,
+              })),
+              ...pendingApprovers.slice(0, 1).map((approver, index) => ({
+                key: `${item.projectId}-approver-${approver.approvalId || approver.approverRole || 'pending'}-${index}`,
+                label: `Chờ ${approver.approverName || approver.approverRole || 'approver'}`,
+                tone: 'neutral' as const,
+              })),
+            ].slice(0, 4);
 
-      {error ? (
-        <div style={{ ...ui.card.base, padding: '20px', color: tokens.colors.error }}>{error}</div>
-      ) : null}
+            return (
+              <button
+                type="button"
+                key={item.projectId}
+                onClick={() => navigateFromTarget(buildHomeHighlightNavigation(item.projectId))}
+                style={{ border: 'none', padding: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
+              >
+                <EntitySummaryCard
+                  title={`${item.projectCode ? `${item.projectCode} · ` : ''}${item.projectName || 'Dự án chưa đặt tên'}`}
+                  subtitle={`${item.accountName || 'Chưa có account'} · Giai đoạn ${item.projectStage || 'new'} · Trạng thái ${item.projectStatus || 'pending'}`}
+                  primaryLabel={item.resolvedActionAvailability.nextActionLabel}
+                  primaryHint={item.resolvedActionAvailability.nextActionHint}
+                  statusItems={supportChips}
+                  meta={[
+                    { key: 'account', label: 'Khách hàng', value: item.accountName || '—' },
+                    { key: 'stage', label: 'Giai đoạn', value: item.projectStage || '—' },
+                  ]}
+                  footer={item.resolvedActionAvailability.blockers.length > 0 && item.resolvedActionAvailability.blockers[0] !== item.resolvedActionAvailability.nextActionHint ? <StatusChipRow items={item.resolvedActionAvailability.blockers.slice(0, 1).map((blocker, index) => ({ key: `${item.projectId}-blocker-${index}`, label: blocker, tone: 'neutral' as const }))} /> : null}
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-        {(loading ? Array.from({ length: 4 }).map((_, index) => ({ metricKey: `loading-${index}`, label: 'Đang tải', value: 0, tone: 'good' as const })) : priorities).map((item) => {
-          const target = buildHomePriorityNavigation(item.metricKey, profile.personaMode);
-          return (
-            <button
-              type="button"
-              key={item.metricKey}
-              disabled={loading}
-              onClick={() => navigateFromTarget(target)}
-              style={{ border: 'none', padding: 0, background: 'transparent', textAlign: 'left', cursor: loading ? 'default' : 'pointer' }}
-            >
-              <MetricCard
-                label={item.label}
-                value={item.value}
-                accent={toneColor(item.tone).fg}
-            hint={item.metricKey.includes('approval') ? 'Hàng đợi approval hiện tại' : item.metricKey.includes('project') ? 'Dự án cần theo dõi' : undefined}
-              />
-            </button>
-          );
-        })}
-      </section>
-
-      <section style={{ ...ui.card.base, padding: '22px', display: 'grid', gap: '16px' }}>
-        <PageSectionHeader
-          title={highlightCopy.title}
-          description={highlightCopy.description}
-          action={<button type="button" style={ui.btn.outline as any} onClick={() => onNavigate?.('Inbox')}>Mở Inbox</button>}
-        />
-
-        {loading ? (
-          <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Đang tải highlights...</div>
-        ) : resolvedHighlights.length === 0 ? (
-          <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Chưa có dự án nổi bật phù hợp với vai trò hiện tại.</div>
-        ) : (
-          <div style={{ display: 'grid', gap: '12px' }}>
-            {resolvedHighlights.map((item) => {
-              const pendingGates = Array.isArray(item.approvalGateStates)
-                ? item.approvalGateStates.filter((gate) => String(gate?.status || '').toLowerCase() === 'pending')
-                : [];
-              const pendingApprovers = Array.isArray(item.pendingApproverState) ? item.pendingApproverState : [];
-              const supportChips = [
-              { key: `${item.projectId}-tasks`, label: `${Number(item.openTaskCount || 0)} task mở`, tone: 'info' as const },
-                { key: `${item.projectId}-approvals`, label: `${Number(item.pendingApprovalCount || 0)} approval`, tone: Number(item.pendingApprovalCount || 0) > 0 ? 'warn' as const : 'good' as const },
-                { key: `${item.projectId}-docs`, label: `${Number(item.missingDocumentCount || 0)} hồ sơ thiếu`, tone: Number(item.missingDocumentCount || 0) > 0 ? 'bad' as const : 'good' as const },
-                ...(item.actionAvailability?.quotation?.canCreateSalesOrder ? [{ key: `${item.projectId}-so-ready`, label: 'Sẵn sàng tạo SO', tone: 'info' as const }] : []),
-                ...(item.actionAvailability?.salesOrder?.canReleaseLatest ? [{ key: `${item.projectId}-release-ready`, label: 'Sẵn sàng release', tone: 'good' as const }] : []),
-                ...pendingGates.slice(0, 1).map((gate, index) => ({
-                  key: `${item.projectId}-gate-${gate.gateType || 'pending'}-${index}`,
-                  label: `Gate ${workflowGateLabel(gate.gateType)}`,
-                  tone: String(gate.status || '').toLowerCase() === 'pending' ? 'warn' as const : 'neutral' as const,
-                })),
-                ...pendingApprovers.slice(0, 1).map((approver, index) => ({
-                  key: `${item.projectId}-approver-${approver.approvalId || approver.approverRole || 'pending'}-${index}`,
-                  label: `Chờ ${approver.approverName || approver.approverRole || 'approver'}`,
-                  tone: 'neutral' as const,
-                })),
-              ].slice(0, 4);
-
-              return (
-                <button
-                  type="button"
-                  key={item.projectId}
-                  onClick={() => navigateFromTarget(buildHomeHighlightNavigation(item.projectId))}
-                  style={{ border: 'none', padding: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer' }}
-                >
-                  <EntitySummaryCard
-                    title={`${item.projectCode ? `${item.projectCode} · ` : ''}${item.projectName || 'Dự án chưa đặt tên'}`}
-                    subtitle={`${item.accountName || 'Chưa có account'} · Giai đoạn ${item.projectStage || 'new'} · Trạng thái ${item.projectStatus || 'pending'}`}
-                    primaryLabel={item.resolvedActionAvailability.nextActionLabel}
-                    primaryHint={item.resolvedActionAvailability.nextActionHint}
-                    statusItems={supportChips}
-                    meta={[
-                      { key: 'account', label: 'Account', value: item.accountName || '—' },
-                      { key: 'stage', label: 'Giai đoạn', value: item.projectStage || '—' },
-                    ]}
-                    footer={item.resolvedActionAvailability.blockers.length > 0 && item.resolvedActionAvailability.blockers[0] !== item.resolvedActionAvailability.nextActionHint ? <StatusChipRow items={item.resolvedActionAvailability.blockers.slice(0, 1).map((blocker, index) => ({ key: `${item.projectId}-blocker-${index}`, label: blocker, tone: 'neutral' as const }))} /> : null}
-                  />
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </div>
+  return templateView.template === 'operator' ? (
+    <HomeOperatorView
+      hero={heroSection}
+      actions={actionsSection}
+      highlights={highlightsSection}
+      metrics={metricsSection}
+      error={errorSection}
+    />
+  ) : (
+    <HomeExecutiveView
+      hero={heroSection}
+      metrics={metricsSection}
+      highlights={highlightsSection}
+      actions={actionsSection}
+      error={errorSection}
+    />
   );
 }

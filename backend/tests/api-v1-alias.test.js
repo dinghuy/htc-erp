@@ -83,6 +83,20 @@ async function main() {
     assert.ok(Array.isArray(authenticated.body));
   });
 
+  await run('versioned CRM entity routes preserve legacy mapping', async () => {
+    const leads = await api('/api/v1/leads');
+    assert.equal(leads.response.status, 200);
+    assert.ok(Array.isArray(leads.body));
+
+    const accounts = await api('/api/v1/accounts');
+    assert.equal(accounts.response.status, 200);
+    assert.ok(Array.isArray(accounts.body));
+
+    const contacts = await api('/api/v1/contacts');
+    assert.equal(contacts.response.status, 200);
+    assert.ok(Array.isArray(contacts.body));
+  });
+
   await run('versioned quotation route preserves auth while task list remains reachable', async () => {
     const unauthenticatedQuotations = await api('/api/v1/quotations');
     assert.equal(unauthenticatedQuotations.response.status, 401);
@@ -109,6 +123,20 @@ async function main() {
     });
     assert.equal(authenticated.response.status, 200);
     assert.ok(Array.isArray(authenticated.body));
+  });
+
+  await run('versioned ERP outbox route is mounted on the documented v1 namespace', async () => {
+    const unauthenticated = await api('/api/v1/integrations/erp/outbox');
+    assert.equal(unauthenticated.response.status, 401);
+
+    const login = await loginV1('admin', 'admin123');
+    const authenticated = await api('/api/v1/integrations/erp/outbox', {
+      headers: { Authorization: `Bearer ${login.body.token}` },
+    });
+    assert.equal(authenticated.response.status, 200);
+    assert.equal(typeof authenticated.body, 'object');
+    assert.ok(Array.isArray(authenticated.body.items));
+    assert.equal(typeof authenticated.body.stats, 'object');
   });
 
   await teardown();

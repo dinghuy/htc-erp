@@ -4,6 +4,7 @@ import { API_BASE, requestJsonWithAuth } from '../shared/api/client';
 import { setNavContext } from '../navContext';
 import { tokens } from '../ui/tokens';
 import { ui } from '../ui/styles';
+import { buildNotificationNavigationTarget } from './notificationNavigation';
 
 type ChatMessage = {
   id: string;
@@ -157,7 +158,7 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
 
       const failed = [messageRes, notificationRes].some((item) => item.status === 'rejected');
       if (failed) {
-        setError('Khong the tai day du chat hoac thong bao. Dang hien thi phan du lieu co san.');
+        setError('Không thể tải đầy đủ chat hoặc thông báo. Đang hiển thị phần dữ liệu có sẵn.');
       }
       setLastSync(new Date());
     } catch (fetchError: any) {
@@ -272,7 +273,7 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
             <span style={{ ...S.chip, background: tokens.colors.surface, color: tokens.colors.textSecondary, border: `1px solid ${tokens.colors.border}` }}>
               {currentUser.fullName || currentUser.username}
             </span>
-            <span style={{ ...S.chip, background: 'var(--ht-success-bg)', color: 'var(--ht-green)' }}>
+            <span style={{ ...S.chip, background: tokens.colors.badgeBgSuccess, color: tokens.colors.primary }}>
               {unreadCount} chưa đọc
             </span>
             <button
@@ -382,14 +383,14 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
             <textarea
               value={draft}
               onInput={(event: any) => setDraft(event.target.value)}
-              placeholder={`Nhan tin nhan...`}
+              placeholder={`Nhắn tin nhắn...`}
               rows={4}
               style={S.input}
               aria-label="Compose message"
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>
-                Gui voi danh tinh: <strong>{currentUser.fullName || currentUser.username}</strong>
+                Gửi với danh tính: <strong>{currentUser.fullName || currentUser.username}</strong>
               </div>
               <button
                 type="button"
@@ -413,10 +414,10 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
             <div>
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 900, letterSpacing: '-0.03em' }}>Notifications</h2>
               <p style={{ margin: '4px 0 0', color: tokens.colors.textSecondary, fontSize: '13px' }}>
-                Theo doi canh bao, nhac viec va thong diep he thong.
+                Theo dõi cảnh báo, nhắc việc và thông điệp hệ thống.
               </p>
             </div>
-            <span style={{ ...S.chip, background: 'var(--ht-warning-bg, #fff7ed)', color: 'var(--ht-amber)' }}>
+            <span style={{ ...S.chip, background: tokens.colors.warningSurfaceBg, color: tokens.colors.warningSurfaceText }}>
               {unreadCount} unread
             </span>
           </div>
@@ -424,7 +425,7 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '560px', overflowY: 'auto', paddingRight: '4px' }}>
             {!loading && notifications.length === 0 && (
               <div style={{ textAlign: 'center', padding: '36px 12px', color: tokens.colors.textMuted, fontSize: '13px' }}>
-                Khong co thong bao nao.
+                Không có thông báo nào.
               </div>
             )}
 
@@ -443,30 +444,13 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
                   }}
                   onClick={() => {
                     if (!clickable) return;
-                    const entityType =
-                      item.entityType === 'Task' || item.entityType === 'Quotation' || item.entityType === 'Account' || item.entityType === 'Lead'
-                        ? item.entityType
-                        : undefined;
-                    const entityId = item.entityId || undefined;
-
-                    setNavContext({
-                      route: item.link as string,
-                      entityType,
-                      entityId,
-                      autoOpenEdit: true,
-                      filters: entityType === 'Quotation' && entityId
-                        ? { quotationId: entityId }
-                        : entityType === 'Account' && entityId
-                          ? { accountId: entityId }
-                          : entityType === 'Lead' && entityId
-                            ? { leadId: entityId }
-                            : undefined,
-                    });
+                    const target = buildNotificationNavigationTarget(item);
+                    if (target) setNavContext(target.navContext as any);
 
                     if (unread) {
                       void markRead([item.id]);
                     }
-                    onNavigate?.(item.link as string);
+                    onNavigate?.(target?.route || (item.link as string));
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
@@ -479,7 +463,7 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
                       </div>
                     </div>
                     {unread && (
-                      <span style={{ ...S.chip, background: 'var(--ht-success-bg)', color: 'var(--ht-green)', flexShrink: 0 }}>
+                      <span style={{ ...S.chip, background: tokens.colors.badgeBgSuccess, color: tokens.colors.primary, flexShrink: 0 }}>
                         New
                       </span>
                     )}

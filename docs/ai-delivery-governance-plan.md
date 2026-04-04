@@ -1,5 +1,9 @@
 # Kế Hoạch Tái Chuẩn Hóa CRM Để AI Phát Triển Đúng Chuẩn IT
 
+> Status: `partial`
+> Role: active planning context; many baseline items are already absorbed into canonical docs and the active execution backlog.
+> Canonical references: `docs/index.md`, `docs/product/product-spec.md`, `docs/architecture/overview.md`, `docs/process/execution-backlog-core-revenue-flow.md`
+
 ## Summary
 
 - Giữ hướng **nâng cấp dần trên stack hiện tại** thay vì viết lại từ đầu: frontend Preact/Vite, backend Express/TypeScript, nhưng tái cấu trúc thành **modular monolith** để AI có thể làm việc theo module nhỏ, ít phá vỡ nhau.
@@ -10,7 +14,7 @@
 ## Implementation Changes
 
 - **Phase 0: Thiết lập nền phát triển chuẩn**
-  - Khởi tạo Git ngay tại `crm-app` và chuẩn hóa `.gitignore` để loại toàn bộ `db`, `log`, `dist`, `tmp`, test artifacts ra khỏi source tree.
+  - Khởi tạo và duy trì Git ngay tại `htc-erp` và chuẩn hóa `.gitignore` để loại toàn bộ `db`, `log`, `dist`, `tmp`, test artifacts ra khỏi source tree.
   - Thiết lập bộ tài liệu bắt buộc: `product spec`, `architecture overview`, `ADR`, `API catalog`, `runbook`, `UAT checklist`, `AI task template`.
   - Đặt Definition of Ready/Done cho mọi task AI: có mục tiêu, phạm vi, dữ liệu vào/ra, API liên quan, test cần chạy, và tiêu chí nghiệm thu.
 
@@ -85,7 +89,7 @@
 ## Assumptions And Defaults
 
 - Giữ stack hiện tại trong giai đoạn đầu; **không rewrite sang framework mới** ở Phase 1.
-- `crm-app` sẽ trở thành repo gốc chính thức của sản phẩm.
+- `htc-erp` là repo gốc chính thức của sản phẩm trong workspace hiện tại.
 - Phase 1 chỉ tập trung core revenue flow; các module ngoài luồng này chỉ sửa lỗi và ổn định.
 - PostgreSQL là đích đến cho môi trường vận hành nghiêm túc; SQLite chỉ giữ vai trò local/dev trong giai đoạn chuyển tiếp.
 - AI được giao việc theo đơn vị nhỏ, mỗi task chỉ chạm **một module hoặc một luồng rõ ràng**, luôn kèm spec, acceptance criteria, test command và expected result.

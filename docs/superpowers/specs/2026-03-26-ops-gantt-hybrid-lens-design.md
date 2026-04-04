@@ -27,8 +27,8 @@ This work does not cover:
 
 ## Current State
 
-- The current screen is implemented in [frontend/src/ops/GanttView.tsx](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/frontend/src/ops/GanttView.tsx).
-- Timeline helpers and date logic live in [frontend/src/ops/ganttUtils.ts](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/frontend/src/ops/ganttUtils.ts).
+- The current screen is implemented in [frontend/src/ops/GanttView.tsx](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/htc-erp/frontend/src/ops/GanttView.tsx).
+- Timeline helpers and date logic live in [frontend/src/ops/ganttUtils.ts](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/htc-erp/frontend/src/ops/ganttUtils.ts).
 - The current UI already supports:
   - monthly navigation
   - search
@@ -392,7 +392,7 @@ This phase should happen only after the team validates the value of phases 1 and
 
 - Keep backend API changes minimal for the initial rollout.
 - Prefer a frontend-derived ops model over embedding all operational logic directly in row rendering.
-- Avoid mixing risk calculation too deeply into presentation code in [frontend/src/ops/GanttView.tsx](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/crm-app/frontend/src/ops/GanttView.tsx).
+- Avoid mixing risk calculation too deeply into presentation code in [frontend/src/ops/GanttView.tsx](/C:/Users/dinghuy/OneDrive%20-%20HUYNH%20THY%20GROUP/Antigravity%20Workspace/htc-erp/frontend/src/ops/GanttView.tsx).
 - Consider extracting a dedicated derived-state layer for:
   - risk computation
   - owner workload computation
@@ -417,3 +417,4 @@ These areas are high risk because the screen can appear visually correct while s
 4. Risky items become easier to detect than in the current timeline-first design.
 5. The screen reduces unnecessary expand-and-scroll behavior through smarter presets and auto-expand logic.
 6. The design remains implementable in phased steps without requiring a full backend redesign.
+

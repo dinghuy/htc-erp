@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { getDb } from '../../../sqlite-db';
 import { canCreateSalesOrderFromQuotation } from '../../shared/workflow/revenueFlow';
 
 type TaskTemplate = {
@@ -49,12 +50,17 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
     normalizeProjectStage,
   } = deps;
 
+  function resolveDb(db: any) {
+    return db || getDb();
+  }
+
   async function autoCreateProjectForQuotation(db: any, payload: any, actorUserId: string | null) {
+    const database = resolveDb(db);
     const id = uuidv4();
     const nameSource = String(payload.subject || payload.quoteNumber || 'Untitled project').trim() || 'Untitled project';
     const projectStage = normalizeProjectStage(payload.projectStage, 'quoting');
-    const managerId = await resolveAssigneeId(db, payload.managerId, payload.salesperson, actorUserId);
-    await db.run(
+    const managerId = await resolveAssigneeId(database, payload.managerId, payload.salesperson, actorUserId);
+    await database.run(
       `INSERT INTO Project (id, code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -83,25 +89,26 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
       requestedAssigneeId?: unknown;
     }
   ) {
+    const database = resolveDb(db);
     const templates = TASK_TEMPLATE_LIBRARY[params.templateKey] || [];
     const createdTasks: any[] = [];
     for (const template of templates) {
       const dueDate = dueDateFromDays(template.dueInDays);
       const notes = `AUTO:project-template:${params.templateKey};projectId=${params.projectId};quotationId=${params.quotation?.id || ''};task=${template.taskType}`;
-      const existing = await db.get(`SELECT id FROM Task WHERE projectId = ? AND notes = ?`, [params.projectId, notes]);
+      const existing = await database.get(`SELECT id FROM Task WHERE projectId = ? AND notes = ?`, [params.projectId, notes]);
       if (existing?.id) {
-        const row = await getTaskWithLinksById(db, existing.id);
+        const row = await getTaskWithLinksById(database, existing.id);
         if (row) createdTasks.push(row);
         continue;
       }
       const assigneeId = await resolveAssigneeId(
-        db,
+        database,
         params.requestedAssigneeId,
         params.quotation?.salesperson,
         params.actorUserId
       );
       const id = uuidv4();
-      await db.run(
+      await database.run(
         `INSERT INTO Task (
           id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
           notes, accountId, leadId, quotationId, target, resultLinks, output, reportDate, taskType, department, blockedReason
@@ -130,7 +137,7 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
           null,
         ]
       );
-      const row = await getTaskWithLinksById(db, id);
+      const row = await getTaskWithLinksById(database, id);
       if (row) createdTasks.push(row);
     }
     return createdTasks;
@@ -145,11 +152,12 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
       actorUserId: string | null;
     }
   ) {
+    const database = resolveDb(db);
     const templates = APPROVAL_TEMPLATE_LIBRARY[params.templateKey] || [];
     const created: any[] = [];
     for (const template of templates) {
       const dedupeKey = `${template.requestType}:${params.projectId}:${params.quotation?.id || ''}:${template.approverRole}`;
-      const existing = await db.get(
+      const existing = await database.get(
         `SELECT * FROM ApprovalRequest
          WHERE projectId = ? AND IFNULL(quotationId, '') = IFNULL(?, '') AND requestType = ? AND approverRole = ?`,
         [params.projectId, params.quotation?.id || null, template.requestType, template.approverRole]
@@ -158,12 +166,12 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
         created.push(existing);
         continue;
       }
-      const approverUser = await db.get(
+      const approverUser = await database.get(
         `SELECT id, fullName FROM User WHERE LOWER(systemRole) = ? ORDER BY createdAt ASC LIMIT 1`,
         [String(template.approverRole).toLowerCase()]
       );
       const id = uuidv4();
-      await db.run(
+      await database.run(
         `INSERT INTO ApprovalRequest (
           id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -182,7 +190,7 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
           `AUTO:${dedupeKey}`,
         ]
       );
-      const row = await db.get(`SELECT * FROM ApprovalRequest WHERE id = ?`, [id]);
+      const row = await database.get(`SELECT * FROM ApprovalRequest WHERE id = ?`, [id]);
       if (row) created.push(row);
     }
     return created;
@@ -196,10 +204,11 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
       quotation: any | null;
     }
   ) {
+    const database = resolveDb(db);
     const templates = DOCUMENT_TEMPLATE_LIBRARY[params.templateKey] || [];
     const created: any[] = [];
     for (const template of templates) {
-      const existing = await db.get(
+      const existing = await database.get(
         `SELECT * FROM ProjectDocument
          WHERE projectId = ? AND documentCode = ? AND IFNULL(quotationId, '') = IFNULL(?, '')`,
         [params.projectId, template.documentCode, params.quotation?.id || null]
@@ -209,7 +218,7 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
         continue;
       }
       const id = uuidv4();
-      await db.run(
+      await database.run(
         `INSERT INTO ProjectDocument (
           id, projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -226,14 +235,15 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
           null,
         ]
       );
-      const row = await db.get(`SELECT * FROM ProjectDocument WHERE id = ?`, [id]);
+      const row = await database.get(`SELECT * FROM ProjectDocument WHERE id = ?`, [id]);
       if (row) created.push(row);
     }
     return created;
   }
 
   async function createSalesOrderFromQuotation(db: any, quotationId: string) {
-    const quotation = await db.get(`SELECT * FROM Quotation WHERE id = ?`, [quotationId]);
+    const database = resolveDb(db);
+    const quotation = await database.get(`SELECT * FROM Quotation WHERE id = ?`, [quotationId]);
     if (!quotation) {
       const err: any = new Error('Quotation not found');
       err.status = 404;
@@ -246,15 +256,15 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
       throw err;
     }
 
-    const existing = await db.get(`SELECT id FROM SalesOrder WHERE quotationId = ?`, [quotationId]);
+    const existing = await database.get(`SELECT id FROM SalesOrder WHERE quotationId = ?`, [quotationId]);
     if (existing?.id) {
-      const salesOrder = await db.get(`SELECT * FROM SalesOrder WHERE id = ?`, [existing.id]);
+      const salesOrder = await database.get(`SELECT * FROM SalesOrder WHERE id = ?`, [existing.id]);
       return { created: false, salesOrder };
     }
 
     const id = uuidv4();
     const orderNumber = `SO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${id.slice(0, 6).toUpperCase()}`;
-    await db.run(
+    await database.run(
       `INSERT INTO SalesOrder (
         id, orderNumber, quotationId, accountId, status, currency, items, subtotal, taxTotal, grandTotal, notes
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -272,17 +282,18 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
         `Created from quotation ${quotation.quoteNumber || quotationId}`,
       ]
     );
-    const salesOrder = await db.get(`SELECT * FROM SalesOrder WHERE id = ?`, [id]);
+    const salesOrder = await database.get(`SELECT * FROM SalesOrder WHERE id = ?`, [id]);
     return { created: true, salesOrder };
   }
 
   async function resolveProjectHandoffQuotation(db: any, projectId: string, preferredQuotationId?: string | null) {
+    const database = resolveDb(db);
     if (preferredQuotationId) {
-      const requested = await db.get(`SELECT * FROM Quotation WHERE id = ? AND projectId = ?`, [preferredQuotationId, projectId]);
+      const requested = await database.get(`SELECT * FROM Quotation WHERE id = ? AND projectId = ?`, [preferredQuotationId, projectId]);
       if (requested) return requested;
     }
 
-    const winning = await db.get(
+    const winning = await database.get(
       `SELECT *
        FROM Quotation
        WHERE projectId = ? AND isWinningVersion = 1
@@ -292,7 +303,7 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
     );
     if (winning) return winning;
 
-    const accepted = await db.get(
+    const accepted = await database.get(
       `SELECT *
        FROM Quotation
        WHERE projectId = ? AND LOWER(IFNULL(status, '')) IN ('won', 'accepted')
@@ -302,7 +313,7 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
     );
     if (accepted) return accepted;
 
-    return db.get(
+    return database.get(
       `SELECT *
        FROM Quotation
        WHERE projectId = ?

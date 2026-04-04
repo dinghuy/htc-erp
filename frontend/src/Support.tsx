@@ -3,6 +3,7 @@ import { API_BASE } from './config';
 import { fetchWithAuth } from './auth';
 import { showNotify } from './Notification';
 import { buildRoleProfile } from './shared/domain/contracts';
+import { buildSupportTicketPrimaryAction, canManageSupportTicket } from './support/supportTicketActions';
 import { OverlayModal } from './ui/OverlayModal';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
@@ -33,6 +34,13 @@ type SupportTicket = {
   updatedByName?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  actionAvailability?: {
+    supportTab?: string | null;
+    canOpenTicket?: boolean;
+    canManageTicket?: boolean;
+    primaryActionLabel?: string | null;
+    blockers?: string[];
+  } | null;
 };
 
 type HelpArticle = {
@@ -201,7 +209,7 @@ function statusBadge(status: string) {
   return ui.badge[meta.tone];
 }
 
-export function Support({ isMobile, currentUser }: { isMobile?: boolean; currentUser?: any } = {}) {
+export function Support({ isMobile, currentUser, onNavigate }: { isMobile?: boolean; currentUser?: any; onNavigate?: (route: string) => void } = {}) {
   const profile = buildRoleProfile(currentUser?.roleCodes, currentUser?.systemRole);
   const helpCopy = ROLE_HELP_COPY[profile.personaMode] || ROLE_HELP_COPY.viewer;
   const recommendedArticleOrder = [
@@ -514,6 +522,8 @@ export function Support({ isMobile, currentUser }: { isMobile?: boolean; current
               responseNote: ticket.responseNote || '',
               saving: false,
             };
+            const primaryAction = buildSupportTicketPrimaryAction(ticket);
+            const canManageTicket = canManageSupportTicket(ticket);
 
             return (
               <div key={ticket.id} style={{ padding: '18px', borderRadius: tokens.radius.lg, background: tokens.colors.background, border: `1px solid ${tokens.colors.border}`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -525,12 +535,40 @@ export function Support({ isMobile, currentUser }: { isMobile?: boolean; current
                       {ticket.createdByName || 'Không rõ người gửi'} · {formatDateTime(ticket.createdAt)}
                     </div>
                   </div>
-                  <span style={statusBadge(ticket.status)}>{STATUS_META[ticket.status]?.label || ticket.status}</span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {ticket.actionAvailability?.supportTab ? (
+                      <span style={{ ...ui.badge.info }}>Tab {ticket.actionAvailability.supportTab}</span>
+                    ) : null}
+                    <span style={statusBadge(ticket.status)}>{STATUS_META[ticket.status]?.label || ticket.status}</span>
+                  </div>
                 </div>
 
                 <div style={{ fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.65, whiteSpace: 'pre-wrap' as const }}>
                   {ticket.description}
                 </div>
+
+                {ticket.actionAvailability?.blockers?.length ? (
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {ticket.actionAvailability.blockers.map((blocker) => (
+                      <span
+                        key={blocker}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 10px',
+                          borderRadius: '999px',
+                          background: tokens.colors.warningSurfaceBg,
+                          color: tokens.colors.warningSurfaceText,
+                          fontSize: '11px',
+                          fontWeight: 800,
+                        }}
+                      >
+                        {blocker}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
 
                 {ticket.responseNote && !isPrivileged && (
                   <div style={{ padding: '14px 16px', borderRadius: tokens.radius.lg, background: tokens.colors.surface, border: `1px solid ${tokens.colors.border}` }}>
@@ -544,7 +582,7 @@ export function Support({ isMobile, currentUser }: { isMobile?: boolean; current
                   </div>
                 )}
 
-                {isPrivileged && (
+                {canManageTicket && (
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '160px minmax(0, 1fr)', gap: '12px', alignItems: 'start' }}>
                     <select
                       value={draft.status}
@@ -571,17 +609,46 @@ export function Support({ isMobile, currentUser }: { isMobile?: boolean; current
                       <div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>
                         {ticket.updatedByName ? `Lần cập nhật gần nhất: ${ticket.updatedByName} · ${formatDateTime(ticket.updatedAt)}` : 'Chưa có phản hồi nội bộ.'}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void saveAdminUpdate(ticket.id)}
-                        disabled={!!draft.saving}
-                        style={{ ...ui.btn.primary, opacity: draft.saving ? 0.72 : 1 }}
-                      >
-                        {draft.saving ? 'Đang lưu...' : 'Cập nhật ticket'}
-                      </button>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        {primaryAction ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSupportTab(primaryAction.tab);
+                              onNavigate?.(primaryAction.route);
+                            }}
+                            style={ui.btn.outline}
+                          >
+                            {primaryAction.label}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => void saveAdminUpdate(ticket.id)}
+                          disabled={!!draft.saving}
+                          style={{ ...ui.btn.primary, opacity: draft.saving ? 0.72 : 1 }}
+                        >
+                          {draft.saving ? 'Đang lưu...' : 'Cập nhật ticket'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
+
+                {!canManageTicket && primaryAction ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveSupportTab(primaryAction.tab);
+                        onNavigate?.(primaryAction.route);
+                      }}
+                      style={ui.btn.outline}
+                    >
+                      {primaryAction.label}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             );
           })}

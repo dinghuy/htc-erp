@@ -1,8 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../../../sqlite-db';
-import { enqueueErpEvent } from '../../../erp-sync';
-import { canCompleteDelivery, canStartLogisticsExecution } from '../../shared/workflow/revenueFlow';
+import { canStartLogisticsExecution } from '../../shared/workflow/revenueFlow';
 import { finalizeDeliveryCompletion } from './deliveryCompletion';
 import { createProjectRepository } from './repository';
 
@@ -19,6 +17,7 @@ type RegisterProjectLogisticsRoutesDeps = {
   mapProjectInboundLineRow: (row: any) => any;
   mapProjectDeliveryLineRow: (row: any) => any;
   createProjectTimelineEvent: (db: any, event: any) => Promise<any>;
+  getProjectWorkspaceById: (db: any, projectId: string, currentUser?: any) => Promise<any>;
 };
 
 export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProjectLogisticsRoutesDeps) {
@@ -33,6 +32,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     mapProjectInboundLineRow,
     mapProjectDeliveryLineRow,
     createProjectTimelineEvent,
+    getProjectWorkspaceById,
   } = deps;
   const projectRepository = createProjectRepository();
   const STAGE_PRIORITY: Record<string, number> = {
@@ -62,6 +62,24 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     return { ok: true as const, salesOrder: latestSalesOrder };
   }
 
+  async function ensureLogisticsReadiness(projectId: string, currentUser: any) {
+    const workspace = await getProjectWorkspaceById(null, projectId, currentUser);
+    const projectActions = workspace?.actionAvailability?.project;
+    if (!projectActions?.canRecordLogistics) {
+      return {
+        ok: false as const,
+        httpStatus: 409,
+        error:
+          Array.isArray(projectActions?.logisticsBlockers) && projectActions.logisticsBlockers.length
+            ? projectActions.logisticsBlockers[0]
+            : 'Workspace chưa sẵn sàng để ghi nhận logistics',
+        code: 'LOGISTICS_READINESS_BLOCKED',
+        blockers: projectActions?.logisticsBlockers || [],
+      };
+    }
+    return { ok: true as const };
+  }
+
   async function promoteProjectStage(projectId: string, targetStage: string) {
     const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return;
@@ -78,6 +96,8 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     const lineId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const existing = await projectRepository.findProcurementLineById(lineId);
     if (!existing) return res.status(404).json({ error: 'Procurement line not found' });
+    const readiness = await ensureLogisticsReadiness(existing.projectId, (req as any).user);
+    if (!readiness.ok) return res.status(readiness.httpStatus).json({ error: readiness.error, code: readiness.code, blockers: readiness.blockers });
 
     await projectRepository.updateProcurementLineById({
       id: lineId,
@@ -111,6 +131,8 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const releaseCheck = await ensureReleasedExecutionOrder(projectId);
     if (!releaseCheck.ok) return res.status(releaseCheck.httpStatus).json({ error: releaseCheck.error });
+    const readiness = await ensureLogisticsReadiness(projectId, (req as any).user);
+    if (!readiness.ok) return res.status(readiness.httpStatus).json({ error: readiness.error, code: readiness.code, blockers: readiness.blockers });
     const procurementLineId = projectHubText(req.body?.procurementLineId);
     if (!procurementLineId) return res.status(400).json({ error: 'procurementLineId is required' });
     const procurementLine = await projectRepository.findProcurementLineByIdForProject(procurementLineId, projectId);
@@ -156,6 +178,8 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     if (!existing) return res.status(404).json({ error: 'Inbound line not found' });
     const releaseCheck = await ensureReleasedExecutionOrder(existing.projectId);
     if (!releaseCheck.ok) return res.status(releaseCheck.httpStatus).json({ error: releaseCheck.error });
+    const readiness = await ensureLogisticsReadiness(existing.projectId, (req as any).user);
+    if (!readiness.ok) return res.status(readiness.httpStatus).json({ error: readiness.error, code: readiness.code, blockers: readiness.blockers });
 
     const procurementLineId = projectHubText(req.body?.procurementLineId) || existing.procurementLineId;
     const procurementLine = await projectRepository.findProcurementLineByIdForProject(procurementLineId, existing.projectId);
@@ -196,6 +220,8 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const releaseCheck = await ensureReleasedExecutionOrder(projectId);
     if (!releaseCheck.ok) return res.status(releaseCheck.httpStatus).json({ error: releaseCheck.error });
+    const readiness = await ensureLogisticsReadiness(projectId, (req as any).user);
+    if (!readiness.ok) return res.status(readiness.httpStatus).json({ error: readiness.error, code: readiness.code, blockers: readiness.blockers });
     const procurementLineId = projectHubText(req.body?.procurementLineId);
     if (!procurementLineId) return res.status(400).json({ error: 'procurementLineId is required' });
     const procurementLine = await projectRepository.findProcurementLineByIdForProject(procurementLineId, projectId);
@@ -241,6 +267,8 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     if (!existing) return res.status(404).json({ error: 'Delivery line not found' });
     const releaseCheck = await ensureReleasedExecutionOrder(existing.projectId);
     if (!releaseCheck.ok) return res.status(releaseCheck.httpStatus).json({ error: releaseCheck.error });
+    const readiness = await ensureLogisticsReadiness(existing.projectId, (req as any).user);
+    if (!readiness.ok) return res.status(readiness.httpStatus).json({ error: readiness.error, code: readiness.code, blockers: readiness.blockers });
 
     const procurementLineId = projectHubText(req.body?.procurementLineId) || existing.procurementLineId;
     const procurementLine = await projectRepository.findProcurementLineByIdForProject(procurementLineId, existing.projectId);
@@ -278,26 +306,31 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
   }));
 
   app.post('/api/projects/:id/delivery-completion', requireAuth, requireRole('admin', 'sales', 'director'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
+    const workspace = await getProjectWorkspaceById(null, projectId, (req as any).user);
+    const projectActions = workspace?.actionAvailability?.project;
+    if (!projectActions?.canFinalizeDeliveryCompletion) {
+      return res.status(409).json({
+        error: Array.isArray(projectActions?.blockers) && projectActions.blockers.length
+          ? projectActions.blockers[0]
+          : 'Workspace chưa sẵn sàng để finalize delivery',
+        code: 'DELIVERY_COMPLETION_READINESS_BLOCKED',
+        blockers: projectActions?.blockers || [],
+      });
+    }
+
     const releaseCheck = await ensureReleasedExecutionOrder(projectId);
     if (!releaseCheck.ok) return res.status(releaseCheck.httpStatus).json({ error: releaseCheck.error });
-    const approvedCompletionRequest = await db.get(
-      `SELECT * FROM ApprovalRequest
-       WHERE projectId = ? AND requestType = 'delivery_completion' AND status = 'approved'
-       ORDER BY COALESCE(decidedAt, updatedAt, createdAt) DESC
-       LIMIT 1`,
-      [projectId],
-    );
+    const approvedCompletionRequest = await projectRepository.findLatestApprovalRequest(projectId, 'delivery_completion', 'approved');
     if (!approvedCompletionRequest) {
       return res.status(409).json({ error: 'Approved delivery completion request is required before finalizing delivery', code: 'DELIVERY_COMPLETION_APPROVAL_REQUIRED' });
     }
 
     const completion = await finalizeDeliveryCompletion({
-      db,
+      db: null,
       projectRepository,
       projectId,
       actorUserId: getCurrentUserId(req) || null,

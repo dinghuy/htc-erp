@@ -37,11 +37,11 @@ describe('navContext', () => {
   });
 
   it('consumes the matching route context once', () => {
-    setNavContext({ route: 'Projects', filters: { workspaceTab: 'commercial' } });
+    setNavContext({ route: 'Projects', filters: { workspaceTab: 'commercial', documentId: 'doc-1', approvalId: 'approval-1', openThread: true } as any });
 
     expect(consumeNavContext('Projects')).toMatchObject({
       route: 'Projects',
-      filters: { workspaceTab: 'commercial' },
+      filters: { workspaceTab: 'commercial', documentId: 'doc-1', approvalId: 'approval-1', openThread: true },
     });
     expect(consumeNavContext('Projects')).toBeNull();
   });

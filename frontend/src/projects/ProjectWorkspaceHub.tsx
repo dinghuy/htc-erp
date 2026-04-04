@@ -28,6 +28,7 @@ import {
   BlockerEditorModal,
   ContractEditorModal,
   DocumentChecklistEditorModal,
+  DocumentThreadModal,
   MilestoneEditorModal,
   MoveLineEditorModal,
   ProcurementEditorModal,
@@ -35,6 +36,9 @@ import {
 import { buildWorkspaceActionAccess, buildWorkspacePreviewNotice } from './workspacePermissions';
 import { buildWorkspaceHeroPlan } from './workspaceHeroActions';
 import { buildWorkspacePhaseReadiness } from './workspacePhaseReadiness';
+import { buildWorkspaceSummaryKpis, mergeWorkspaceSummary } from './workspaceSummaryData';
+import { buildDocumentThreadSummary } from './documentThreadData';
+import { collectProjectActivityStream } from './projectActivityStreamData';
 
 const API = API_BASE;
 
@@ -93,7 +97,7 @@ function statusBadgeStyle(status?: string): any {
     display: 'inline-block'
   };
   switch (status) {
-    case 'active': return { ...base, background: '#e8f4fd', color: 'var(--ht-green)' };
+    case 'active': return { ...base, background: tokens.colors.infoAccentBg, color: tokens.colors.primary };
     case 'completed':
     case 'signed':
     case 'effective': return { ...base, ...ui.badge.success };
@@ -116,7 +120,7 @@ function projectStageBadgeStyle(stage?: string): any {
   switch (stage) {
     case 'won': return { ...base, ...ui.badge.success };
     case 'lost': return { ...base, ...ui.badge.error };
-    case 'delivery': return { ...base, background: '#ede9fe', color: '#6d28d9' };
+    case 'delivery': return { ...base, background: tokens.colors.violetStrongBg, color: tokens.colors.violetStrongText };
     default: return { ...base, ...ui.badge.neutral };
   }
 }
@@ -172,7 +176,7 @@ function WorkspaceHeroActionBar({
         display: 'grid',
         gap: '16px',
         border: `1px solid ${tokens.colors.border}`,
-        background: 'linear-gradient(135deg, rgba(0, 151, 110, 0.10) 0%, rgba(0, 77, 53, 0.04) 56%, rgba(255,255,255,1) 100%)',
+        background: tokens.surface.heroGradient,
       }}
     >
       <div style={{ display: 'grid', gap: '8px' }}>
@@ -218,6 +222,47 @@ function GateStatusBadge({ status }: { status?: string | null }) {
   if (normalized === 'changes_requested') return <span style={ui.badge.info}>cần chỉnh sửa</span>;
   if (normalized === 'rejected') return <span style={ui.badge.error}>bị từ chối</span>;
   return <span style={ui.badge.neutral}>chưa yêu cầu</span>;
+}
+
+function HandoffActivationPanel({ handoffActivation }: { handoffActivation?: any }) {
+  if (!handoffActivation) return null;
+
+  const status = String(handoffActivation.status || '').trim().toLowerCase();
+  const badge =
+    status === 'ready_to_create_sales_order'
+      ? { label: 'Sẵn sàng tạo SO', style: ui.badge.info }
+      : status === 'awaiting_release_approval'
+        ? { label: 'Chờ duyệt release', style: ui.badge.warning }
+        : status === 'ready_to_release'
+          ? { label: 'Sẵn sàng release', style: ui.badge.success }
+          : status === 'activated'
+            ? { label: 'Handoff đã kích hoạt', style: ui.badge.success }
+            : { label: 'Handoff bị chặn', style: ui.badge.error };
+  const blockers = Array.isArray(handoffActivation.blockers) ? handoffActivation.blockers.filter(Boolean) : [];
+
+  return (
+    <div style={{ ...ui.card.base, padding: '18px', display: 'grid', gap: '10px', border: `1px solid ${tokens.colors.border}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Trạng thái handoff
+          </div>
+          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, marginTop: '4px' }}>
+            Một nguồn sự thật cho bước kế tiếp từ báo giá thắng sang execution.
+          </div>
+        </div>
+        <span style={badge.style}>{badge.label}</span>
+      </div>
+      <div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.textPrimary }}>
+        {handoffActivation.nextActionLabel || 'Rà trạng thái handoff'}
+      </div>
+      {blockers.length ? (
+        <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>
+          {blockers[0]}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function WorkflowGatesSection({
@@ -366,7 +411,7 @@ function PhaseControlSection({
           </div>
           <div style={{ display: 'grid', gap: '10px' }}>
             {readiness.blockers.map((blocker) => (
-              <div key={blocker.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center', background: blocker.tone === 'danger' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(245, 158, 11, 0.06)' }}>
+              <div key={blocker.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center', background: blocker.tone === 'danger' ? tokens.colors.badgeBgError : tokens.colors.warningTint }}>
                 <div style={{ display: 'grid', gap: '4px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{blocker.title}</div>
                   <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>{blocker.detail}</div>
@@ -391,6 +436,8 @@ export function ProjectWorkspaceHubModal({
   token,
   currentUser,
   initialTab,
+  focusDocumentId,
+  openDocumentThreadOnMount,
   accounts,
   onClose,
   onNavigate,
@@ -400,6 +447,8 @@ export function ProjectWorkspaceHubModal({
   token: string;
   currentUser: CurrentUser;
   initialTab?: ProjectWorkspaceTabKey;
+  focusDocumentId?: string;
+  openDocumentThreadOnMount?: boolean;
   accounts: any[];
   onClose: () => void;
   onNavigate?: (route: string) => void;
@@ -417,24 +466,35 @@ export function ProjectWorkspaceHubModal({
   const [deliveryEditor, setDeliveryEditor] = useState<any | null>(null);
   const [milestoneEditor, setMilestoneEditor] = useState<any | null>(null);
   const [documentEditor, setDocumentEditor] = useState<any | null>(null);
+  const [documentThread, setDocumentThread] = useState<any | null>(null);
+  const [documentThreadMessages, setDocumentThreadMessages] = useState<any[]>([]);
+  const [documentThreadDraft, setDocumentThreadDraft] = useState('');
   const [blockerEditor, setBlockerEditor] = useState<any | null>(null);
   const [auditTrailItem, setAuditTrailItem] = useState<any | null>(null);
+  const [activityStream, setActivityStream] = useState<any[]>([]);
 
   const loadWorkspace = async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await requestJsonWithAuth<any>(token, `${API}/projects/${projectId}`, {}, 'Không thể tải workspace dự án');
+      const [data, summary, activityStreamPayload] = await Promise.all([
+        requestJsonWithAuth<any>(token, `${API}/projects/${projectId}`, {}, 'Không thể tải workspace dự án'),
+        requestJsonWithAuth<any>(token, `${API}/v1/projects/${projectId}/workspace`, {}, 'Không thể tải summary workspace dự án').catch(() => null),
+        requestJsonWithAuth<any>(token, `${API}/v1/projects/${projectId}/activities?limit=40`, {}, 'Không thể tải activity stream dự án').catch(() => ({ items: [] })),
+      ]);
       if (!data?.id) {
         setWorkspace(null);
+        setActivityStream([]);
         showNotify('Dự án không còn tồn tại hoặc không thể truy cập', 'error');
         onUnavailable?.(projectId);
         onClose();
         return;
       }
-      setWorkspace(data);
+      setWorkspace(mergeWorkspaceSummary(data, summary));
+      setActivityStream(collectProjectActivityStream(activityStreamPayload));
     } catch (error: any) {
       setWorkspace(null);
+      setActivityStream([]);
       setLoadError(error?.message || 'Không thể tải workspace dự án');
       showNotify(error?.message || 'Lỗi tải workspace dự án', 'error');
     } finally {
@@ -451,6 +511,15 @@ export function ProjectWorkspaceHubModal({
       setTab(initialTab);
     }
   }, [initialTab, projectId]);
+
+  useEffect(() => {
+    if (!workspace || !focusDocumentId || !openDocumentThreadOnMount) return;
+    const documents = ensureArray(workspace.documents);
+    const target = documents.find((document: any) => document.id === focusDocumentId);
+    if (!target) return;
+    setTab('documents');
+    void openDocumentThread(target);
+  }, [workspace, focusDocumentId, openDocumentThreadOnMount]);
 
   const visibleTabs = getProjectWorkspaceTabsForRoles(currentUser.roleCodes, currentUser.systemRole);
   const workspaceActionAccess = buildWorkspaceActionAccess(currentUser.roleCodes, currentUser.systemRole);
@@ -544,6 +613,7 @@ export function ProjectWorkspaceHubModal({
     unorderedCount: unorderedLines.length,
     pendingMilestoneCount: pendingMilestones.length,
   });
+  const workHubSummaryKpis = buildWorkspaceSummaryKpis(workspace?.workHubSummary);
 
   const denyWorkspaceAction = (message: string) => {
     showNotify(message, 'error');
@@ -675,7 +745,30 @@ export function ProjectWorkspaceHubModal({
       requiredAtStage: value?.requiredAtStage || workspace?.projectStage || '',
       receivedAt: value?.receivedAt || '',
       note: value?.note || '',
+      reviewStatus: value?.reviewStatus || 'draft',
+      reviewerUserId: value?.reviewerUserId || '',
+      reviewNote: value?.reviewNote || '',
+      storageKey: value?.storageKey || '',
+      threadId: value?.threadId || '',
     });
+  };
+
+  const openDocumentThread = async (document: any) => {
+    try {
+      const threadPayload = await requestJsonWithAuth<any>(token, `${API}/v1/threads?entityType=ProjectDocument&entityId=${document.id}`, {}, 'Không thể tải thread hồ sơ');
+      const threadId = threadPayload?.items?.[0]?.id;
+      const messagesPayload = threadId
+        ? await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, {}, 'Không thể tải messages thread')
+        : { items: [] };
+      setDocumentThread({
+        document,
+        threadSummary: buildDocumentThreadSummary({ threadPayload, messagesPayload }),
+      });
+      setDocumentThreadMessages(Array.isArray(messagesPayload?.items) ? messagesPayload.items : []);
+      setDocumentThreadDraft('');
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể tải thread hồ sơ', 'error');
+    }
   };
 
   const openBlockerEditor = (value: any) => {
@@ -848,8 +941,30 @@ export function ProjectWorkspaceHubModal({
       const url = isEdit ? `${API}/project-documents/${documentEditor.id}` : `${API}/projects/${projectId}/documents`;
       await requestJsonWithAuth(token, url, {
         method: isEdit ? 'PATCH' : 'POST',
-        body: JSON.stringify(documentEditor),
+        body: JSON.stringify({
+          quotationId: documentEditor.quotationId,
+          documentCode: documentEditor.documentCode,
+          documentName: documentEditor.documentName,
+          category: documentEditor.category,
+          department: documentEditor.department,
+          status: documentEditor.status,
+          requiredAtStage: documentEditor.requiredAtStage,
+          receivedAt: documentEditor.receivedAt,
+          note: documentEditor.note,
+        }),
       }, 'Không thể lưu checklist hồ sơ');
+      if (isEdit) {
+        await requestJsonWithAuth(token, `${API}/project-documents/${documentEditor.id}/review-state`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            reviewStatus: documentEditor.reviewStatus,
+            reviewerUserId: documentEditor.reviewerUserId || null,
+            reviewNote: documentEditor.reviewNote || null,
+            storageKey: documentEditor.storageKey || null,
+            threadId: documentEditor.threadId || null,
+          }),
+        }, 'Không thể lưu review state hồ sơ');
+      }
       showNotify(isEdit ? 'Đã cập nhật checklist hồ sơ' : 'Đã thêm checklist hồ sơ', 'success');
       setDocumentEditor(null);
       setTab('documents');
@@ -883,6 +998,60 @@ export function ProjectWorkspaceHubModal({
     }
   };
 
+  const sendDocumentThreadMessage = async () => {
+    if (!documentThread?.document?.id) return;
+    const content = String(documentThreadDraft || '').trim();
+    if (!content) return showNotify('Thiếu nội dung thread', 'error');
+    setBusy('document-thread-send');
+    try {
+      let threadId = documentThread.threadSummary?.threadId;
+      if (!threadId) {
+        const createdThread = await requestJsonWithAuth<any>(token, `${API}/v1/threads`, {
+          method: 'POST',
+          body: JSON.stringify({
+            entityType: 'ProjectDocument',
+            entityId: documentThread.document.id,
+            title: documentThread.document.documentName || documentThread.document.documentCode || 'Document thread',
+          }),
+        }, 'Không thể tạo thread hồ sơ');
+        threadId = createdThread.id;
+      }
+      await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      }, 'Không thể gửi message thread');
+      await openDocumentThread(documentThread.document);
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể gửi message thread', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const quickReviewDocument = async (document: any, nextStatus: 'in_review' | 'changes_requested' | 'approved') => {
+    if (!document?.id) return;
+    if (!workspaceActionAccess.canReviewDocuments) return denyWorkspaceAction('Vai trò hiện tại chỉ được xem checklist hồ sơ');
+    setBusy('document-quick-review');
+    try {
+      await requestJsonWithAuth(token, `${API}/project-documents/${document.id}/review-state`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          reviewStatus: nextStatus,
+          reviewerUserId: currentUser.id,
+          reviewNote: document.reviewNote || null,
+          storageKey: document.storageKey || null,
+          threadId: document.threadId || null,
+        }),
+      }, 'Không thể cập nhật review state');
+      showNotify('Đã cập nhật review state hồ sơ', 'success');
+      await loadWorkspace();
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể cập nhật review state', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <Modal title="Không gian dự án" onClose={onClose}>
       <div data-testid={QA_TEST_IDS.workspace.modal} style={{ display: 'contents' }}>
@@ -906,20 +1075,43 @@ export function ProjectWorkspaceHubModal({
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
-              <KpiCard label="Phiên bản báo giá" value={quotationVersions.length} accent={tokens.colors.primary} />
-              <KpiCard label="Vòng QBU" value={qbuRounds.length} accent={tokens.colors.info} />
-              <KpiCard label="Phiên bản baseline" value={executionBaselines.length} accent={tokens.colors.success} />
-              <KpiCard label="Mua hàng đang chạy" value={activeProcurementLines.length} accent={tokens.colors.warning} />
-              <KpiCard label="Sự kiện inbound" value={inboundLines.length} accent={tokens.colors.info} />
-              <KpiCard label="Sự kiện giao hàng" value={deliveryLines.length} accent={tokens.colors.success} />
-              <KpiCard label="Blocker register" value={ensureArray(workspace?.blockerRegister).length} accent={tokens.colors.error} />
-              <KpiCard label="Audit trail" value={ensureArray(workspace?.auditTrail).length} accent={tokens.colors.textPrimary} />
+              {workHubSummaryKpis.length > 0 ? (
+                workHubSummaryKpis.map((item) => (
+                  <KpiCard
+                    key={item.label}
+                    label={item.label}
+                    value={item.value}
+                    accent={
+                      item.accentToken === 'danger'
+                        ? tokens.colors.error
+                        : item.accentToken === 'warning'
+                          ? tokens.colors.warning
+                          : item.accentToken === 'success'
+                            ? tokens.colors.success
+                            : tokens.colors.info
+                    }
+                  />
+                ))
+              ) : (
+                <>
+                  <KpiCard label="Phiên bản báo giá" value={quotationVersions.length} accent={tokens.colors.primary} />
+                  <KpiCard label="Vòng QBU" value={qbuRounds.length} accent={tokens.colors.info} />
+                  <KpiCard label="Phiên bản baseline" value={executionBaselines.length} accent={tokens.colors.success} />
+                  <KpiCard label="Mua hàng đang chạy" value={activeProcurementLines.length} accent={tokens.colors.warning} />
+                  <KpiCard label="Sự kiện inbound" value={inboundLines.length} accent={tokens.colors.info} />
+                  <KpiCard label="Sự kiện giao hàng" value={deliveryLines.length} accent={tokens.colors.success} />
+                  <KpiCard label="Blocker register" value={ensureArray(workspace?.blockerRegister).length} accent={tokens.colors.error} />
+                  <KpiCard label="Audit trail" value={ensureArray(workspace?.auditTrail).length} accent={tokens.colors.textPrimary} />
+                </>
+              )}
             </div>
           </div>
 
           <WorkspaceHeroActionBar plan={workspaceHeroPlan} onRunAction={runHeroAction} />
 
           <PhaseControlSection readiness={phaseReadiness} onRunAction={runHeroAction} />
+
+          <HandoffActivationPanel handoffActivation={workspace.handoffActivation} />
 
           <div style={{ ...ui.card.base, padding: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {visibleTabs.map((item) => <button key={item.key} data-testid={workspaceTabTestId(item.key)} type="button" style={S.tabBtn(tab === item.key)} onClick={() => setTab(item.key)}>{item.label}</button>)}
@@ -946,7 +1138,7 @@ export function ProjectWorkspaceHubModal({
                 display: 'grid',
                 gap: '6px',
                 borderColor: previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary,
-                background: previewNotice.tone === 'warning' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(0, 151, 110, 0.08)',
+                background: previewNotice.tone === 'warning' ? tokens.colors.warningTint : tokens.colors.infoBg,
               }}
             >
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -982,9 +1174,9 @@ export function ProjectWorkspaceHubModal({
 
           {tab === 'tasks' ? <ProjectTasksTab workspace={workspace} milestones={milestones} goToRoute={goToRoute} projectId={projectId} /> : null}
 
-          {tab === 'timeline' ? <TimelineTab milestones={milestones} timeline={timeline} setMilestoneEditor={openMilestoneEditor} canEditTimeline={workspaceActionAccess.canEditTimeline} /> : null}
+          {tab === 'timeline' ? <TimelineTab milestones={milestones} timeline={timeline} activityStream={activityStream} setMilestoneEditor={openMilestoneEditor} canEditTimeline={workspaceActionAccess.canEditTimeline} /> : null}
 
-          {tab === 'documents' ? <DocumentsTab workspace={workspace} canEditDocuments={workspaceActionAccess.canReviewDocuments} openDocumentEditor={openDocumentEditor} openBlockerEditor={openBlockerEditor} openAuditItem={openAuditItem} onRunAction={runHeroAction} /> : null}
+          {tab === 'documents' ? <DocumentsTab workspace={workspace} canEditDocuments={workspaceActionAccess.canReviewDocuments} reviewerRoleCodes={currentUser.roleCodes} openDocumentEditor={openDocumentEditor} openBlockerEditor={openBlockerEditor} openAuditItem={openAuditItem} onRunAction={runHeroAction} onOpenThread={openDocumentThread} onQuickReviewAction={quickReviewDocument} /> : null}
         </div>
       )}
       </div>
@@ -995,6 +1187,7 @@ export function ProjectWorkspaceHubModal({
       {deliveryEditor ? <MoveLineEditorModal value={deliveryEditor} procurementLines={deliveryEditorProcurementLines} onChange={setDeliveryEditor} onClose={() => setDeliveryEditor(null)} onSave={() => saveMoveLine('delivery')} saving={busy === 'delivery-save'} type="delivery" /> : null}
       {milestoneEditor ? <MilestoneEditorModal value={milestoneEditor} onChange={setMilestoneEditor} onClose={() => setMilestoneEditor(null)} onSave={saveMilestone} saving={busy === 'milestone-save'} /> : null}
       {documentEditor ? <DocumentChecklistEditorModal value={documentEditor} onChange={setDocumentEditor} onClose={() => setDocumentEditor(null)} onSave={saveDocumentChecklist} saving={busy === 'document-save'} /> : null}
+      {documentThread ? <DocumentThreadModal document={documentThread.document} threadSummary={documentThread.threadSummary} messages={documentThreadMessages} draft={documentThreadDraft} onDraftChange={setDocumentThreadDraft} onSend={sendDocumentThreadMessage} onClose={() => { setDocumentThread(null); setDocumentThreadMessages([]); setDocumentThreadDraft(''); }} saving={busy === 'document-thread-send'} /> : null}
       {blockerEditor ? <BlockerEditorModal value={blockerEditor} onChange={setBlockerEditor} onClose={() => setBlockerEditor(null)} onSave={saveBlocker} saving={busy === 'blocker-save'} /> : null}
       {auditTrailItem ? <AuditTrailDetailModal item={auditTrailItem} onClose={() => setAuditTrailItem(null)} /> : null}
     </Modal>

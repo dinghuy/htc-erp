@@ -271,8 +271,8 @@ function getVideoUploadModeBadge(video: ProductVideoAsset) {
     case 'transcoded':
       return {
         label: 'Da chuan hoa',
-        background: 'rgba(16, 185, 129, 0.14)',
-        border: 'rgba(16, 185, 129, 0.32)',
+        background: tokens.colors.successTint,
+        border: tokens.colors.badgeBgSuccess,
         color: tokens.colors.success,
       };
     case 'direct-mp4':
@@ -285,9 +285,9 @@ function getVideoUploadModeBadge(video: ProductVideoAsset) {
     case 'external-url':
       return {
         label: 'URL ngoai',
-        background: 'rgba(245, 158, 11, 0.12)',
-        border: 'rgba(245, 158, 11, 0.26)',
-        color: '#f59e0b',
+        background: tokens.colors.warningBg,
+        border: tokens.colors.warningBorder,
+        color: tokens.colors.warning,
       };
     default:
       return null;
@@ -991,6 +991,10 @@ function DetailField({
   );
 }
 
+const PRODUCT_DETAIL_PANEL_BG = tokens.surface.panelGradient;
+const PRODUCT_DETAIL_HERO_BG = tokens.surface.heroGradient;
+const PRODUCT_DETAIL_SURFACE_BG = tokens.colors.surfaceSubtle;
+
 function DetailSection({
   title,
   subtitle,
@@ -1004,8 +1008,7 @@ function DetailSection({
     <section
       style={{
         ...ui.card.base,
-        background:
-          'linear-gradient(180deg, rgba(15, 23, 42, 0.72) 0%, rgba(15, 23, 42, 0.9) 100%)',
+        background: PRODUCT_DETAIL_PANEL_BG,
         boxShadow: 'none',
         display: 'grid',
         gap: '16px',
@@ -1040,7 +1043,7 @@ function EmptyAssetState({ title, description }: { title: string; description: s
       style={{
         borderRadius: '18px',
         border: `1px dashed ${tokens.colors.border}`,
-        background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.72) 0%, rgba(2, 6, 23, 0.3) 100%)',
+        background: PRODUCT_DETAIL_PANEL_BG,
         padding: '24px 20px',
         display: 'grid',
         gap: '10px',
@@ -1055,7 +1058,7 @@ function EmptyAssetState({ title, description }: { title: string; description: s
           borderRadius: '16px',
           display: 'grid',
           placeItems: 'center',
-          background: 'rgba(16, 185, 129, 0.12)',
+          background: tokens.colors.successTint,
           border: `1px solid ${tokens.colors.border}`,
           color: tokens.colors.primary,
           fontSize: '12px',
@@ -1112,7 +1115,7 @@ function ProductImagePreviewCard({
         borderRadius: '16px',
         overflow: 'hidden',
         border: selected ? `1px solid ${tokens.colors.primary}` : `1px solid ${tokens.colors.border}`,
-        background: 'rgba(2, 6, 23, 0.56)',
+        background: PRODUCT_DETAIL_SURFACE_BG,
         padding: '0',
         cursor: onClick ? 'pointer' : 'default',
         textAlign: 'left',
@@ -1126,7 +1129,7 @@ function ProductImagePreviewCard({
       <img
         src={resolveAssetUrl(asset.url)}
         alt={asset.alt || asset.title}
-        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', background: 'rgba(2, 6, 23, 0.56)', imageOrientation: 'from-image' as any }}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', background: tokens.colors.background, imageOrientation: 'from-image' as any }}
       />
     </Container>
   );
@@ -1145,7 +1148,7 @@ function ProductVideoPreviewCard({
         borderRadius: '16px',
         overflow: 'hidden',
         border: `1px solid ${tokens.colors.border}`,
-        background: 'rgba(2, 6, 23, 0.22)',
+        background: PRODUCT_DETAIL_SURFACE_BG,
         display: 'grid',
         minWidth: 0,
       }}
@@ -1153,7 +1156,7 @@ function ProductVideoPreviewCard({
       <VideoPosterPreview
         src={resolveAssetUrl(asset.url)}
         title={asset.title}
-        style={{ width: '100%', height, objectFit: 'cover', display: 'block', background: 'rgba(2, 6, 23, 0.9)' }}
+        style={{ width: '100%', height, objectFit: 'cover', display: 'block', background: tokens.colors.background }}
       />
       <div style={{ padding: '10px 10px 12px', display: 'grid', gap: '4px', minWidth: 0 }}>
         <div style={{ fontSize: '12px', fontWeight: 700, color: tokens.colors.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1174,7 +1177,7 @@ function ProductDocumentPreviewCard({ asset }: { asset: ProductDocumentAsset }) 
         borderRadius: '16px',
         overflow: 'hidden',
         border: `1px solid ${tokens.colors.border}`,
-        background: 'rgba(2, 6, 23, 0.22)',
+        background: PRODUCT_DETAIL_SURFACE_BG,
         display: 'grid',
         minWidth: 0,
       }}
@@ -1184,7 +1187,7 @@ function ProductDocumentPreviewCard({ asset }: { asset: ProductDocumentAsset }) 
           height: '88px',
           display: 'grid',
           placeItems: 'center',
-          background: 'rgba(16, 185, 129, 0.12)',
+          background: tokens.colors.successTint,
           color: tokens.colors.primary,
           fontSize: '13px',
           fontWeight: 900,
@@ -1249,7 +1252,7 @@ export function ProductVideoGallery({ videos }: { videos: ProductVideoAsset[] })
           style={{
             borderRadius: '20px',
             border: `1px solid ${tokens.colors.border}`,
-            background: 'rgba(2, 6, 23, 0.28)',
+            background: PRODUCT_DETAIL_SURFACE_BG,
             overflow: 'hidden',
             display: 'grid',
             gap: '0',
@@ -1258,7 +1261,7 @@ export function ProductVideoGallery({ videos }: { videos: ProductVideoAsset[] })
           <ManagedVideoPlayer
             src={resolveAssetUrl(asset.url)}
             title={asset.title}
-            style={{ width: '100%', maxHeight: '420px', background: 'rgba(2, 6, 23, 0.9)', display: 'block' }}
+            style={{ width: '100%', maxHeight: '420px', background: tokens.colors.background, display: 'block' }}
           />
           <div style={{ padding: '14px 16px', display: 'grid', gap: '6px' }}>
             <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{asset.title}</div>
@@ -1297,7 +1300,7 @@ export function ProductDocumentList({ documents }: { documents: ProductDocumentA
             padding: '16px 18px',
             borderRadius: '18px',
             border: `1px solid ${tokens.colors.border}`,
-            background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.7) 0%, rgba(2, 6, 23, 0.22) 100%)',
+            background: PRODUCT_DETAIL_PANEL_BG,
           }}
         >
           <div
@@ -1308,7 +1311,7 @@ export function ProductDocumentList({ documents }: { documents: ProductDocumentA
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(16, 185, 129, 0.12)',
+              background: tokens.colors.successTint,
               border: `1px solid ${tokens.colors.border}`,
               color: tokens.colors.primary,
               fontSize: '12px',
@@ -1367,7 +1370,7 @@ function ProductDocumentWorkspace({ documents }: { documents: ProductDocumentAss
           style={{
             borderRadius: '20px',
             border: `1px solid ${tokens.colors.border}`,
-            background: 'linear-gradient(180deg, rgba(2, 6, 23, 0.2) 0%, rgba(2, 6, 23, 0.32) 100%)',
+            background: PRODUCT_DETAIL_PANEL_BG,
             padding: '16px',
             display: 'grid',
             gap: '12px',
@@ -1380,7 +1383,7 @@ function ProductDocumentWorkspace({ documents }: { documents: ProductDocumentAss
                 {group.description}
               </div>
             </div>
-            <span style={{ ...ui.badge.neutral, background: 'rgba(148, 163, 184, 0.08)' }}>{group.items.length} file</span>
+            <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>{group.items.length} file</span>
           </div>
           <ProductDocumentList documents={group.items} />
         </div>
@@ -1395,7 +1398,7 @@ function ProductProfileStatusPanel({ status }: { status: ProductProfileStatus })
       <div
         style={{
           ...ui.card.base,
-          background: 'rgba(2, 6, 23, 0.26)',
+          background: PRODUCT_DETAIL_SURFACE_BG,
           boxShadow: 'none',
           padding: '18px 16px',
           display: 'grid',
@@ -1415,7 +1418,7 @@ function ProductProfileStatusPanel({ status }: { status: ProductProfileStatus })
       <div
         style={{
           ...ui.card.base,
-          background: 'rgba(2, 6, 23, 0.26)',
+          background: PRODUCT_DETAIL_SURFACE_BG,
           boxShadow: 'none',
           padding: '18px 18px 16px',
           display: 'grid',
@@ -1430,7 +1433,7 @@ function ProductProfileStatusPanel({ status }: { status: ProductProfileStatus })
               style={{
                 borderRadius: '16px',
                 border: `1px solid ${tokens.colors.border}`,
-                background: pillar.complete ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                background: pillar.complete ? tokens.colors.successTint : tokens.colors.warningTint,
                 padding: '12px 14px',
                 display: 'grid',
                 gap: '6px',
@@ -1480,7 +1483,7 @@ function ProductTimeline({ entries }: { entries: ProductTimelineEntry[] }) {
             style={{
               borderRadius: '16px',
               border: `1px solid ${tokens.colors.border}`,
-              background: 'rgba(2, 6, 23, 0.24)',
+              background: PRODUCT_DETAIL_SURFACE_BG,
               padding: '14px 16px',
               display: 'grid',
               gap: '6px',
@@ -1587,6 +1590,7 @@ function ImageCropModal({
                 borderRadius: '28px',
                 overflow: 'hidden',
                 border: `1px solid ${tokens.colors.border}`,
+                // Intentional dark scrim: crop UI sits on top of arbitrary imagery and needs stable contrast.
                 background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.94) 0%, rgba(2, 6, 23, 0.94) 100%)',
                 position: 'relative',
                 cursor: 'grab',
@@ -1688,7 +1692,7 @@ function CompactAssetStrip({
         padding: '14px',
         borderRadius: '18px',
         border: `1px solid ${tokens.colors.border}`,
-        background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.7) 0%, rgba(2, 6, 23, 0.18) 100%)',
+        background: tokens.surface.panelGradient,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
@@ -1741,7 +1745,7 @@ function AssetLinkComposer({
         padding: '16px',
         borderRadius: '18px',
         border: `1px solid ${tokens.colors.border}`,
-        background: 'rgba(15, 23, 42, 0.62)',
+        background: tokens.surface.panelGradient,
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
@@ -1780,11 +1784,11 @@ function AssetLinkComposer({
           style={{
             padding: '10px 12px',
             borderRadius: '10px',
-            border: `1px solid rgba(245, 158, 11, 0.24)`,
-            background: 'rgba(245, 158, 11, 0.08)',
+            border: `1px solid ${tokens.colors.warningBorder}`,
+            background: tokens.colors.warningTint,
             fontSize: '11px',
             lineHeight: 1.55,
-            color: '#f59e0b',
+            color: tokens.colors.warning,
           }}
         >
           {urlHint}
@@ -2135,7 +2139,7 @@ export function AssetListEditor({
           padding: '16px',
           borderRadius: '18px',
           border: `1px solid ${tokens.colors.border}`,
-          background: 'rgba(2, 6, 23, 0.22)',
+          background: tokens.colors.surfaceSubtle,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
@@ -2223,7 +2227,7 @@ export function AssetListEditor({
               padding: '12px',
               borderRadius: '14px',
               border: `1px solid ${tokens.colors.border}`,
-              background: 'rgba(15, 23, 42, 0.48)',
+              background: tokens.surface.panelGradient,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
@@ -2242,7 +2246,7 @@ export function AssetListEditor({
                     borderRadius: '12px',
                     overflow: 'hidden',
                     border: `1px solid ${tokens.colors.border}`,
-                    background: 'rgba(2, 6, 23, 0.4)',
+                    background: tokens.colors.surfaceSubtle,
                     display: 'grid',
                   }}
                 >
@@ -2254,7 +2258,7 @@ export function AssetListEditor({
                   style={{
                     borderRadius: '12px',
                     border: `1px dashed ${tokens.colors.border}`,
-                    background: 'rgba(2, 6, 23, 0.24)',
+                    background: tokens.colors.surfaceSubtle,
                     color: tokens.colors.textSecondary,
                     display: 'grid',
                     placeItems: 'center',
@@ -2287,7 +2291,7 @@ export function AssetListEditor({
                 uploadFeedback.tone === 'error'
                   ? 'rgba(239, 68, 68, 0.08)'
                   : uploadFeedback.tone === 'success'
-                    ? 'rgba(16, 185, 129, 0.1)'
+                    ? tokens.colors.successTint
                     : 'rgba(59, 130, 246, 0.08)',
             }}
           >
@@ -2359,7 +2363,7 @@ export function AssetListEditor({
               key={item.id || `${item.url}-${index}`}
               style={{
                 borderRadius: '14px',
-                border: `1px solid ${(item as ProductImageAsset).isPrimary ? 'rgba(16,185,129,0.35)' : tokens.colors.border}`,
+                border: `1px solid ${(item as ProductImageAsset).isPrimary ? tokens.colors.badgeBgSuccess : tokens.colors.border}`,
                 background: 'rgba(15, 23, 42, 0.55)',
                 padding: '10px 12px',
                 display: 'flex',
@@ -2373,7 +2377,7 @@ export function AssetListEditor({
                   width: '56px', minWidth: '56px', height: '56px',
                   borderRadius: '10px', overflow: 'hidden',
                   border: `1px solid ${tokens.colors.border}`,
-                  background: kind === 'image' ? 'rgba(2,6,23,0.4)' : kind === 'video' ? 'rgba(59,130,246,0.14)' : 'rgba(16,185,129,0.12)',
+                  background: kind === 'image' ? 'rgba(2,6,23,0.4)' : kind === 'video' ? 'rgba(59,130,246,0.14)' : tokens.colors.successTint,
                   display: 'grid', placeItems: 'center',
                   color: tokens.colors.primary, fontSize: '11px', fontWeight: 900,
                 }}
@@ -2407,7 +2411,7 @@ export function AssetListEditor({
                 ) : null}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
                   {kind === 'image' && (item as ProductImageAsset).isPrimary && (
-                    <span style={{ ...ui.badge.success, background: 'rgba(16,185,129,0.14)', fontSize: '10px', padding: '2px 7px' }}>Đại diện</span>
+                    <span style={{ ...ui.badge.success, background: tokens.colors.successTint, fontSize: '10px', padding: '2px 7px' }}>Đại diện</span>
                   )}
                   {item.size ? <span style={{ fontSize: '10px', color: tokens.colors.textMuted }}>{formatAssetSize(item.size)}</span> : null}
                   {kind === 'video' ? <VideoModeBadge video={item as ProductVideoAsset} /> : null}
@@ -2568,8 +2572,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
         <section
           style={{
             ...ui.card.base,
-            background:
-              'radial-gradient(circle at top left, rgba(16, 185, 129, 0.14) 0%, rgba(15, 23, 42, 0.96) 38%, rgba(15, 23, 42, 0.98) 100%)',
+            background: PRODUCT_DETAIL_HERO_BG,
             boxShadow: 'none',
             padding: '20px 20px 18px',
             display: 'grid',
@@ -2579,18 +2582,18 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) 280px', gap: '18px', alignItems: 'stretch' }}>
             <div style={{ display: 'grid', gap: '10px' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-                <span style={{ ...ui.badge.info, background: 'rgba(16, 185, 129, 0.12)' }}>{product.sku}</span>
+                <span style={{ ...ui.badge.info, background: tokens.colors.successTint }}>{product.sku}</span>
                 <span style={profileStatus.statusStyle}>{profileStatus.statusLabel}</span>
-                <span style={{ ...ui.badge.neutral, background: 'rgba(148, 163, 184, 0.08)' }}>
+                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>
                   {product.category || 'Chưa phân loại'}
                 </span>
-                <span style={{ ...ui.badge.neutral, background: 'rgba(148, 163, 184, 0.08)' }}>
+                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>
                   Đơn vị: {product.unit || 'Chiếc'}
                 </span>
-                <span style={{ ...ui.badge.neutral, background: 'rgba(148, 163, 184, 0.08)' }}>
+                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>
                   {productVideos.length} video
                 </span>
-                <span style={{ ...ui.badge.neutral, background: 'rgba(148, 163, 184, 0.08)' }}>
+                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>
                   {productDocuments.length} tài liệu
                 </span>
               </div>
@@ -2648,8 +2651,8 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
                 overflow: 'hidden',
                 border: `1px solid ${tokens.colors.border}`,
                 background: heroImage
-                  ? 'rgba(2, 6, 23, 0.3)'
-                  : 'linear-gradient(180deg, rgba(15, 23, 42, 0.84) 0%, rgba(2, 6, 23, 0.42) 100%)',
+                  ? PRODUCT_DETAIL_SURFACE_BG
+                  : PRODUCT_DETAIL_PANEL_BG,
                 minHeight: '220px',
                 position: 'relative',
                 display: 'grid',
@@ -2684,7 +2687,8 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
                   bottom: '14px',
                   padding: '10px 12px',
                   borderRadius: '14px',
-                  background: 'rgba(2, 6, 23, 0.66)',
+                  // Intentional dark overlay on top of real product photography for text readability.
+                  background: heroImage ? 'rgba(2, 6, 23, 0.66)' : tokens.colors.surface,
                   border: `1px solid ${tokens.colors.border}`,
                   display: 'grid',
                   gap: '2px',
@@ -2710,7 +2714,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
             <div
               style={{
                 ...ui.card.base,
-                background: 'rgba(2, 6, 23, 0.26)',
+                background: PRODUCT_DETAIL_SURFACE_BG,
                 boxShadow: 'none',
                 padding: '14px 16px',
                 minHeight: '108px',
@@ -2724,7 +2728,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
             <div
               style={{
                 ...ui.card.base,
-                background: 'rgba(2, 6, 23, 0.26)',
+                background: PRODUCT_DETAIL_SURFACE_BG,
                 boxShadow: 'none',
                 padding: '14px 16px',
                 minHeight: '108px',
@@ -2737,7 +2741,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
             <div
               style={{
                 ...ui.card.base,
-                background: 'rgba(2, 6, 23, 0.26)',
+                background: PRODUCT_DETAIL_SURFACE_BG,
                 boxShadow: 'none',
                 padding: '14px 16px',
                 minHeight: '108px',
@@ -2750,7 +2754,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
             <div
               style={{
                 ...ui.card.base,
-                background: 'rgba(2, 6, 23, 0.26)',
+                background: PRODUCT_DETAIL_SURFACE_BG,
                 boxShadow: 'none',
                 padding: '14px 16px',
                 minHeight: '108px',
@@ -2790,7 +2794,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
               padding: '18px',
               borderRadius: '16px',
               border: `1px solid ${tokens.colors.border}`,
-              background: 'rgba(2, 6, 23, 0.24)',
+              background: PRODUCT_DETAIL_SURFACE_BG,
               fontSize: '14px',
               lineHeight: 1.75,
               color: tokens.colors.textSecondary,
@@ -2820,7 +2824,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
                 padding: '16px 18px',
                 borderRadius: '16px',
                 border: `1px solid ${tokens.colors.border}`,
-                background: 'rgba(245, 158, 11, 0.08)',
+                background: tokens.colors.warningTint,
                 display: 'grid',
                 gap: '10px',
               }}
@@ -2841,7 +2845,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
             <div
               style={{
                 ...ui.card.base,
-                background: 'rgba(2, 6, 23, 0.26)',
+                background: PRODUCT_DETAIL_SURFACE_BG,
                 boxShadow: 'none',
                 padding: '14px 16px',
               }}
@@ -2851,7 +2855,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
             <div
               style={{
                 ...ui.card.base,
-                background: 'rgba(2, 6, 23, 0.26)',
+                background: PRODUCT_DETAIL_SURFACE_BG,
                 boxShadow: 'none',
                 padding: '14px 16px',
               }}
@@ -2861,7 +2865,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
             <div
               style={{
                 ...ui.card.base,
-                background: 'rgba(2, 6, 23, 0.26)',
+                background: PRODUCT_DETAIL_SURFACE_BG,
                 boxShadow: 'none',
                 padding: '14px 16px',
               }}
@@ -2875,7 +2879,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
               borderRadius: '18px',
               border: `1px solid ${tokens.colors.border}`,
               overflow: 'hidden',
-              background: 'rgba(2, 6, 23, 0.22)',
+              background: PRODUCT_DETAIL_SURFACE_BG,
             }}
           >
             <div
@@ -2919,7 +2923,7 @@ function ProductDetailModal({ product, onClose, latestRate, latestRateWarnings, 
                 gap: '16px',
                 alignItems: 'center',
                 padding: '18px',
-                background: 'rgba(16, 185, 129, 0.08)',
+                background: tokens.colors.successTint,
               }}
             >
               <span style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.textPrimary }}>Tổng giá vốn dự kiến</span>
@@ -3247,21 +3251,21 @@ function ProductImportWizardModal({
                       borderColor:
                         previewFilter === item.key
                           ? item.key === 'duplicate'
-                            ? 'rgba(245, 158, 11, 0.28)'
+                            ? tokens.colors.warningBorder
                             : item.key === 'error'
-                              ? 'rgba(239, 68, 68, 0.28)'
+                              ? tokens.colors.badgeBgError
                               : item.key === 'new'
-                                ? 'rgba(16, 185, 129, 0.24)'
+                                ? tokens.colors.successTint
                                 : 'rgba(59, 130, 246, 0.24)'
                           : tokens.colors.border,
                       background:
                         previewFilter === item.key
                           ? item.key === 'duplicate'
-                            ? 'rgba(245, 158, 11, 0.12)'
+                            ? tokens.colors.warningBg
                             : item.key === 'error'
-                              ? 'rgba(239, 68, 68, 0.1)'
+                              ? tokens.colors.badgeBgError
                               : item.key === 'new'
-                                ? 'rgba(16, 185, 129, 0.1)'
+                                ? tokens.colors.successTint
                                 : 'rgba(59, 130, 246, 0.1)'
                           : tokens.colors.surface,
                       color: item.tone,
@@ -3278,7 +3282,7 @@ function ProductImportWizardModal({
                     style={{
                       ...ui.card.base,
                       boxShadow: 'none',
-                      border: `1px solid ${row.action === 'duplicate' ? 'rgba(245, 158, 11, 0.22)' : tokens.colors.border}`,
+                      border: `1px solid ${row.action === 'duplicate' ? tokens.colors.warningBorder : tokens.colors.border}`,
                       padding: '14px 16px',
                       display: 'grid',
                       gap: '8px',
@@ -3330,8 +3334,8 @@ function ProductImportWizardModal({
                           style={{
                             ...S.btnOutline,
                             padding: '8px 12px',
-                            borderColor: selectedDuplicateSkus.includes(row.sku) ? 'rgba(245, 158, 11, 0.32)' : tokens.colors.border,
-                            background: selectedDuplicateSkus.includes(row.sku) ? 'rgba(245, 158, 11, 0.12)' : tokens.colors.surface,
+                            borderColor: selectedDuplicateSkus.includes(row.sku) ? tokens.colors.warningBorder : tokens.colors.border,
+                            background: selectedDuplicateSkus.includes(row.sku) ? tokens.colors.warningBg : tokens.colors.surface,
                             color: selectedDuplicateSkus.includes(row.sku) ? tokens.colors.warningDark : tokens.colors.textSecondary,
                           }}
                         >
@@ -3345,8 +3349,8 @@ function ProductImportWizardModal({
                           display: 'grid',
                           gap: '8px',
                           borderRadius: '14px',
-                          border: `1px solid rgba(245, 158, 11, 0.22)`,
-                          background: 'linear-gradient(180deg, rgba(245, 158, 11, 0.06) 0%, rgba(15, 23, 42, 0.92) 100%)',
+                          border: `1px solid ${tokens.colors.warningBorder}`,
+                          background: `linear-gradient(180deg, ${tokens.colors.warningTint} 0%, ${tokens.colors.surface} 100%)`,
                           padding: '12px',
                         }}
                       >
@@ -3359,8 +3363,8 @@ function ProductImportWizardModal({
                               gap: '10px',
                               alignItems: 'start',
                               borderRadius: '12px',
-                              border: `1px solid rgba(245, 158, 11, 0.12)`,
-                              background: 'rgba(255, 255, 255, 0.02)',
+                              border: `1px solid ${tokens.colors.warningTint}`,
+                              background: tokens.colors.surfaceSubtle,
                               padding: '10px',
                             }}
                           >
@@ -3410,7 +3414,7 @@ function ProductImportWizardModal({
                     alignItems: 'center',
                     flexWrap: 'wrap',
                     borderTop: `1px solid ${tokens.colors.border}`,
-                    background: 'rgba(15, 23, 42, 0.96)',
+                    background: tokens.colors.surface,
                     padding: '12px 0 0',
                     marginTop: '4px',
                   }}
@@ -3429,8 +3433,8 @@ function ProductImportWizardModal({
             <div
               style={{
                 borderRadius: '18px',
-                border: `1px solid ${preview.duplicateRows > 0 ? 'rgba(245, 158, 11, 0.25)' : tokens.colors.border}`,
-                background: preview.duplicateRows > 0 ? 'rgba(245, 158, 11, 0.08)' : tokens.colors.surface,
+                border: `1px solid ${preview.duplicateRows > 0 ? tokens.colors.warningBorder : tokens.colors.border}`,
+                background: preview.duplicateRows > 0 ? tokens.colors.warningTint : tokens.colors.surface,
                 padding: '16px 18px',
                 display: 'grid',
                 gap: '8px',
@@ -3665,7 +3669,7 @@ function ProductFormModal({
                 id={PRODUCT_FORM_FIELD_IDS.technicalSpecs}
                 rows={isCompactForm ? 8 : 7}
                 placeholder={"- Nhãn hiệu: SOCMA\n- Model: HNRS4531\n- Xuất xứ: Trung Quốc\n- Tình trạng: Mới 100%\n- Năm SX: 2025 trở về sau\n- Tải trọng: 45T, 31T, 16T\n- Chiều cao nâng: 15100mm"}
-                style={{ ...S.input, fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', fontSize: '12.5px', resize: 'vertical', lineHeight: 1.7 }}
+                      style={{ ...S.input, fontFamily: 'var(--font-family-sans)', fontSize: '12.5px', resize: 'vertical', lineHeight: 1.7 }}
                 value={form.technicalSpecs}
                 onInput={(e:any)=>setForm({...form, technicalSpecs: e.target.value})}
               />
@@ -3681,7 +3685,7 @@ function ProductFormModal({
             <section
               style={{
                 ...ui.card.base,
-                background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.88) 100%)',
+                background: tokens.surface.heroGradient,
                 boxShadow: 'none',
                 padding: '18px 18px 16px',
                 display: 'grid',
@@ -3689,10 +3693,10 @@ function ProductFormModal({
               }}
             >
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-                <span style={{ ...ui.badge.info, background: 'rgba(16, 185, 129, 0.12)' }}>{form.productImages.length} ảnh</span>
-                <span style={{ ...ui.badge.info, background: 'rgba(59, 130, 246, 0.12)' }}>{form.productVideos.length} video</span>
-                <span style={{ ...ui.badge.neutral, background: 'rgba(148, 163, 184, 0.08)' }}>{form.productDocuments.length} tài liệu</span>
-                <span style={{ ...ui.badge.neutral, background: 'rgba(148, 163, 184, 0.08)' }}>
+                <span style={{ ...ui.badge.info, background: tokens.colors.successTint }}>{form.productImages.length} ảnh</span>
+                <span style={{ ...ui.badge.info, background: tokens.colors.infoAccentBg }}>{form.productVideos.length} video</span>
+                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>{form.productDocuments.length} tài liệu</span>
+                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>
                   {hasPersistedProduct ? 'Upload trực tiếp khả dụng' : 'Tạo sản phẩm để bật upload trực tiếp'}
                 </span>
               </div>

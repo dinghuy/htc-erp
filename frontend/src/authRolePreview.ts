@@ -18,6 +18,7 @@ export function normalizePreviewRoleCodes(roleCodes: unknown): SystemRole[] {
 export const ROLE_PREVIEW_PRESETS: Array<{ key: string; label: string; roleCodes?: SystemRole[] }> = [
   { key: 'sales', label: 'View as Sales', roleCodes: ['sales'] },
   { key: 'project_manager', label: 'View as PM', roleCodes: ['project_manager'] },
+  { key: 'sales_pm_combined', label: 'View as Sales + PM', roleCodes: ['sales', 'project_manager'] },
   { key: 'procurement', label: 'View as Procurement', roleCodes: ['procurement'] },
   { key: 'accounting', label: 'View as Accounting', roleCodes: ['accounting'] },
   { key: 'legal', label: 'View as Legal', roleCodes: ['legal'] },
@@ -36,6 +37,8 @@ export function getRolePreviewPresetNavigation(presetKey: string): RolePreviewNa
       return { route: 'My Work', navContext: { route: 'My Work', filters: { workFocus: 'commercial' } } };
     case 'project_manager':
       return { route: 'My Work', navContext: { route: 'My Work', filters: { workFocus: 'execution' } } };
+    case 'sales_pm_combined':
+      return { route: 'My Work', navContext: { route: 'My Work', filters: { workFocus: 'combined' } } };
     case 'procurement':
       return { route: 'Inbox', navContext: { route: 'Inbox', filters: { department: 'procurement' } } };
     case 'accounting':
@@ -52,7 +55,12 @@ export function getRolePreviewPresetNavigation(presetKey: string): RolePreviewNa
 }
 
 export function getRolePreviewWorkspaceNavigation(roleCodes: unknown, legacyRole?: unknown): RolePreviewNavigation {
-  const profile = buildRoleProfile(roleCodes, legacyRole);
+  const normalizedRoleCodes = normalizeRoleCodes(roleCodes, legacyRole);
+  if (normalizedRoleCodes.includes('sales') && normalizedRoleCodes.includes('project_manager')) {
+    return { route: 'Projects', navContext: { route: 'Projects', filters: { projectStage: 'won', workspaceTab: 'commercial', openRepresentative: true } } };
+  }
+
+  const profile = buildRoleProfile(normalizedRoleCodes, legacyRole);
 
   switch (profile.personaMode) {
     case 'sales':
@@ -105,11 +113,9 @@ export function applyRolePreviewToUser<T extends PreviewableUser>(user: T): T & 
     };
   }
 
-  const previewProfile = buildRoleProfile(previewRoleCodes, previewRoleCodes[0]);
-
   return {
     ...user,
-    systemRole: previewProfile.primaryRole,
+    systemRole: previewRoleCodes[0],
     roleCodes: previewRoleCodes,
     baseSystemRole: baseProfile.primaryRole,
     baseRoleCodes,

@@ -19,6 +19,7 @@ type CreateQuotationMutationServicesDeps = {
     actorUserId: string | null,
     extra?: { triggerSource?: string; projectId?: string | null; leadId?: string | null }
   ) => Promise<any>;
+  createProjectTimelineEvent: (db: any, event: any) => Promise<any>;
   logAct: (...args: any[]) => Promise<void>;
 };
 
@@ -31,6 +32,7 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
     markWinningQuotation,
     createProjectTasksFromTemplate,
     triggerQuotationAutomation,
+    createProjectTimelineEvent,
     logAct,
   } = deps;
   const quotationRepository = createQuotationRepository();
@@ -118,6 +120,23 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
         quotation: created,
         actorUserId: input.actorUserId,
       });
+      if (projectId) {
+        await createProjectTimelineEvent(db, {
+          projectId,
+          eventType: 'handoff_started',
+          title: 'Handoff started',
+          description: `Quotation ${created?.quoteNumber || id} entered won state and is ready for execution handoff.`,
+          eventDate: new Date().toISOString(),
+          entityType: 'Quotation',
+          entityId: id,
+          payload: {
+            quotationId: id,
+            quoteNumber: created?.quoteNumber || null,
+            source: 'quotation_create',
+          },
+          createdBy: input.actorUserId,
+        });
+      }
     }
     if (isApprovalSubmissionStatus(finalStatus) || isWinningQuotationStatus(finalStatus)) {
       await triggerQuotationAutomation(db, created, isWinningQuotationStatus(finalStatus) ? 'won' : 'submitted_for_approval', input.actorUserId, {
@@ -251,6 +270,21 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
         quotation: created,
         actorUserId: input.actorUserId,
       });
+      await createProjectTimelineEvent(db, {
+        projectId,
+        eventType: 'handoff_started',
+        title: 'Handoff started',
+        description: `Quotation ${created?.quoteNumber || id} entered won state and is ready for execution handoff.`,
+        eventDate: new Date().toISOString(),
+        entityType: 'Quotation',
+        entityId: id,
+        payload: {
+          quotationId: id,
+          quoteNumber: created?.quoteNumber || null,
+          source: 'quotation_create',
+        },
+        createdBy: input.actorUserId,
+      });
     }
 
     return created;
@@ -344,6 +378,21 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
           templateKey: 'quotation-accepted',
           quotation: updated,
           actorUserId: input.actorUserId,
+        });
+        await createProjectTimelineEvent(db, {
+          projectId: updated.projectId || input.current.projectId,
+          eventType: 'handoff_started',
+          title: 'Handoff started',
+          description: `Quotation ${updated?.quoteNumber || input.quotationId} entered won state and is ready for execution handoff.`,
+          eventDate: new Date().toISOString(),
+          entityType: 'Quotation',
+          entityId: input.quotationId,
+          payload: {
+            quotationId: input.quotationId,
+            quoteNumber: updated?.quoteNumber || null,
+            source: 'quotation_update',
+          },
+          createdBy: input.actorUserId,
         });
       }
     } else if (input.hasStatusField && input.current.isWinningVersion && !isWinningQuotationStatus(String(input.nextStatus))) {

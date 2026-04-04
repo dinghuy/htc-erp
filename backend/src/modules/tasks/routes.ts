@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../../../sqlite-db';
+import { createTaskRepository } from './repository';
+import { todoRepository, VALID_TODO_PRIORITIES, type ToDoPriority } from './todoRepository';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
 
@@ -25,6 +26,64 @@ type RegisterTaskRoutesDeps = {
   getTaskWithLinksById: (db: any, taskId: string) => Promise<any>;
 };
 
+function resolveWorkspaceTabForTask(task: any) {
+  const taskType = String(task?.taskType || '').trim().toLowerCase();
+  const department = String(task?.department || '').trim().toLowerCase();
+  const quotationStatus = String(task?.quotationStatus || '').trim().toLowerCase();
+  if (taskType.includes('handoff') || taskType.includes('quotation') || taskType.includes('commercial')) return 'commercial';
+  if (taskType.includes('procurement') || taskType.includes('supplier') || department.includes('procurement')) return 'procurement';
+  if (taskType.includes('delivery') || taskType.includes('inbound') || department.includes('logistics')) return 'delivery';
+  if (taskType.includes('document') || taskType.includes('contract') || department.includes('legal')) return 'documents';
+  if (quotationStatus === 'submitted_for_approval' || quotationStatus === 'revision_required') return 'commercial';
+  return 'timeline';
+}
+
+function decorateTaskRow(task: any) {
+  const workspaceTab = resolveWorkspaceTabForTask(task);
+  const blockers = String(task?.blockedReason || '').trim() ? [String(task.blockedReason).trim()] : [];
+  return {
+    ...task,
+    actionAvailability: {
+      workspaceTab,
+      canOpenTask: true,
+      canOpenProject: Boolean(task?.projectId),
+      canOpenQuotation: Boolean(task?.quotationId),
+      primaryActionLabel: blockers.length > 0 ? 'Gỡ blocker' : (task?.projectId ? 'Mở workspace' : (task?.quotationId ? 'Mở báo giá' : 'Mở task')),
+      blockers,
+    },
+  };
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function optionalString(value: unknown) {
+  const normalized = stringValue(value);
+  return normalized || null;
+}
+
+function normalizeTaskViewSurface(value: unknown) {
+  return stringValue(value).toLowerCase() === 'list' ? 'list' : 'kanban';
+}
+
+function normalizeTaskViewGroupBy(value: unknown) {
+  const normalized = stringValue(value).toLowerCase();
+  return ['none', 'project', 'assignee', 'department', 'tasktype', 'urgency', 'hierarchy'].includes(normalized)
+    ? (normalized === 'tasktype' ? 'taskType' : normalized)
+    : 'none';
+}
+
+function normalizeTaskViewPresetRow(row: any) {
+  return {
+    ...row,
+    onlyOverdue: Boolean(row?.onlyOverdue),
+    groupBy: normalizeTaskViewGroupBy(row?.groupBy),
+    isDefault: Boolean(row?.isDefault),
+    surface: normalizeTaskViewSurface(row?.surface),
+  };
+}
+
 export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
   const {
     ah,
@@ -33,131 +92,269 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
     appendDateRangeFilter,
     getCurrentUserId,
     resolveAssigneeId,
-    getTaskWithLinksById,
   } = deps;
+  const taskRepository = createTaskRepository({ appendDateRangeFilter });
+  const checklistRepository = todoRepository;
+  const taskViewListPaths = ['/api/tasks/views', '/api/v1/tasks/views'];
+
+  const listTaskViewPresetsHandler = ah(async (req: Request, res: Response) => {
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const rows = await taskRepository.listTaskViewPresets(userId);
+    res.json({ items: rows.map((row: any) => normalizeTaskViewPresetRow(row)) });
+  });
+
+  const createTaskViewPresetHandler = ah(async (req: Request, res: Response) => {
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const name = stringValue(req.body?.name);
+    if (!name) return res.status(400).json({ error: 'name is required' });
+
+    const id = uuidv4();
+    await taskRepository.createTaskViewPreset(id, userId, {
+      name,
+      query: optionalString(req.body?.query),
+      projectId: optionalString(req.body?.projectId),
+      assigneeId: optionalString(req.body?.assigneeId),
+      priority: optionalString(req.body?.priority),
+      status: optionalString(req.body?.status),
+      onlyOverdue: Boolean(req.body?.onlyOverdue),
+      groupBy: normalizeTaskViewGroupBy(req.body?.groupBy),
+      surface: normalizeTaskViewSurface(req.body?.surface),
+      isDefault: Boolean(req.body?.isDefault),
+    });
+
+    const created = await taskRepository.findTaskViewPresetByIdForUser(id, userId);
+    res.status(201).json(normalizeTaskViewPresetRow(created));
+  });
+
+  const deleteTaskViewPresetHandler = ah(async (req: Request, res: Response) => {
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const presetId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const existing = await taskRepository.findTaskViewPresetByIdForUser(presetId, userId);
+    if (!existing) return res.status(404).json({ error: 'Task view preset not found' });
+    await taskRepository.deleteTaskViewPreset(presetId, userId);
+    res.json({ success: true });
+  });
+
+  const updateTaskViewPresetHandler = ah(async (req: Request, res: Response) => {
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const presetId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const existing = await taskRepository.findTaskViewPresetByIdForUser(presetId, userId);
+    if (!existing) return res.status(404).json({ error: 'Task view preset not found' });
+
+    const name = stringValue(req.body?.name ?? existing.name);
+    if (!name) return res.status(400).json({ error: 'name is required' });
+
+    await taskRepository.updateTaskViewPreset(presetId, userId, {
+      name,
+      query: optionalString(req.body?.query ?? existing.query),
+      projectId: optionalString(req.body?.projectId ?? existing.projectId),
+      assigneeId: optionalString(req.body?.assigneeId ?? existing.assigneeId),
+      priority: optionalString(req.body?.priority ?? existing.priority),
+      status: optionalString(req.body?.status ?? existing.status),
+      onlyOverdue: req.body?.onlyOverdue === undefined ? Boolean(existing.onlyOverdue) : Boolean(req.body?.onlyOverdue),
+      groupBy: req.body?.groupBy === undefined ? normalizeTaskViewGroupBy(existing.groupBy) : normalizeTaskViewGroupBy(req.body?.groupBy),
+      surface: req.body?.surface === undefined ? normalizeTaskViewSurface(existing.surface) : normalizeTaskViewSurface(req.body?.surface),
+      isDefault: req.body?.isDefault === undefined ? Boolean(existing.isDefault) : Boolean(req.body?.isDefault),
+    });
+
+    const updated = await taskRepository.findTaskViewPresetByIdForUser(presetId, userId);
+    res.json(normalizeTaskViewPresetRow(updated));
+  });
+
+  for (const pathname of taskViewListPaths) {
+    app.get(pathname, requireAuth, listTaskViewPresetsHandler);
+    app.post(pathname, requireAuth, createTaskViewPresetHandler);
+    app.patch(`${pathname}/:id`, requireAuth, updateTaskViewPresetHandler);
+    app.delete(`${pathname}/:id`, requireAuth, deleteTaskViewPresetHandler);
+  }
+
+  app.get('/api/v1/tasks/:taskId/checklist', requireAuth, ah(async (req: Request, res: Response) => {
+    const taskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    res.json({ items: await checklistRepository.findByEntity('Task', taskId) });
+  }));
+
+  app.post('/api/v1/tasks/:taskId/checklist', requireAuth, ah(async (req: Request, res: Response) => {
+    const taskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    const userId = getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const title = stringValue(req.body?.title);
+    const priority = stringValue(req.body?.priority) || 'no_priority';
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    if (!VALID_TODO_PRIORITIES.includes(priority as ToDoPriority)) {
+      return res.status(400).json({ error: `Invalid priority. Must be one of: ${VALID_TODO_PRIORITIES.join(', ')}` });
+    }
+    const created = await checklistRepository.create({
+      userId,
+      title,
+      description: optionalString(req.body?.description),
+      dueDate: optionalString(req.body?.dueDate),
+      priority: priority as ToDoPriority,
+      visibility: 'public',
+      entityType: 'Task',
+      entityId: taskId,
+    });
+    res.status(201).json(created);
+  }));
+
+  app.patch('/api/v1/tasks/:taskId/checklist/:itemId', requireAuth, ah(async (req: Request, res: Response) => {
+    const taskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    const itemId = Array.isArray(req.params.itemId) ? req.params.itemId[0] : req.params.itemId;
+    const existing = await checklistRepository.findByIdForEntity(itemId, 'Task', taskId);
+    if (!existing) return res.status(404).json({ error: 'Checklist item not found' });
+    const priority = req.body?.priority === undefined ? existing.priority : stringValue(req.body?.priority);
+    if (priority && !VALID_TODO_PRIORITIES.includes(priority as ToDoPriority)) {
+      return res.status(400).json({ error: `Invalid priority. Must be one of: ${VALID_TODO_PRIORITIES.join(', ')}` });
+    }
+    const updated = await checklistRepository.updateById(itemId, {
+      title: req.body?.title !== undefined ? stringValue(req.body?.title) : undefined,
+      description: req.body?.description !== undefined ? optionalString(req.body?.description) : undefined,
+      dueDate: req.body?.dueDate !== undefined ? optionalString(req.body?.dueDate) : undefined,
+      priority: priority as ToDoPriority | undefined,
+      visibility: 'public',
+      entityType: 'Task',
+      entityId: taskId,
+    });
+    res.json(updated);
+  }));
+
+  app.post('/api/v1/tasks/:taskId/checklist/:itemId/done', requireAuth, ah(async (req: Request, res: Response) => {
+    const taskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    const itemId = Array.isArray(req.params.itemId) ? req.params.itemId[0] : req.params.itemId;
+    const existing = await checklistRepository.findByIdForEntity(itemId, 'Task', taskId);
+    if (!existing) return res.status(404).json({ error: 'Checklist item not found' });
+    res.json(await checklistRepository.markDone(itemId));
+  }));
+
+  app.post('/api/v1/tasks/:taskId/checklist/:itemId/undone', requireAuth, ah(async (req: Request, res: Response) => {
+    const taskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    const itemId = Array.isArray(req.params.itemId) ? req.params.itemId[0] : req.params.itemId;
+    const existing = await checklistRepository.findByIdForEntity(itemId, 'Task', taskId);
+    if (!existing) return res.status(404).json({ error: 'Checklist item not found' });
+    res.json(await checklistRepository.markUndone(itemId));
+  }));
+
+  app.delete('/api/v1/tasks/:taskId/checklist/:itemId', requireAuth, ah(async (req: Request, res: Response) => {
+    const taskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    const itemId = Array.isArray(req.params.itemId) ? req.params.itemId[0] : req.params.itemId;
+    const existing = await checklistRepository.findByIdForEntity(itemId, 'Task', taskId);
+    if (!existing) return res.status(404).json({ error: 'Checklist item not found' });
+    await checklistRepository.deleteById(itemId);
+    res.json({ success: true });
+  }));
+
+  app.get('/api/v1/tasks/:taskId/subtasks', requireAuth, ah(async (req: Request, res: Response) => {
+    const taskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    const rows = await taskRepository.listTasks({ parentTaskId: taskId });
+    res.json({ items: rows.map((row: any) => decorateTaskRow(row)) });
+  }));
+
+  app.post('/api/v1/tasks/:taskId/subtasks', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+    const parentTaskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    const parentTask = await taskRepository.getTaskWithLinksById(parentTaskId);
+    if (!parentTask) return res.status(404).json({ error: 'Parent task not found' });
+    const id = uuidv4();
+    const name = stringValue(req.body?.name);
+    if (!name) return res.status(400).json({ error: 'name is required' });
+
+    await taskRepository.createTask(id, {
+      projectId: req.body?.projectId ?? parentTask.projectId ?? null,
+      parentTaskId,
+      name,
+      description: req.body?.description,
+      assigneeId: req.body?.assigneeId ?? parentTask.assigneeId ?? null,
+      status: req.body?.status ?? 'pending',
+      priority: req.body?.priority ?? 'medium',
+      startDate: req.body?.startDate ?? null,
+      dueDate: req.body?.dueDate ?? parentTask.dueDate ?? null,
+      completionPct: req.body?.completionPct ?? 0,
+      notes: req.body?.notes,
+      accountId: req.body?.accountId ?? parentTask.accountId ?? null,
+      leadId: req.body?.leadId,
+      quotationId: req.body?.quotationId ?? parentTask.quotationId ?? null,
+      target: req.body?.target,
+      resultLinks: req.body?.resultLinks,
+      output: req.body?.output,
+      reportDate: req.body?.reportDate,
+      taskType: req.body?.taskType ?? parentTask.taskType ?? null,
+      department: req.body?.department ?? parentTask.department ?? null,
+      blockedReason: req.body?.blockedReason,
+    });
+
+    res.status(201).json(await taskRepository.getTaskWithLinksById(id));
+  }));
+
+  app.post('/api/v1/tasks/:taskId/subtasks/reorder', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+    const parentTaskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    const orderedTaskIds = Array.isArray(req.body?.orderedTaskIds)
+      ? req.body.orderedTaskIds.map((value: unknown) => stringValue(value)).filter(Boolean)
+      : [];
+    if (!orderedTaskIds.length) return res.status(400).json({ error: 'orderedTaskIds is required' });
+    const items = await taskRepository.reorderSiblingTasks(parentTaskId, orderedTaskIds);
+    res.json({ items: items.map((row: any) => decorateTaskRow(row)) });
+  }));
+
+  app.delete('/api/v1/tasks/:taskId/subtasks/:subtaskId', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+    const parentTaskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
+    const subtaskId = Array.isArray(req.params.subtaskId) ? req.params.subtaskId[0] : req.params.subtaskId;
+    const subtask = await taskRepository.getTaskWithLinksById(subtaskId);
+    if (!subtask || subtask.parentTaskId !== parentTaskId) {
+      return res.status(404).json({ error: 'Subtask not found' });
+    }
+    await taskRepository.deleteTask(subtaskId);
+    res.json({ success: true });
+  }));
 
   app.get('/api/tasks', ah(async (req: Request, res: Response) => {
-    const db = getDb();
-    const {
-      projectId,
-      assigneeId,
-      accountId,
-      leadId,
-      quotationId,
-      status,
-      taskType,
-      department,
-      blocked,
-      startDateFrom,
-      startDateTo,
-      dueDateFrom,
-      dueDateTo,
-    } = req.query as Record<string, string | undefined>;
+    const rows = await taskRepository.listTasks(req.query as Record<string, string | undefined>);
+    res.json(rows.map((row: any) => decorateTaskRow(row)));
+  }));
 
-    const conditions: string[] = [];
-    const params: unknown[] = [];
+  app.post('/api/v1/tasks/bulk-update', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+    const taskIds = Array.isArray(req.body?.taskIds)
+      ? req.body.taskIds.map((value: unknown) => stringValue(value)).filter(Boolean)
+      : [];
+    if (!taskIds.length) return res.status(400).json({ error: 'taskIds is required' });
 
-    if (projectId) {
-      conditions.push('t.projectId = ?');
-      params.push(projectId);
-    }
-    if (assigneeId) {
-      conditions.push('t.assigneeId = ?');
-      params.push(assigneeId);
-    }
-    if (accountId) {
-      conditions.push('t.accountId = ?');
-      params.push(accountId);
-    }
-    if (leadId) {
-      conditions.push('t.leadId = ?');
-      params.push(leadId);
-    }
-    if (quotationId) {
-      conditions.push('t.quotationId = ?');
-      params.push(quotationId);
-    }
-    if (status) {
-      conditions.push('t.status = ?');
-      params.push(status);
-    }
-    if (taskType) {
-      conditions.push('t.taskType = ?');
-      params.push(taskType);
-    }
-    if (department) {
-      conditions.push('t.department = ?');
-      params.push(department);
-    }
-    if (blocked === 'true') {
-      conditions.push(`t.blockedReason IS NOT NULL AND TRIM(t.blockedReason) <> ''`);
-    }
-    if (blocked === 'false') {
-      conditions.push(`(t.blockedReason IS NULL OR TRIM(t.blockedReason) = '')`);
-    }
+    const changes = {
+      status: req.body?.changes?.status !== undefined ? optionalString(req.body?.changes?.status) : null,
+      priority: req.body?.changes?.priority !== undefined ? optionalString(req.body?.changes?.priority) : null,
+      assigneeId: req.body?.changes?.assigneeId !== undefined ? optionalString(req.body?.changes?.assigneeId) : undefined,
+    };
 
-    appendDateRangeFilter(conditions, params, 't.startDate', startDateFrom, startDateTo);
-    appendDateRangeFilter(conditions, params, 't.dueDate', dueDateFrom, dueDateTo);
+    const items = await taskRepository.bulkUpdateTasks(taskIds, changes);
+    res.json({
+      updatedCount: items.length,
+      items: items.map((row: any) => decorateTaskRow(row)),
+    });
+  }));
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const rows = await db.all(
-      `
-        SELECT t.*,
-               u.fullName AS assigneeName,
-               p.name AS projectName,
-               a.companyName AS accountName,
-               l.companyName AS leadCompanyName,
-               l.contactName AS leadContactName,
-               q.quoteNumber AS quotationNumber,
-               q.subject AS quotationSubject,
-               q.status AS quotationStatus
-        FROM Task t
-        LEFT JOIN User u ON t.assigneeId = u.id
-        LEFT JOIN Project p ON t.projectId = p.id
-        LEFT JOIN Account a ON t.accountId = a.id
-        LEFT JOIN Lead l ON t.leadId = l.id
-        LEFT JOIN Quotation q ON t.quotationId = q.id
-        ${where}
-        ORDER BY t.createdAt DESC
-      `,
-      params
-    );
-    res.json(rows);
+  app.post('/api/v1/projects/:projectId/tasks/reorder', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+    const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
+    const orderedTaskIds = Array.isArray(req.body?.orderedTaskIds)
+      ? req.body.orderedTaskIds.map((value: unknown) => stringValue(value)).filter(Boolean)
+      : [];
+    if (!orderedTaskIds.length) return res.status(400).json({ error: 'orderedTaskIds is required' });
+    const items = await taskRepository.reorderProjectTasks(projectId, orderedTaskIds);
+    res.json({ items: items.map((row: any) => decorateTaskRow(row)) });
   }));
 
   app.get('/api/tasks/:id', ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const taskId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const row = await db.get(
-      `
-        SELECT t.*,
-               u.fullName AS assigneeName,
-               p.name AS projectName,
-               a.companyName AS accountName,
-               l.companyName AS leadCompanyName,
-               l.contactName AS leadContactName,
-               q.quoteNumber AS quotationNumber,
-               q.subject AS quotationSubject,
-               q.status AS quotationStatus
-        FROM Task t
-        LEFT JOIN User u ON t.assigneeId = u.id
-        LEFT JOIN Project p ON t.projectId = p.id
-        LEFT JOIN Account a ON t.accountId = a.id
-        LEFT JOIN Lead l ON t.leadId = l.id
-        LEFT JOIN Quotation q ON t.quotationId = q.id
-        WHERE t.id = ?
-      `,
-      [taskId]
-    );
+    const row = await taskRepository.getTaskById(taskId);
     if (!row) return res.status(404).json({ error: 'Not found' });
-    res.json(row);
+    res.json(decorateTaskRow(row));
   }));
 
   app.post('/api/tasks', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const id = uuidv4();
     const {
       projectId,
+      parentTaskId,
       name,
       description,
       assigneeId,
@@ -181,53 +378,39 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
 
     if (!name) return res.status(400).json({ error: 'name is required' });
 
-    await db.run(
-      `INSERT INTO Task (
-        id, projectId, name, description, assigneeId, status, priority, startDate, dueDate,
-        completionPct, notes, accountId, leadId, quotationId, target, resultLinks, output,
-        reportDate, taskType, department, blockedReason
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        projectId || null,
-        name,
-        description || null,
-        assigneeId || null,
-        status,
-        priority,
-        startDate || null,
-        dueDate || null,
-        completionPct ?? 0,
-        notes || null,
-        accountId || null,
-        leadId || null,
-        quotationId || null,
-        target || null,
-        resultLinks || null,
-        output || null,
-        reportDate || null,
-        taskType || null,
-        department || null,
-        blockedReason || null,
-      ]
-    );
+    await taskRepository.createTask(id, {
+      projectId,
+      parentTaskId,
+      name,
+      description,
+      assigneeId,
+      status,
+      priority,
+      startDate,
+      dueDate,
+      completionPct,
+      notes,
+      accountId,
+      leadId,
+      quotationId,
+      target,
+      resultLinks,
+      output,
+      reportDate,
+      taskType,
+      department,
+      blockedReason,
+    });
 
-    res.status(201).json(await getTaskWithLinksById(db, id));
+    res.status(201).json(await taskRepository.getTaskWithLinksById(id));
   }));
 
   app.post('/api/tasks/from-quotation', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const actorUserId = getCurrentUserId(req);
     const quotationId = typeof req.body?.quotationId === 'string' ? req.body.quotationId.trim() : '';
     if (!quotationId) return res.status(400).json({ error: 'quotationId is required' });
 
-    const quotation = await db.get(
-      `SELECT q.*, a.companyName AS accountName
-       FROM Quotation q
-       LEFT JOIN Account a ON q.accountId = a.id
-       WHERE q.id = ?`,
-      [quotationId]
-    );
+    const quotation = await taskRepository.getQuotationWithAccountName(quotationId);
     if (!quotation) return res.status(404).json({ error: 'Quotation not found' });
 
     const projectId = typeof req.body?.projectId === 'string' && req.body.projectId.trim() ? req.body.projectId.trim() : null;
@@ -235,7 +418,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       ? req.body.leadId.trim()
       : (quotation.opportunityId || null);
     const assigneeId = await resolveAssigneeId(
-      db,
+      null,
       req.body?.assigneeId,
       req.body?.salesperson ?? quotation.salesperson,
       actorUserId
@@ -250,16 +433,15 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
     const notes = typeof req.body?.notes === 'string' && req.body.notes.trim() ? req.body.notes.trim() : null;
     const target = typeof req.body?.target === 'string' && req.body.target.trim() ? req.body.target.trim() : `quotation:${quotation.id}`;
 
-    const existing = await db.get(
-      `SELECT id FROM Task
-       WHERE quotationId = ? AND (
-         id = ? OR
-         (name = ? AND COALESCE(projectId, '') = COALESCE(?, '') AND COALESCE(assigneeId, '') = COALESCE(?, ''))
-       )`,
-      [quotation.id, req.body?.id || '', taskName, projectId, assigneeId || '']
+    const existing = await taskRepository.findExistingTaskForQuotation(
+      quotation.id,
+      req.body?.id || '',
+      taskName,
+      projectId,
+      assigneeId
     );
     if (existing) {
-      return res.json(await getTaskWithLinksById(db, existing.id));
+      return res.json(await taskRepository.getTaskWithLinksById(existing.id));
     }
 
     const id = typeof req.body?.id === 'string' && req.body.id.trim() ? req.body.id.trim() : uuidv4();
@@ -276,47 +458,40 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       ? req.body.accountId.trim()
       : (quotation.accountId || null);
 
-    await db.run(
-      `INSERT INTO Task (
-        id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
-        notes, accountId, leadId, quotationId, target, resultLinks, output, reportDate, taskType, department, blockedReason
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        projectId,
-        taskName,
-        dedupeDescription,
-        assigneeId || null,
-        status,
-        priority,
-        startDate,
-        dueDate,
-        completionPct,
-        notes,
-        accountId,
-        leadId,
-        quotation.id,
-        target,
-        typeof req.body?.resultLinks === 'string' ? req.body.resultLinks : null,
-        typeof req.body?.output === 'string' ? req.body.output : null,
-        typeof req.body?.reportDate === 'string' ? req.body.reportDate : null,
-        taskType,
-        department,
-        typeof req.body?.blockedReason === 'string' ? req.body.blockedReason : null,
-      ]
-    );
+    await taskRepository.createTask(id, {
+      projectId,
+      name: taskName,
+      description: dedupeDescription,
+      assigneeId,
+      status,
+      priority,
+      startDate,
+      dueDate,
+      completionPct,
+      notes,
+      accountId,
+      leadId,
+      quotationId: quotation.id,
+      target,
+      resultLinks: typeof req.body?.resultLinks === 'string' ? req.body.resultLinks : null,
+      output: typeof req.body?.output === 'string' ? req.body.output : null,
+      reportDate: typeof req.body?.reportDate === 'string' ? req.body.reportDate : null,
+      taskType,
+      department,
+      blockedReason: typeof req.body?.blockedReason === 'string' ? req.body.blockedReason : null,
+    });
 
-    res.status(201).json(await getTaskWithLinksById(db, id));
+    res.status(201).json(await taskRepository.getTaskWithLinksById(id));
   }));
 
   app.put('/api/tasks/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const db = getDb();
     const taskId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const existing = await db.get('SELECT id FROM Task WHERE id = ?', [taskId]);
+    const existing = await taskRepository.taskExists(taskId);
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
     const {
       projectId,
+      parentTaskId,
       name,
       description,
       assigneeId,
@@ -338,44 +513,36 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       blockedReason,
     } = req.body ?? {};
 
-    await db.run(
-      `UPDATE Task
-       SET projectId = ?, name = ?, description = ?, assigneeId = ?, status = ?, priority = ?,
-           startDate = ?, dueDate = ?, completionPct = ?, notes = ?, accountId = ?, leadId = ?,
-           quotationId = ?, target = ?, resultLinks = ?, output = ?, reportDate = ?, taskType = ?,
-           department = ?, blockedReason = ?, updatedAt = datetime('now')
-       WHERE id = ?`,
-      [
-        projectId || null,
-        name,
-        description || null,
-        assigneeId || null,
-        status,
-        priority,
-        startDate || null,
-        dueDate || null,
-        completionPct ?? 0,
-        notes || null,
-        accountId || null,
-        leadId || null,
-        quotationId || null,
-        target || null,
-        resultLinks || null,
-        output || null,
-        reportDate || null,
-        taskType || null,
-        department || null,
-        blockedReason || null,
-        taskId,
-      ]
-    );
+    await taskRepository.updateTask(taskId, {
+      projectId,
+      parentTaskId,
+      name,
+      description,
+      assigneeId,
+      status,
+      priority,
+      startDate,
+      dueDate,
+      completionPct,
+      notes,
+      accountId,
+      leadId,
+      quotationId,
+      target,
+      resultLinks,
+      output,
+      reportDate,
+      taskType,
+      department,
+      blockedReason,
+    });
 
-    res.json(await getTaskWithLinksById(db, taskId));
+    res.json(await taskRepository.getTaskWithLinksById(taskId));
   }));
 
   app.delete('/api/tasks/:id', requireAuth, requireRole('admin', 'manager'), ah(async (req: Request, res: Response) => {
     const taskId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    await getDb().run('DELETE FROM Task WHERE id = ?', [taskId]);
+    await taskRepository.deleteTask(taskId);
     res.json({ success: true });
   }));
 }

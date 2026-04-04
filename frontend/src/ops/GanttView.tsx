@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { API_BASE } from '../config';
 import { fetchWithAuth } from '../auth';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { tokens } from '../ui/tokens';
 import { ui } from '../ui/styles';
 import {
   addMonths,
   createMonthDays,
+  createTimelineWindowDays,
   formatMonthLabel,
   formatShortDate,
   normalizeSearch,
@@ -23,6 +25,13 @@ import {
   type GanttPresetKey,
 } from './ganttDerived';
 import { GanttCommandBar } from './GanttCommandBar';
+import {
+  buildProjectSignals,
+  buildTaskSignals,
+  formatPriorityLabel,
+  formatRiskLabel,
+  type GanttSignal,
+} from './ganttPresentation';
 
 type GanttViewProps = {
   token: string;
@@ -47,80 +56,67 @@ const S = {
   card: ui.card.base as any,
   btnPrimary: { ...ui.btn.primary, justifyContent: 'center' } as any,
   btnOutline: { ...ui.btn.outline, justifyContent: 'center' } as any,
+  btnUtility: {
+    ...ui.btn.outline,
+    justifyContent: 'center',
+    padding: `${tokens.spacing.smPlus} ${tokens.spacing.lg}`,
+    minHeight: '38px',
+    fontSize: tokens.fontSize.sm,
+    fontWeight: 700,
+    background: tokens.colors.background,
+  } as any,
+  btnPill: {
+    ...ui.btn.outline,
+    justifyContent: 'center',
+    padding: `${tokens.spacing.sm} ${tokens.spacing.mdPlus}`,
+    minHeight: '36px',
+    borderRadius: tokens.radius.xl,
+    fontSize: tokens.fontSize.sm,
+    fontWeight: 700,
+    background: tokens.colors.background,
+  } as any,
   select: { ...ui.input.base, minWidth: '180px', width: 'auto', paddingRight: '40px' } as any,
   input: { ...ui.input.base, transition: 'all 0.2s ease' } as any,
   pill: {
     padding: '5px 10px',
     borderRadius: tokens.radius.md,
-    fontSize: '11px',
+    fontSize: tokens.fontSize.xs,
     fontWeight: 800,
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: tokens.spacing.xsPlus,
+  } as any,
+  sectionLabel: {
+    fontSize: '11px',
+    fontWeight: 800,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: tokens.colors.textMuted,
+  } as any,
+  signalRail: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: tokens.spacing.xsPlus,
+    alignItems: 'center',
+  } as any,
+  scopeSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacing.xsPlus,
+    minWidth: 0,
+  } as any,
+  scopeRail: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: tokens.spacing.sm,
+    alignItems: 'center',
+    minHeight: '48px',
+    padding: '6px',
+    borderRadius: tokens.radius.xl,
+    border: `1px solid ${tokens.colors.border}`,
+    background: tokens.colors.background,
   } as any,
 };
-
-function statusChipStyle(status?: string | null) {
-  const normalized = (status || '').toLowerCase();
-  const base = { ...S.pill };
-  if (normalized.includes('completed') || normalized.includes('hoan')) {
-    return { ...base, ...ui.badge.success };
-  }
-  if (normalized.includes('paused') || normalized.includes('tam')) {
-    return { ...base, ...ui.badge.warning };
-  }
-  if (normalized.includes('cancel') || normalized.includes('huy')) {
-    return { ...base, ...ui.badge.error };
-  }
-  if (normalized.includes('active') || normalized.includes('dang')) {
-    return { ...base, ...ui.badge.info };
-  }
-  return { ...base, ...ui.badge.neutral };
-}
-
-function priorityChipStyle(priority?: string | null) {
-  const normalized = (priority || '').toLowerCase();
-  const base = { ...S.pill };
-  if (normalized === 'urgent') return { ...base, ...ui.badge.error };
-  if (normalized === 'high') return { ...base, background: '#fff3e0', color: '#e65100' };
-  if (normalized === 'medium') return { ...base, ...ui.badge.info };
-  if (normalized === 'low') return { ...base, ...ui.badge.neutral };
-  return { ...base, ...ui.badge.neutral };
-}
-
-function formatStatusLabel(status?: string | null) {
-  const normalized = (status || '').toLowerCase();
-  if (normalized.includes('completed') || normalized.includes('hoan')) return 'Hoan thanh';
-  if (normalized.includes('paused') || normalized.includes('tam')) return 'Tam dung';
-  if (normalized.includes('cancel') || normalized.includes('huy')) return 'Huy bo';
-  if (normalized.includes('active') || normalized.includes('dang')) return 'Dang thuc hien';
-  if (normalized.includes('pending') || normalized.includes('cho')) return 'Cho thuc hien';
-  return status || 'Unknown';
-}
-
-function formatPriorityLabel(priority?: string | null) {
-  const normalized = (priority || '').toLowerCase();
-  if (normalized === 'urgent') return 'Khẩn cấp';
-  if (normalized === 'high') return 'Cao';
-  if (normalized === 'medium') return 'Trung bình';
-  if (normalized === 'low') return 'Thấp';
-  return priority || '—';
-}
-
-function riskChipStyle(risk?: RiskState) {
-  const base = { ...S.pill };
-  if (risk === RiskState.Critical) return { ...base, ...ui.badge.error };
-  if (risk === RiskState.Warning) return { ...base, background: '#fff7ed', color: '#c2410c' };
-  if (risk === RiskState.Watch) return { ...base, ...ui.badge.info };
-  return { ...base, ...ui.badge.neutral };
-}
-
-function formatRiskLabel(risk?: RiskState) {
-  if (risk === RiskState.Critical) return 'Critical';
-  if (risk === RiskState.Warning) return 'Warning';
-  if (risk === RiskState.Watch) return 'Watch';
-  return 'Healthy';
-}
 
 function buildRiskBarBackground(risk?: RiskState, isProject = false) {
   if (risk === RiskState.Critical) {
@@ -166,6 +162,8 @@ const SAVED_VIEWS = [
   { key: 'overdue-projects', label: 'Task trễ' },
 ] as const;
 
+type SavedViewKey = (typeof SAVED_VIEWS)[number]['key'];
+
 function buildWeekHeader(days: MonthDay[]) {
   return days.map(day => (
     <div
@@ -173,53 +171,101 @@ function buildWeekHeader(days: MonthDay[]) {
       style={{
         minWidth: `${DAY_COLUMN_WIDTH}px`,
         width: `${DAY_COLUMN_WIDTH}px`,
+        boxSizing: 'border-box',
         textAlign: 'center',
-        padding: '10px 4px 12px',
+        padding: '6px 4px 12px',
         borderLeft: `1px solid ${tokens.colors.border}`,
-        background: day.isToday ? 'rgba(16, 185, 129, 0.08)' : tokens.colors.background,
+        boxShadow: day.isMonthStart ? `inset 2px 0 0 ${tokens.colors.border}` : 'none',
+        background: day.isToday
+          ? tokens.colors.successTint
+          : day.isWeekend
+            ? tokens.colors.surfaceSubtle
+            : tokens.colors.background,
       }}
     >
+      <div
+        style={{
+          minHeight: '12px',
+          marginBottom: '2px',
+          fontSize: '10px',
+          fontWeight: 800,
+          letterSpacing: '0.04em',
+          color: day.isMonthStart ? tokens.colors.primary : 'transparent',
+        }}
+      >
+        {day.isMonthStart ? day.monthLabelShort : '·'}
+      </div>
       <div style={{ fontSize: '10px', fontWeight: 800, color: tokens.colors.textMuted }}>{day.weekdayLabel}</div>
-      <div style={{ fontSize: '13px', fontWeight: 700, color: day.isWeekend ? tokens.colors.warning : tokens.colors.textPrimary }}>{day.dayNumber}</div>
+      <div style={{ fontSize: '13px', fontWeight: day.isToday ? 900 : 700, color: day.isToday ? tokens.colors.primary : day.isWeekend ? tokens.colors.warning : tokens.colors.textPrimary }}>{day.dayNumber}</div>
     </div>
   ));
+}
+
+function signalChipStyle(signal: GanttSignal) {
+  const base = { ...S.pill };
+  if (signal.tone === 'error') return { ...base, ...ui.badge.error };
+  if (signal.tone === 'warning') return { ...base, ...ui.badge.warning };
+  if (signal.tone === 'info') return { ...base, ...ui.badge.info };
+  if (signal.tone === 'success') return { ...base, ...ui.badge.success };
+  return { ...base, ...ui.badge.neutral };
+}
+
+function buildDateSummary(startDate?: string | null, dueDate?: string | null) {
+  if (!startDate && !dueDate) return '';
+  return `${formatShortDate(startDate)} - ${formatShortDate(dueDate)}`;
+}
+
+function stripProjectTaskCount(subtitle?: string) {
+  return (subtitle || '').replace(/\s*·\s*\d+\s*công việc$/, '').trim();
+}
+
+function stickyLeftPaneStyle(background: string, zIndex = 2) {
+  return {
+    position: 'sticky',
+    left: 0,
+    zIndex,
+    background,
+    backgroundClip: 'padding-box',
+    isolation: 'isolate',
+    boxShadow: `1px 0 0 ${tokens.colors.border}`,
+  } as const;
 }
 
 function GanttRow({
   label,
   subtitle,
-  status,
-  risk,
-  progress,
-  taskCount,
-  priority,
+  signals,
   barStyle,
   barLabel,
   onClick,
   isProject = false,
   overdue = false,
   timelineMissing = false,
+  todayIndex = -1,
+  suppressClicksUntilRef,
   expanded,
   onToggle,
   canToggle = false,
 }: {
   label: string;
   subtitle?: string;
-  status?: string | null;
-  risk?: RiskState | null;
-  progress?: number;
-  taskCount?: number;
-  priority?: string | null;
+  signals?: GanttSignal[];
   barStyle?: any;
   barLabel?: string;
   onClick?: () => void;
   isProject?: boolean;
   overdue?: boolean;
   timelineMissing?: boolean;
+  todayIndex?: number;
+  suppressClicksUntilRef?: { current: number };
   expanded?: boolean;
   onToggle?: () => void;
   canToggle?: boolean;
 }) {
+  const rowBackground = overdue
+    ? `linear-gradient(0deg, rgba(239, 68, 68, 0.04), rgba(239, 68, 68, 0.04)), ${tokens.colors.surface}`
+    : tokens.colors.surface;
+
   return (
     <div
       style={{
@@ -227,22 +273,26 @@ function GanttRow({
         gridTemplateColumns: `${LEFT_COLUMN_WIDTH}px minmax(${TIMELINE_WIDTH_MIN}px, 1fr)`,
         minHeight: `${isProject ? PROJECT_ROW_HEIGHT : ROW_HEIGHT}px`,
         borderBottom: `1px solid ${tokens.colors.border}`,
-        background: overdue ? 'rgba(239, 68, 68, 0.03)' : tokens.colors.surface,
+        background: rowBackground,
       }}
     >
       <div
         style={{
-          padding: '14px 16px',
+          padding: `${tokens.spacing.mdPlus} ${tokens.spacing.lg}`,
           borderRight: `1px solid ${tokens.colors.border}`,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          gap: '8px',
+          gap: tokens.spacing.sm,
           cursor: onClick ? 'pointer' : 'default',
+          ...stickyLeftPaneStyle(rowBackground, 6),
         }}
-        onClick={onClick}
+        onClick={() => {
+          if (suppressClicksUntilRef && Date.now() < suppressClicksUntilRef.current) return;
+          onClick?.();
+        }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: tokens.spacing.smPlus, minWidth: 0 }}>
           {canToggle && (
             <button
               type="button"
@@ -275,14 +325,12 @@ function GanttRow({
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-          {risk ? <span style={riskChipStyle(risk)}>{formatRiskLabel(risk)}</span> : null}
-          {status && <span style={statusChipStyle(status)}>{formatStatusLabel(status)}</span>}
-          {priority && <span style={priorityChipStyle(priority)}>{formatPriorityLabel(priority)}</span>}
-          {typeof progress === 'number' && <span style={{ ...S.pill, ...ui.badge.neutral }}>{progress}%</span>}
-          {typeof taskCount === 'number' && <span style={{ ...S.pill, ...ui.badge.neutral }}>{taskCount} công việc</span>}
-          {overdue && <span style={{ ...S.pill, ...ui.badge.error }}>Trễ hạn</span>}
-          {timelineMissing && <span style={{ ...S.pill, ...ui.badge.warning }}>Thiếu timeline</span>}
+        <div style={S.signalRail}>
+          {(signals || []).map(signal => (
+            <span key={signal.key} style={signalChipStyle(signal)}>
+              {signal.label}
+            </span>
+          ))}
         </div>
       </div>
       <div
@@ -293,8 +341,24 @@ function GanttRow({
           backgroundSize: `${DAY_COLUMN_WIDTH}px 100%`,
         }}
       >
+        {todayIndex >= 0 ? (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: `${todayIndex * DAY_COLUMN_WIDTH + DAY_COLUMN_WIDTH / 2}px`,
+              width: '2px',
+              transform: 'translateX(-1px)',
+              background: tokens.colors.primary,
+              opacity: 0.7,
+              zIndex: 1,
+            }}
+          />
+        ) : null}
         <div style={{ position: 'relative', height: '100%', minHeight: `${isProject ? PROJECT_ROW_HEIGHT : ROW_HEIGHT}px` }}>
-          <div style={{ position: 'absolute', inset: '50% 0 auto 0', height: `${TRACK_HEIGHT}px`, transform: 'translateY(-50%)', padding: '0 6px' }}>
+          <div style={{ position: 'absolute', inset: '50% 0 auto 0', height: `${TRACK_HEIGHT}px`, transform: 'translateY(-50%)', padding: `0 ${tokens.spacing.xsPlus}` }}>
             {barStyle && (
               <div
                 style={{
@@ -306,8 +370,8 @@ function GanttRow({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '8px',
-                  padding: '0 10px',
+                  gap: tokens.spacing.sm,
+                  padding: `0 ${tokens.spacing.smPlus}`,
                   boxSizing: 'border-box',
                   boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)',
                   overflow: 'hidden',
@@ -326,7 +390,7 @@ function GanttRow({
                   height: `${isProject ? 24 : 20}px`,
                   borderRadius: '999px',
                   border: `1px dashed ${tokens.colors.warning}`,
-                  background: 'rgba(245, 158, 11, 0.08)',
+                  background: tokens.colors.warningTint,
                   color: tokens.colors.warning,
                   display: 'flex',
                   alignItems: 'center',
@@ -346,6 +410,21 @@ function GanttRow({
 }
 
 export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: GanttViewProps) {
+  const timelineScrollRef = useRef<HTMLDivElement | null>(null);
+  const timelineDragRef = useRef<{
+    mode: 'pointer' | 'mouse' | null;
+    pointerId: number | null;
+    startX: number;
+    startScrollLeft: number;
+    moved: boolean;
+  }>({
+    mode: null,
+    pointerId: null,
+    startX: 0,
+    startScrollLeft: 0,
+    moved: false,
+  });
+  const suppressRowClickUntilRef = useRef(0);
   const [projects, setProjects] = useState<GanttProject[]>([]);
   const [tasks, setTasks] = useState<GanttTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -358,6 +437,8 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
   const [selectedPriority, setSelectedPriority] = useState('');
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string> | undefined>(undefined);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [pendingTimelineScroll, setPendingTimelineScroll] = useState<'start' | 'today' | null>('start');
+  const [timelineDragging, setTimelineDragging] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -397,7 +478,8 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
     };
   }, [token, refreshTick]);
 
-  const monthDays = useMemo(() => createMonthDays(viewMonth), [viewMonth]);
+  const centerMonthDays = useMemo(() => createMonthDays(viewMonth), [viewMonth]);
+  const monthDays = useMemo(() => createTimelineWindowDays(viewMonth), [viewMonth]);
   const query = useMemo(() => normalizeSearch(searchQuery), [searchQuery]);
   const derived = useMemo(
     () =>
@@ -457,18 +539,37 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
     [tasks],
   );
   const effectiveExpandedProjectIds = derived.effectiveAutoExpandedProjectIds;
+  const todayIndex = useMemo(
+    () => monthDays.findIndex(day => day.isToday),
+    [monthDays],
+  );
+  const centerMonthStartIndex = useMemo(
+    () => monthDays.findIndex(day => day.isCenterMonth && day.isMonthStart),
+    [monthDays],
+  );
 
-  const visibleStats = useMemo(() => {
-    const metricMap = new Map(derived.commandMetrics.map(metric => [metric.key, metric]));
-    return {
+  const visibleStats = useMemo(
+    () => ({
       projects: visibleProjectRows.length,
       tasks: visibleTaskRows.length,
-      overdueTasks: metricMap.get('overdue')?.count ?? 0,
-      dueSoonTasks: metricMap.get('dueSoon')?.count ?? 0,
-      overloadedOwners: metricMap.get('overloadedOwners')?.count ?? 0,
-      avgProgress: metricMap.get('avgProgress')?.count ?? 0,
-    };
-  }, [derived.commandMetrics, visibleProjectRows.length, visibleTaskRows.length]);
+    }),
+    [visibleProjectRows.length, visibleTaskRows.length],
+  );
+  const activeSavedView = useMemo<SavedViewKey | 'custom'>(() => {
+    if (!searchQuery && !selectedAssignee && !selectedPriority && selectedLens === 'project' && activePreset === 'all') {
+      return 'ops-default';
+    }
+    if (!searchQuery && !selectedAssignee && !selectedPriority && selectedLens === 'owner' && activePreset === 'overloadedOwners') {
+      return 'owner-focus';
+    }
+    if (!searchQuery && !selectedAssignee && !selectedPriority && selectedLens === 'priority' && activePreset === 'urgentHigh') {
+      return 'urgent-queue';
+    }
+    if (!searchQuery && !selectedAssignee && !selectedPriority && selectedLens === 'project' && activePreset === 'overdue') {
+      return 'overdue-projects';
+    }
+    return 'custom';
+  }, [activePreset, searchQuery, selectedAssignee, selectedLens, selectedPriority]);
 
   const metricActions = useMemo(
     () =>
@@ -492,20 +593,6 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
               },
       })),
     [activePreset, derived.commandMetrics],
-  );
-
-  const presetActions = useMemo(
-    () =>
-      PRESET_OPTIONS.map(option => ({
-        key: option.key,
-        label: option.label,
-        active: activePreset === option.key,
-        onClick: () => {
-          setActivePreset(option.key);
-          setExpandedProjectIds(undefined);
-        },
-      })),
-    [activePreset],
   );
 
   const applySavedView = (key: (typeof SAVED_VIEWS)[number]['key']) => {
@@ -576,15 +663,19 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
           <GanttRow
             key={`project-${row.id}`}
             label={row.label}
-            subtitle={row.subtitle}
-            status={row.status}
-            risk={row.risk}
-            progress={row.progress}
-            taskCount={row.taskCount}
+            subtitle={[stripProjectTaskCount(row.subtitle), `${row.progress}% tien do`].filter(Boolean).join(' · ')}
+            signals={buildProjectSignals({
+              risk: row.risk,
+              status: row.status,
+              taskCount: row.taskCount,
+              overdueTaskCount: row.overdueTaskCount,
+            })}
             barStyle={projectBarStyle}
             barLabel={row.risk ? formatRiskLabel(row.risk) : row.status || 'Project'}
             onClick={() => onOpenProject?.(row.id)}
             isProject
+            todayIndex={todayIndex}
+            suppressClicksUntilRef={suppressRowClickUntilRef}
             expanded={currentProjectExpanded}
             canToggle={true}
             onToggle={() => toggleProject(row.id)}
@@ -593,17 +684,25 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
 
         if (currentProjectExpanded && currentProjectVisibleTaskCount === 0) {
           rows.push(
-            <div
-              key={`project-empty-${row.id}`}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `${LEFT_COLUMN_WIDTH}px minmax(${TIMELINE_WIDTH_MIN}px, 1fr)`,
+              <div
+                key={`project-empty-${row.id}`}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `${LEFT_COLUMN_WIDTH}px minmax(${TIMELINE_WIDTH_MIN}px, 1fr)`,
                 borderBottom: `1px solid ${tokens.colors.border}`,
                 background: 'rgba(248, 250, 252, 0.9)',
                 minHeight: '52px',
               }}
-            >
-              <div style={{ padding: '12px 16px', borderRight: `1px solid ${tokens.colors.border}`, color: tokens.colors.textMuted, fontSize: '12px' }}>
+              >
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRight: `1px solid ${tokens.colors.border}`,
+                  color: tokens.colors.textMuted,
+                  fontSize: '12px',
+                  ...stickyLeftPaneStyle('rgba(248, 250, 252, 0.9)', 2),
+                }}
+              >
                 {activePreset === 'all' && !query
                   ? 'Không có công việc nào trong tháng này'
                   : 'Không có công việc nào khớp bộ lọc hiện tại'}
@@ -622,7 +721,7 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
 
       const taskSubtitle = [
         row.subtitle,
-        `${formatShortDate(row.startDate)} - ${formatShortDate(row.dueDate)}`,
+        buildDateSummary(row.startDate, row.dueDate),
       ]
         .filter(Boolean)
         .join(' · ');
@@ -640,15 +739,19 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
           key={`task-${row.id}`}
           label={row.label}
           subtitle={taskSubtitle}
-          status={row.status}
-          priority={row.priority}
-          risk={row.risk}
-          progress={row.progress}
+          signals={buildTaskSignals({
+            priority: row.priority,
+            status: row.status,
+            overdue: row.overdue,
+            timelineMissing: row.timelineMissing,
+          })}
           barStyle={taskBarStyle}
           barLabel={row.timelineMissing ? 'Thiếu timeline' : row.priority || row.status || 'Task'}
           onClick={() => onOpenTask?.(row.id)}
           overdue={row.overdue}
           timelineMissing={row.timelineMissing}
+          todayIndex={todayIndex}
+          suppressClicksUntilRef={suppressRowClickUntilRef}
         />,
       );
     }
@@ -682,11 +785,19 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
               flexDirection: 'column',
               justifyContent: 'center',
               gap: '8px',
+              ...stickyLeftPaneStyle(
+                group.risk === RiskState.Critical
+                  ? 'rgba(239, 68, 68, 0.05)'
+                  : group.risk === RiskState.Warning
+                    ? 'rgba(249, 115, 22, 0.05)'
+                    : 'rgba(248, 250, 252, 0.96)',
+                2,
+              ),
             }}
           >
             <div style={{ fontSize: '14px', fontWeight: 900, color: tokens.colors.textPrimary }}>{group.label}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-              {group.risk ? <span style={riskChipStyle(group.risk)}>{formatRiskLabel(group.risk)}</span> : null}
+              {group.risk ? <span style={signalChipStyle({ key: 'risk', label: formatRiskLabel(group.risk), tone: group.risk === RiskState.Critical ? 'error' : group.risk === RiskState.Warning ? 'warning' : 'info' })}>{formatRiskLabel(group.risk)}</span> : null}
               <span style={{ ...S.pill, ...ui.badge.neutral }}>{group.taskCount} công việc</span>
               {group.overdueCount > 0 ? <span style={{ ...S.pill, ...ui.badge.error }}>{group.overdueCount} trễ hạn</span> : null}
               {group.overloaded ? <span style={{ ...S.pill, ...ui.badge.warning }}>Quá tải</span> : null}
@@ -711,7 +822,7 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
       for (const row of group.tasks) {
         const taskSubtitle = [
           row.subtitle,
-          `${formatShortDate(row.startDate)} - ${formatShortDate(row.dueDate)}`,
+          buildDateSummary(row.startDate, row.dueDate),
         ]
           .filter(Boolean)
           .join(' · ');
@@ -729,15 +840,19 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
             key={`lens-task-${group.key}-${row.id}`}
             label={row.label}
             subtitle={taskSubtitle}
-            status={row.status}
-            priority={row.priority}
-            risk={row.risk}
-            progress={row.progress}
+            signals={buildTaskSignals({
+              priority: row.priority,
+              status: row.status,
+              overdue: row.overdue,
+              timelineMissing: row.timelineMissing,
+            })}
             barStyle={taskBarStyle}
             barLabel={row.timelineMissing ? 'Thiếu timeline' : row.assigneeName || row.priority || row.status || 'Task'}
             onClick={() => onOpenTask?.(row.id)}
             overdue={row.overdue}
             timelineMissing={row.timelineMissing}
+            todayIndex={todayIndex}
+            suppressClicksUntilRef={suppressRowClickUntilRef}
           />,
         );
       }
@@ -749,8 +864,128 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
   const hasResults = selectedLens === 'project' ? visibleProjectRows.length > 0 : lensGroups.length > 0;
   const currentUserLabel = currentUser?.fullName || currentUser?.username || 'Current user';
 
+  const isInteractiveTimelineTarget = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(target.closest('button, input, select, textarea, a, [role="button"]'));
+  };
+
+  const beginTimelineDrag = (clientX: number, mode: 'pointer' | 'mouse', pointerId: number | null = null) => {
+    const container = timelineScrollRef.current;
+    if (!container) return false;
+
+    timelineDragRef.current = {
+      mode,
+      pointerId,
+      startX: clientX,
+      startScrollLeft: container.scrollLeft,
+      moved: false,
+    };
+    setTimelineDragging(true);
+    return true;
+  };
+
+  const handleTimelinePointerDown = (event: any) => {
+    const container = timelineScrollRef.current;
+    if (!container || isInteractiveTimelineTarget(event.target)) return;
+
+    const bounds = container.getBoundingClientRect();
+    const contentX = event.clientX - bounds.left + container.scrollLeft;
+    if (contentX < LEFT_COLUMN_WIDTH) return;
+
+    if (!beginTimelineDrag(event.clientX, 'pointer', event.pointerId)) return;
+    container.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleTimelinePointerMove = (event: any) => {
+    const container = timelineScrollRef.current;
+    const drag = timelineDragRef.current;
+    if (!container || drag.mode !== 'pointer' || drag.pointerId !== event.pointerId) return;
+
+    const deltaX = event.clientX - drag.startX;
+    if (Math.abs(deltaX) > 4) {
+      drag.moved = true;
+      suppressRowClickUntilRef.current = Date.now() + 180;
+    }
+
+    container.scrollLeft = drag.startScrollLeft - deltaX;
+    if (drag.moved) event.preventDefault?.();
+  };
+
+  const handleWindowTimelineMouseMove = (event: MouseEvent) => {
+    const container = timelineScrollRef.current;
+    const drag = timelineDragRef.current;
+    if (!container || drag.mode !== 'mouse') return;
+
+    const deltaX = event.clientX - drag.startX;
+    if (Math.abs(deltaX) > 4) {
+      drag.moved = true;
+      suppressRowClickUntilRef.current = Date.now() + 180;
+    }
+
+    container.scrollLeft = drag.startScrollLeft - deltaX;
+    if (drag.moved) event.preventDefault();
+  };
+
+  const handleWindowTimelineMouseUp = () => {
+    endTimelineDrag();
+  };
+
+  const handleTimelineMouseDown = (event: any) => {
+    const container = timelineScrollRef.current;
+    if (!container || isInteractiveTimelineTarget(event.target)) return;
+
+    const bounds = container.getBoundingClientRect();
+    const contentX = event.clientX - bounds.left + container.scrollLeft;
+    if (contentX < LEFT_COLUMN_WIDTH) return;
+
+    if (!beginTimelineDrag(event.clientX, 'mouse')) return;
+    window.addEventListener('mousemove', handleWindowTimelineMouseMove);
+    window.addEventListener('mouseup', handleWindowTimelineMouseUp);
+  };
+
+  const endTimelineDrag = (event?: any) => {
+    const container = timelineScrollRef.current;
+    const drag = timelineDragRef.current;
+    if (container && drag.mode === 'pointer' && drag.pointerId !== null && event?.pointerId === drag.pointerId) {
+      container.releasePointerCapture?.(drag.pointerId);
+    }
+    timelineDragRef.current = {
+      mode: null,
+      pointerId: null,
+      startX: 0,
+      startScrollLeft: 0,
+      moved: false,
+    };
+    window.removeEventListener('mousemove', handleWindowTimelineMouseMove);
+    window.removeEventListener('mouseup', handleWindowTimelineMouseUp);
+    setTimelineDragging(false);
+  };
+
+  useEffect(() => {
+    if (!pendingTimelineScroll || !timelineScrollRef.current) return;
+
+    const container = timelineScrollRef.current;
+    if (pendingTimelineScroll === 'start') {
+      const targetLeft = Math.max(0, centerMonthStartIndex * DAY_COLUMN_WIDTH);
+      container.scrollTo({ left: targetLeft, behavior: 'smooth' });
+      setPendingTimelineScroll(null);
+      return;
+    }
+
+    if (todayIndex >= 0) {
+      const viewportWidth = Math.max(container.clientWidth - LEFT_COLUMN_WIDTH, DAY_COLUMN_WIDTH * 5);
+      const targetLeft = Math.max(
+        0,
+        LEFT_COLUMN_WIDTH + todayIndex * DAY_COLUMN_WIDTH - viewportWidth / 2 + DAY_COLUMN_WIDTH / 2,
+      );
+      container.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    }
+
+    setPendingTimelineScroll(null);
+  }, [centerMonthStartIndex, pendingTimelineScroll, todayIndex]);
+
   return (
-    <div style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
+    <div style={{ padding: tokens.spacing.xl, maxWidth: '1600px', margin: '0 auto' }}>
       <div
         style={{
           ...S.card,
@@ -758,162 +993,247 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
           background: `linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.05))`,
         }}
       >
-        <div style={{ padding: '24px 24px 18px', borderBottom: `1px solid ${tokens.colors.border}` }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ padding: `${tokens.spacing.xl} ${tokens.spacing.xl} ${tokens.spacing.lgPlus}`, borderBottom: `1px solid ${tokens.colors.border}` }}>
+          <div style={{ ...ui.page.titleRow, alignItems: 'flex-start' }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: tokens.colors.textMuted, textTransform: 'uppercase' }}>
+              <div style={S.sectionLabel}>
                 Vận hành
               </div>
               <h2 style={{ margin: '8px 0 6px', fontSize: '28px', lineHeight: 1.1, color: tokens.colors.textPrimary }}>
                 Tiến độ Gantt
               </h2>
               <div style={{ fontSize: '14px', color: tokens.colors.textSecondary, maxWidth: '860px' }}>
-                Theo dõi tiến độ dự án và công việc theo dòng thời gian. Tìm kiếm nhanh, mở rộng hạng mục và rà soát khối lượng theo từng tháng cùng cảnh báo trễ hạn.
+                Theo dõi tiến độ dự án theo tháng, chuyển góc nhìn nhanh và ưu tiên những mục cần xử lý ngay.
+              </div>
+              <div style={{ marginTop: tokens.spacing.sm, fontSize: tokens.fontSize.sm, color: tokens.colors.textMuted }}>
+                Người xem: {currentUserLabel}
               </div>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-              <span style={{ ...S.pill, ...ui.badge.neutral }}>Người xem: {currentUserLabel}</span>
-              <button type="button" onClick={() => setRefreshTick(tick => tick + 1)} style={S.btnOutline}>
+            <div style={{ ...ui.page.actions, alignItems: 'center' }}>
+              <button type="button" onClick={() => setRefreshTick(tick => tick + 1)} style={S.btnUtility}>
                 Làm mới
               </button>
-              <button type="button" onClick={expandAll} style={S.btnOutline} disabled={selectedLens !== 'project'}>
+              <button type="button" onClick={expandAll} style={S.btnUtility} disabled={selectedLens !== 'project'}>
                 Mở rộng tất cả
               </button>
-              <button type="button" onClick={collapseAll} style={S.btnOutline} disabled={selectedLens !== 'project'}>
+              <button type="button" onClick={collapseAll} style={S.btnUtility} disabled={selectedLens !== 'project'}>
                 Thu gọn tất cả
               </button>
             </div>
           </div>
         </div>
 
-        <div style={{ padding: '18px 24px 24px', display: 'grid', gap: '16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto auto', gap: '12px', alignItems: 'center' }}>
-            <div style={{ minWidth: 0 }}>
-              <input
-                type="search"
-                value={searchQuery}
-                onInput={(event: any) => {
-                  setSearchQuery(event.target.value);
-                  setExpandedProjectIds(undefined);
+        <div style={{ padding: `${tokens.spacing.lgPlus} ${tokens.spacing.xl} ${tokens.spacing.xl}`, display: 'grid', gap: tokens.spacing.lg }}>
+          <div
+            style={{
+              ...ui.card.base,
+              padding: tokens.spacing.lg,
+              display: 'grid',
+              gap: tokens.spacing.lg,
+              background: tokens.colors.surface,
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) auto',
+                gap: tokens.spacing.md,
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onInput={(event: any) => {
+                    setSearchQuery(event.target.value);
+                    setExpandedProjectIds(undefined);
+                  }}
+                  placeholder="Tìm dự án, công việc, người phụ trách, khách hàng..."
+                  style={{ ...S.input, minHeight: '48px' }}
+                />
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: tokens.spacing.sm,
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
                 }}
-                placeholder="Tìm dự án, công việc, người phụ trách, khách hàng..."
-                style={S.input}
-              />
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: tokens.spacing.xsPlus,
+                    padding: '4px',
+                    borderRadius: tokens.radius.xl,
+                    border: `1px solid ${tokens.colors.border}`,
+                    background: tokens.colors.background,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMonth(date => addMonths(date, -1));
+                      setExpandedProjectIds(undefined);
+                      setPendingTimelineScroll('start');
+                    }}
+                    style={S.btnPill}
+                  >
+                    Tháng trước
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMonth(new Date());
+                      setExpandedProjectIds(undefined);
+                      setPendingTimelineScroll('today');
+                    }}
+                    style={{ ...S.btnPill, background: tokens.colors.primary, border: `1px solid ${tokens.colors.primary}`, color: tokens.colors.textOnPrimary }}
+                  >
+                    Hôm nay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMonth(date => addMonths(date, 1));
+                      setExpandedProjectIds(undefined);
+                      setPendingTimelineScroll('start');
+                    }}
+                    style={S.btnPill}
+                  >
+                    Tháng sau
+                  </button>
+                </div>
+                <SegmentedControl
+                  ariaLabel="Gantt lens"
+                  size="sm"
+                  wrap
+                  value={selectedLens}
+                  options={LENS_OPTIONS.map(option => ({ value: option.key, label: option.label }))}
+                  onChange={(value) => {
+                    setSelectedLens(value);
+                    setExpandedProjectIds(undefined);
+                  }}
+                  style={{ minHeight: '48px', width: 'fit-content', flex: '0 0 auto' }}
+                />
+              </div>
             </div>
-            <button type="button" onClick={() => {
-              setViewMonth(date => addMonths(date, -1));
-              setExpandedProjectIds(undefined);
-            }} style={S.btnOutline}>
-              Tháng trước
-            </button>
-            <button type="button" onClick={() => {
-              setViewMonth(new Date());
-              setExpandedProjectIds(undefined);
-            }} style={S.btnPrimary}>
-              Hôm nay
-            </button>
-            <button type="button" onClick={() => {
-              setViewMonth(date => addMonths(date, 1));
-              setExpandedProjectIds(undefined);
-            }} style={S.btnOutline}>
-              Tháng sau
-            </button>
-          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-            <select
-              value={selectedAssignee}
-              onChange={(event: any) => {
-                setSelectedAssignee(event.target.value);
-                setExpandedProjectIds(undefined);
-              }}
-              style={S.select}
-            >
-              <option value="">Tất cả assignee</option>
-              {assigneeOptions.map(option => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+            <div style={{ display: 'grid', gap: tokens.spacing.md }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: tokens.spacing.md, alignItems: 'end', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacing.xsPlus }}>
+                  <span style={S.sectionLabel}>Bo loc</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: tokens.spacing.md, alignItems: 'center' }}>
+                    <select
+                      value={selectedAssignee}
+                      onChange={(event: any) => {
+                        setSelectedAssignee(event.target.value);
+                        setExpandedProjectIds(undefined);
+                      }}
+                      style={S.select}
+                    >
+                      <option value="">Tất cả assignee</option>
+                      {assigneeOptions.map(option => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
 
-            <select
-              value={selectedPriority}
-              onChange={(event: any) => {
-                setSelectedPriority(event.target.value);
-                setExpandedProjectIds(undefined);
-              }}
-              style={S.select}
-            >
-              <option value="">Tất cả ưu tiên</option>
-              {priorityOptions.map(option => (
-                <option key={option} value={option}>
-                  {formatPriorityLabel(option)}
-                </option>
-              ))}
-            </select>
+                    <select
+                      value={selectedPriority}
+                      onChange={(event: any) => {
+                        setSelectedPriority(event.target.value);
+                        setExpandedProjectIds(undefined);
+                      }}
+                      style={S.select}
+                    >
+                      <option value="">Tất cả ưu tiên</option>
+                      {priorityOptions.map(option => (
+                        <option key={option} value={option}>
+                          {formatPriorityLabel(option)}
+                        </option>
+                      ))}
+                    </select>
 
-            {(selectedAssignee || selectedPriority) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedAssignee('');
-                  setSelectedPriority('');
-                  setExpandedProjectIds(undefined);
+                    {(selectedAssignee || selectedPriority) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAssignee('');
+                          setSelectedPriority('');
+                          setExpandedProjectIds(undefined);
+                        }}
+                        style={S.btnPill}
+                      >
+                        Xóa filter
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: tokens.spacing.sm, alignItems: 'center', color: tokens.colors.textMuted, fontSize: tokens.fontSize.sm }}>
+                  <span>{formatMonthLabel(viewMonth)}</span>
+                  <span>·</span>
+                  <span>{visibleStats.projects} dự án</span>
+                  <span>·</span>
+                  <span>{visibleStats.tasks} công việc</span>
+                  {derived.safeMode ? (
+                    <>
+                      <span>·</span>
+                      <span style={{ ...S.pill, ...ui.badge.warning }}>Đang dùng safe mode</span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                  gap: tokens.spacing.lg,
+                  alignItems: 'start',
                 }}
-                style={S.btnOutline}
               >
-                Xóa filter
-              </button>
-            )}
-          </div>
+                <div style={S.scopeSection}>
+                  <span style={S.sectionLabel}>Saved views</span>
+                  <SegmentedControl
+                    ariaLabel="Saved views gantt"
+                    size="sm"
+                    wrap
+                    value={activeSavedView as SavedViewKey}
+                    options={SAVED_VIEWS.map(view => ({ value: view.key, label: view.label }))}
+                    onChange={(value) => applySavedView(value)}
+                    style={{ width: '100%', minHeight: '48px' }}
+                  />
+                </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-            <span style={{ ...S.pill, ...ui.badge.neutral }}>Lens</span>
-            {LENS_OPTIONS.map(option => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => {
-                  setSelectedLens(option.key);
-                  setExpandedProjectIds(undefined);
-                }}
-                style={option.key === selectedLens ? S.btnPrimary : S.btnOutline}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+                <div style={S.scopeSection}>
+                  <span style={S.sectionLabel}>Quick presets</span>
+                  <SegmentedControl
+                    ariaLabel="Preset pham vi gantt"
+                    size="sm"
+                    wrap
+                    value={activePreset}
+                    options={PRESET_OPTIONS.map(option => ({ value: option.key, label: option.label }))}
+                    onChange={(value) => {
+                      setActivePreset(value);
+                      setExpandedProjectIds(undefined);
+                    }}
+                    style={{ width: '100%', minHeight: '48px' }}
+                  />
+                </div>
+              </div>
+            </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-            <span style={{ ...S.pill, ...ui.badge.neutral }}>Saved views</span>
-            {SAVED_VIEWS.map(view => (
-              <button
-                key={view.key}
-                type="button"
-                onClick={() => applySavedView(view.key)}
-                style={S.btnOutline}
-              >
-                {view.label}
-              </button>
-            ))}
-          </div>
-
-          <GanttCommandBar metrics={metricActions} presets={presetActions} />
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-            <span style={{ ...S.pill, ...ui.badge.neutral }}>{formatMonthLabel(viewMonth)}</span>
-            <span style={{ ...S.pill, ...ui.badge.neutral }}>{visibleStats.projects} dự án</span>
-            <span style={{ ...S.pill, ...ui.badge.neutral }}>{visibleStats.tasks} công việc</span>
-            <span style={{ ...S.pill, ...ui.badge.error }}>{visibleStats.overdueTasks} trễ hạn</span>
-            <span style={{ ...S.pill, ...ui.badge.warning }}>{visibleStats.dueSoonTasks} sắp đến hạn</span>
-            <span style={{ ...S.pill, ...ui.badge.info }}>{visibleStats.overloadedOwners} owner quá tải</span>
-            <span style={{ ...S.pill, ...ui.badge.info }}>Trung bình {visibleStats.avgProgress}% tiến độ</span>
-            {derived.safeMode && <span style={{ ...S.pill, ...ui.badge.warning }}>Đang dùng safe mode</span>}
+            <GanttCommandBar metrics={metricActions} />
           </div>
 
           {error && (
-            <div style={{ ...ui.badge.error, padding: '12px 16px', borderRadius: tokens.radius.lg, fontSize: '14px' }}>
+            <div style={{ ...ui.badge.error, padding: `${tokens.spacing.md} ${tokens.spacing.lg}`, borderRadius: tokens.radius.lg, fontSize: tokens.fontSize.base }}>
               {error}
             </div>
           )}
@@ -927,10 +1247,36 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
               Không có dự án nào khớp với tháng hiện tại và bộ lọc hiện tại. Hãy thử xóa tìm kiếm hoặc chuyển preset về "Tất cả".
             </div>
           ) : (
-            <div style={{ overflowX: 'auto', border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, background: tokens.colors.surface }}>
+            <div
+              ref={timelineScrollRef}
+              onMouseDown={handleTimelineMouseDown}
+              onPointerDown={handleTimelinePointerDown}
+              onPointerMove={handleTimelinePointerMove}
+              onPointerUp={endTimelineDrag}
+              onPointerCancel={endTimelineDrag}
+              onPointerLeave={(event: any) => {
+                if (timelineDragRef.current.pointerId === event.pointerId) {
+                  endTimelineDrag(event);
+                }
+              }}
+              style={{
+                overflowX: 'auto',
+                border: `1px solid ${tokens.colors.border}`,
+                borderRadius: tokens.radius.lg,
+                background: tokens.colors.surface,
+                cursor: timelineDragging ? 'grabbing' : 'grab',
+                userSelect: timelineDragging ? 'none' : 'auto',
+              }}
+            >
               <div style={{ minWidth: `${LEFT_COLUMN_WIDTH + monthDays.length * DAY_COLUMN_WIDTH}px` }}>
                 <div style={{ display: 'grid', gridTemplateColumns: `${LEFT_COLUMN_WIDTH}px minmax(${TIMELINE_WIDTH_MIN}px, 1fr)`, position: 'sticky', top: 0, zIndex: 3 }}>
-                  <div style={{ padding: '14px 16px', borderRight: `1px solid ${tokens.colors.border}`, background: tokens.colors.background }}>
+                  <div
+                    style={{
+                      padding: `${tokens.spacing.mdPlus} ${tokens.spacing.lg}`,
+                      borderRight: `1px solid ${tokens.colors.border}`,
+                      ...stickyLeftPaneStyle(tokens.colors.background, 5),
+                    }}
+                  >
                     <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                       Luồng công việc
                     </div>
@@ -946,19 +1292,28 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
                 <div>
                   {viewMonth && (
                     <div style={{ display: 'grid', gridTemplateColumns: `${LEFT_COLUMN_WIDTH}px minmax(${TIMELINE_WIDTH_MIN}px, 1fr)`, background: tokens.colors.background, borderBottom: `1px solid ${tokens.colors.border}` }}>
-                      <div style={{ padding: '10px 16px', borderRight: `1px solid ${tokens.colors.border}`, color: tokens.colors.textMuted, fontSize: '12px' }}>
-                        {monthDays.length} ngày trong tháng · {currentUserLabel}
+                      <div
+                        style={{
+                          padding: `${tokens.spacing.smPlus} ${tokens.spacing.lg}`,
+                          borderRight: `1px solid ${tokens.colors.border}`,
+                          color: tokens.colors.textMuted,
+                          fontSize: tokens.fontSize.sm,
+                          ...stickyLeftPaneStyle(tokens.colors.background, 4),
+                        }}
+                      >
+                        {centerMonthDays.length} ngày trong tháng · {currentUserLabel}
                       </div>
                       <div style={{ position: 'relative', minHeight: '18px', backgroundImage: `linear-gradient(to right, ${tokens.colors.border} 1px, transparent 1px)`, backgroundSize: `${DAY_COLUMN_WIDTH}px 100%` }}>
                         <div
                           style={{
                             position: 'absolute',
-                            left: `${Math.max(0, monthDays.findIndex(day => day.isToday)) * DAY_COLUMN_WIDTH}px`,
+                            left: todayIndex >= 0 ? `${todayIndex * DAY_COLUMN_WIDTH + DAY_COLUMN_WIDTH / 2}px` : '0px',
                             top: 0,
                             bottom: 0,
                             width: '2px',
+                            transform: 'translateX(-1px)',
                             background: tokens.colors.primary,
-                            opacity: monthDays.some(day => day.isToday) ? 1 : 0,
+                            opacity: todayIndex >= 0 ? 1 : 0,
                           }}
                         />
                       </div>
