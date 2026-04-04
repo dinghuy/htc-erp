@@ -57,5 +57,6 @@ frontend/qa-product-form-*.md
 frontend/qa-product-form-*.png
 
 # IDE / OS
+.obsidian/
 .DS_Store
 Thumbs.db
