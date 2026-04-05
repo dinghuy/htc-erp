@@ -30,6 +30,15 @@ describe('app shell composition', () => {
     expect(source).toContain('Role preview controls:');
   });
 
+  it('renders an explicit maintenance badge for non-core Phase 1 navigation entries', () => {
+    const layoutPath = path.resolve(__dirname, 'Layout.tsx');
+    const source = readFileSync(layoutPath, 'utf8');
+
+    expect(source).toContain("const showMaintenanceBadge = item.phaseOneExposure === 'maintenance';");
+    expect(source).toContain("t('nav.badge.maintenance_only')");
+    expect(source).toContain("'MAINTENANCE ONLY': 'nav.section.maintenance_only'");
+  });
+
   it('preserves direct Settings and Users routing for base admin preview sessions without reopening sidebar access', () => {
     const appPath = path.resolve(__dirname, 'app.tsx');
     const source = readFileSync(appPath, 'utf8');

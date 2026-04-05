@@ -4,6 +4,15 @@
 
 One sentence describing the user-visible or domain-visible outcome.
 
+## Traceability Links
+
+- Linear issue / execution tracker:
+- Notion page / evidence tracker:
+- Canonical docs consulted:
+- Definition of Ready:
+- Definition of Done:
+- UAT / regression checklist:
+
 ## Suggested OMX Skill
 
 - Default:

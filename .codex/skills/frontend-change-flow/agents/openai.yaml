@@ -1,8 +1,0 @@
-name: frontend-change-flow
-short_description: htc-erp frontend implementation and verification flow
-description: |
-  Frontend workflow for htc-erp UI, route, selector, and interaction changes with the right
-  typecheck, test, and UX audit mapping.
-when_to_use: |
-  Use when an htc-erp task changes frontend UI, routes, selectors, or interaction behavior and
-  needs the correct verification path before handoff.

@@ -53,6 +53,7 @@ const SECTION_I18N_KEYS: Record<string, string> = {
   'BÁO CÁO': 'nav.section.reports',
   'QUẢN LÝ CÔNG VIỆC': 'nav.section.work_mgmt',
   'ERP (MVP)': 'nav.section.erp',
+  'MAINTENANCE ONLY': 'nav.section.maintenance_only',
   'QUẢN TRỊ HỆ THỐNG': 'nav.section.system_admin',
   'CÀI ĐẶT': 'nav.section.settings',
 };
@@ -271,6 +272,7 @@ export const Layout = ({
               const Icon = item.icon;
               const translated = t(routeKey);
               const routeLabel = translated === routeKey ? item.label : translated;
+              const showMaintenanceBadge = item.phaseOneExposure === 'maintenance';
 
               return (
                 <button
@@ -317,7 +319,26 @@ export const Layout = ({
                     >
                       <Icon size={18} strokeWidth={1.85} />
                     </span>
-                    <span>{routeLabel}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      <span>{routeLabel}</span>
+                      {showMaintenanceBadge ? (
+                        <span
+                          style={{
+                            padding: '2px 6px',
+                            borderRadius: '999px',
+                            background: tokens.colors.warningTint,
+                            color: tokens.colors.warningText,
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {t('nav.badge.maintenance_only')}
+                        </span>
+                      ) : null}
+                    </span>
                   </span>
                   {item.label === 'Ops Chat' && notifications.unreadCount > 0 ? (
                     <span

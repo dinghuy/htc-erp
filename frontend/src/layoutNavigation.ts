@@ -1,4 +1,8 @@
-import type { AppModule } from './shared/domain/contracts';
+import {
+  getAppModulePhaseOneExposure,
+  type AppModule,
+  type AppModulePhaseOneExposure,
+} from './shared/domain/contracts';
 import {
   BriefcaseIcon,
   BuildingIcon,
@@ -24,6 +28,10 @@ export type TabName = 'Workspace' | 'Records' | 'Admin';
 export type NavItemDefinition = {
   label: AppModule;
   icon: (props: { size?: number; color?: string; strokeWidth?: number }) => any;
+  phaseOneExposure?: AppModulePhaseOneExposure;
+};
+export type VisibleNavItemDefinition = NavItemDefinition & {
+  phaseOneExposure: AppModulePhaseOneExposure;
 };
 export type NavSectionDefinition = {
   section: string;
@@ -40,7 +48,7 @@ export type VisibleShellNavigationGroup = {
   groups: Array<{
     section: string;
     showSectionLabel: boolean;
-    items: NavItemDefinition[];
+    items: VisibleNavItemDefinition[];
   }>;
 };
 
@@ -58,21 +66,18 @@ const SHELL_NAVIGATION: ShellNavigationDefinition[] = [
           { label: 'Approvals', icon: CheckSquareIcon },
           { label: 'Projects', icon: FolderIcon },
           { label: 'Tasks', icon: CheckSquareIcon },
+          { label: 'ERP Orders', icon: ReceiptIcon },
         ],
       },
       {
-        section: 'OPERATIONS',
+        section: 'MAINTENANCE ONLY',
         items: [
-          { label: 'ERP Orders', icon: ReceiptIcon },
           { label: 'Ops Overview', icon: CompassIcon },
           { label: 'Gantt', icon: CalendarIcon },
           { label: 'Ops Staff', icon: BriefcaseIcon },
           { label: 'Ops Chat', icon: ChatIcon },
+          { label: 'Reports', icon: ReportIcon },
         ],
-      },
-      {
-        section: 'ANALYTICS',
-        items: [{ label: 'Reports', icon: ReportIcon }],
       },
     ],
   },
@@ -87,12 +92,14 @@ const SHELL_NAVIGATION: ShellNavigationDefinition[] = [
           { label: 'Leads', icon: TargetIcon },
           { label: 'Accounts', icon: BuildingIcon },
           { label: 'Contacts', icon: UserIcon },
+          { label: 'Equipment', icon: PackageIcon },
         ],
       },
       {
-        section: 'MASTER DATA',
+        section: 'MAINTENANCE ONLY',
         items: [
-          { label: 'Equipment', icon: PackageIcon },
+          { label: 'Suppliers', icon: BuildingIcon },
+          { label: 'Partners', icon: UsersIcon },
         ],
       },
     ],
@@ -105,13 +112,18 @@ const SHELL_NAVIGATION: ShellNavigationDefinition[] = [
         section: 'QUẢN TRỊ HỆ THỐNG',
         items: [
           { label: 'Users', icon: UsersIcon },
-          { label: 'EventLog', icon: ClipboardIcon },
         ],
       },
       {
         section: 'CÀI ĐẶT',
         items: [
           { label: 'Settings', icon: SettingsIcon },
+        ],
+      },
+      {
+        section: 'MAINTENANCE ONLY',
+        items: [
+          { label: 'EventLog', icon: ClipboardIcon },
           { label: 'Support', icon: HeadphonesIcon },
         ],
       },
@@ -133,7 +145,10 @@ export function getShellNavigationGroups(
           return {
             section: group.section,
             showSectionLabel: !(category.key === 'Workspace' && index === 0),
-            items: visibleItems,
+            items: visibleItems.map((item) => ({
+              ...item,
+              phaseOneExposure: getAppModulePhaseOneExposure(item.label),
+            })),
           };
         })
         .filter((group): group is VisibleShellNavigationGroup['groups'][number] => Boolean(group));

@@ -48,7 +48,7 @@ Ownership:
 
 3. `P0-PROC-01` Standardize AI task intake with mandatory template usage
 Status:
-- `partial`
+- `done`
 Acceptance criteria:
 - Every new task doc references `docs/ai/task-template.md`.
 - DoR/DoD and UAT links are required fields.
@@ -57,8 +57,6 @@ Evidence:
 - `docs/process/definition-of-ready.md`
 - `docs/process/definition-of-done.md`
 - `docs/index.md`
-Open gaps:
-- The template and process docs exist, but they do not yet force explicit DoR/DoD/UAT link fields in the task template itself.
 Ownership:
 - `docs/ai/task-template.md`
 - `docs/process/definition-of-ready.md`
@@ -97,7 +95,7 @@ Ownership:
 
 6. `P1-SCOPE-01` Put non-core modules into maintenance-only mode
 Status:
-- `partial`
+- `done`
 Acceptance criteria:
 - Route/nav exposure for non-core modules is feature-gated or clearly marked maintenance-only.
 - No new feature work starts in non-core modules during Phase 1.
@@ -105,8 +103,10 @@ Evidence:
 - `docs/product/product-spec.md`
 - `frontend/src/shared/domain/contracts.ts`
 - `frontend/src/app.tsx`
-Open gaps:
-- Product scope is documented, but navigation and module exposure still include non-core surfaces as active application routes.
+- `frontend/src/layoutNavigation.ts`
+- `frontend/src/Layout.tsx`
+- `frontend/src/layoutNavigation.test.ts`
+- `frontend/src/app.shell-composition.test.ts`
 Ownership:
 - `frontend/src/core/routes.ts`
 - `frontend/src/features/**`
@@ -170,28 +170,24 @@ Ownership:
 
 10. `P4-FE-01` Complete frontend feature-shell migration for core flow screens
 Status:
-- `partial`
+- `done`
 Acceptance criteria:
 - Leads, Accounts/Customers, Quotations, Projects, Tasks, Approval-related views resolve through feature routes.
 - Legacy monolithic screens are either removed from navigation or wrapped by feature route adapters.
 Evidence:
 - `frontend/src/app.tsx`
-- `frontend/src/features/{customers,quotations,projects,tasks,admin,event-log}/*`
+- `frontend/src/features/{leads,approvals,customers,quotations,projects,reports,tasks}/*`
+- `frontend/src/app.shell-composition.test.ts`
 - `frontend/src/shared/domain/contracts.ts`
-Open gaps:
-- Core feature routes are present for several areas, but legacy screen entry files are still mounted directly in the main application shell.
 Ownership:
 - `frontend/src/core/routes.ts`
-- `frontend/src/features/{customers,quotations,projects,tasks,admin,event-log}/*`
+- `frontend/src/features/{leads,approvals,customers,quotations,projects,reports,tasks}/*`
 - `frontend/src/*.tsx` (legacy route entry files)
 
 ## Current Execution Order
 
-1. `P0-PROC-01` Standardize AI task intake with mandatory template usage.
-2. `P1-SCOPE-01` Put non-core modules into maintenance-only mode.
-3. `P4-FE-01` Complete frontend feature-shell migration for core flow screens.
-4. `P2-BE-01` Finish quotations route boundary cleanup.
-5. `P3-ERP-01` Close ERP outbox auditability gaps and confirm runbook coverage.
+1. `P2-BE-01` Finish quotations route boundary cleanup.
+2. `P3-ERP-01` Close ERP outbox auditability gaps and confirm runbook coverage.
 
 ## Suggested Subagent Boundaries
 

@@ -95,6 +95,30 @@ export const APP_MODULES = [
 ] as const;
 
 export type AppModule = (typeof APP_MODULES)[number];
+export type AppModulePhaseOneExposure = 'core' | 'maintenance' | 'admin';
+
+export const PHASE_ONE_MAINTENANCE_MODULES: AppModule[] = [
+  'Partners',
+  'Suppliers',
+  'Ops Overview',
+  'Gantt',
+  'Ops Staff',
+  'Ops Chat',
+  'Reports',
+  'EventLog',
+  'Support',
+];
+
+export const APP_MODULE_PHASE_ONE_EXPOSURE: Record<AppModule, AppModulePhaseOneExposure> = APP_MODULES.reduce(
+  (acc, moduleName) => {
+    acc[moduleName] = PHASE_ONE_MAINTENANCE_MODULES.includes(moduleName) ? 'maintenance' : 'core';
+    return acc;
+  },
+  {} as Record<AppModule, AppModulePhaseOneExposure>,
+);
+
+APP_MODULE_PHASE_ONE_EXPOSURE.Users = 'admin';
+APP_MODULE_PHASE_ONE_EXPOSURE.Settings = 'admin';
 
 export type RolePersonaMode =
   | 'sales'
@@ -276,6 +300,14 @@ export function buildRoleProfile(roleCodes: unknown, legacyRole?: unknown): Role
 export function canAccessModule(profileOrRoles: RoleProfile | unknown, moduleName: AppModule, legacyRole?: unknown) {
   const profile = isRoleProfile(profileOrRoles) ? profileOrRoles : buildRoleProfile(profileOrRoles, legacyRole);
   return profile.allowedModules.includes(moduleName);
+}
+
+export function getAppModulePhaseOneExposure(moduleName: AppModule): AppModulePhaseOneExposure {
+  return APP_MODULE_PHASE_ONE_EXPOSURE[moduleName];
+}
+
+export function isMaintenanceOnlyModule(moduleName: AppModule) {
+  return getAppModulePhaseOneExposure(moduleName) === 'maintenance';
 }
 
 function isRoleProfile(value: unknown): value is RoleProfile {
