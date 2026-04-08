@@ -650,7 +650,7 @@ export async function finalizeSqliteSchema(db: Database) {
   // ─── Seed Department from User.department text and backfill departmentId ────
   const deptCount = await db.get<{ c: number }>('SELECT COUNT(*) as c FROM Department');
   if (deptCount && deptCount.c === 0) {
-    const deptNames = await db.all<{ department: string }>(
+    const deptNames = await db.all<Array<{ department: string }>>(
       "SELECT DISTINCT department FROM User WHERE department IS NOT NULL AND TRIM(department) != '' ORDER BY department"
     );
     for (const { department } of deptNames) {
@@ -669,7 +669,7 @@ export async function finalizeSqliteSchema(db: Database) {
   // ─── Seed ProductCategory from Product.category text and backfill categoryId
   const catCount = await db.get<{ c: number }>('SELECT COUNT(*) as c FROM ProductCategory');
   if (catCount && catCount.c === 0) {
-    const catNames = await db.all<{ category: string }>(
+    const catNames = await db.all<Array<{ category: string }>>(
       "SELECT DISTINCT category FROM Product WHERE category IS NOT NULL AND TRIM(category) != '' ORDER BY category"
     );
     let sortOrder = 0;

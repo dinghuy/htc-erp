@@ -10,13 +10,9 @@ type ProjectWorkspaceAsyncActionsDeps = {
   projectId: string;
   currentUserId: string;
   workspace: any;
-  documentThread: any;
-  documentThreadDraft: string;
+  ui: any;
   setBusy: (value: string | null) => void;
   loadWorkspace: () => Promise<void>;
-  setDocumentThread: (value: any) => void;
-  setDocumentThreadMessages: (value: any[]) => void;
-  setDocumentThreadDraft: (value: string) => void;
   setTab: (value: ProjectWorkspaceTabKey) => void;
   goToRoute: (route: string, filters?: any, entityType?: any, entityId?: string) => void;
 };
@@ -26,13 +22,9 @@ export function createProjectWorkspaceAsyncActions({
   projectId,
   currentUserId,
   workspace,
-  documentThread,
-  documentThreadDraft,
+  ui,
   setBusy,
   loadWorkspace,
-  setDocumentThread,
-  setDocumentThreadMessages,
-  setDocumentThreadDraft,
   setTab,
   goToRoute,
 }: ProjectWorkspaceAsyncActionsDeps) {
@@ -126,31 +118,31 @@ export function createProjectWorkspaceAsyncActions({
       const messagesPayload = threadId
         ? await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, {}, 'Không thể tải messages thread')
         : { items: [] };
-      setDocumentThread({
+      ui.setDocumentThread({
         document,
         threadSummary: buildDocumentThreadSummary({ threadPayload, messagesPayload }),
       });
-      setDocumentThreadMessages(Array.isArray(messagesPayload?.items) ? messagesPayload.items : []);
-      setDocumentThreadDraft('');
+      ui.setDocumentThreadMessages(Array.isArray(messagesPayload?.items) ? messagesPayload.items : []);
+      ui.setDocumentThreadDraft('');
     } catch (error: any) {
       showNotify(error?.message || 'Không thể tải thread hồ sơ', 'error');
     }
   };
 
   const sendDocumentThreadMessage = async () => {
-    if (!documentThread?.document?.id) return;
-    const content = String(documentThreadDraft || '').trim();
+    if (!ui.documentThread?.document?.id) return;
+    const content = String(ui.documentThreadDraft || '').trim();
     if (!content) return showNotify('Thiếu nội dung thread', 'error');
     setBusy('document-thread-send');
     try {
-      let threadId = documentThread.threadSummary?.threadId;
+      let threadId = ui.documentThread.threadSummary?.threadId;
       if (!threadId) {
         const createdThread = await requestJsonWithAuth<any>(token, `${API}/v1/threads`, {
           method: 'POST',
           body: JSON.stringify({
             entityType: 'ProjectDocument',
-            entityId: documentThread.document.id,
-            title: documentThread.document.documentName || documentThread.document.documentCode || 'Document thread',
+            entityId: ui.documentThread.document.id,
+            title: ui.documentThread.document.documentName || ui.documentThread.document.documentCode || 'Document thread',
           }),
         }, 'Không thể tạo thread hồ sơ');
         threadId = createdThread.id;
@@ -159,7 +151,7 @@ export function createProjectWorkspaceAsyncActions({
         method: 'POST',
         body: JSON.stringify({ content }),
       }, 'Không thể gửi message thread');
-      await openDocumentThread(documentThread.document);
+      await openDocumentThread(ui.documentThread.document);
     } catch (error: any) {
       showNotify(error?.message || 'Không thể gửi message thread', 'error');
     } finally {
