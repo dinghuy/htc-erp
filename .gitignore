@@ -68,3 +68,11 @@ Thumbs.db
 # Local machine-specific files
 .claude/settings.local-*.json
 *-MSI-GF63.*
+
+# Local tooling and non-public repo surfaces
+.claude/
+.codex/
+.github/
+archive/
+codex-mcp-template/
+scripts/
