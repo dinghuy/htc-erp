@@ -177,6 +177,13 @@ export async function bootstrapSqliteSchema(db: Database) {
       items TEXT,
       financialParams TEXT,
       terms TEXT,
+      interestRate REAL DEFAULT 8.5,
+      exchangeRate REAL DEFAULT 25400,
+      loanTermMonths INTEGER DEFAULT 36,
+      markup REAL DEFAULT 15,
+      vatRate REAL DEFAULT 8,
+      remarksVi TEXT,
+      remarksEn TEXT,
       subtotal REAL,
       taxTotal REAL,
       grandTotal REAL,
@@ -187,6 +194,39 @@ export async function bootstrapSqliteSchema(db: Database) {
       FOREIGN KEY(contactId) REFERENCES Contact(id) ON DELETE SET NULL,
       FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE SET NULL,
       FOREIGN KEY(parentQuotationId) REFERENCES Quotation(id) ON DELETE SET NULL
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS QuotationLineItem (
+      id TEXT PRIMARY KEY,
+      quotationId TEXT NOT NULL,
+      sortOrder INTEGER DEFAULT 0,
+      sku TEXT,
+      name TEXT,
+      unit TEXT,
+      technicalSpecs TEXT,
+      remarks TEXT,
+      quantity REAL DEFAULT 1,
+      unitPrice REAL DEFAULT 0,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(quotationId) REFERENCES Quotation(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS QuotationTermItem (
+      id TEXT PRIMARY KEY,
+      quotationId TEXT NOT NULL,
+      sortOrder INTEGER DEFAULT 0,
+      labelViPrint TEXT,
+      labelEn TEXT,
+      textVi TEXT,
+      textEn TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(quotationId) REFERENCES Quotation(id) ON DELETE CASCADE
     )
   `);
 
@@ -492,19 +532,24 @@ export async function bootstrapSqliteSchema(db: Database) {
   await db.exec(`
     CREATE INDEX IF NOT EXISTS idx_account_type ON Account (accountType);
     CREATE INDEX IF NOT EXISTS idx_account_status ON Account (status);
+    CREATE INDEX IF NOT EXISTS idx_account_type_created ON Account (accountType, createdAt);
     CREATE INDEX IF NOT EXISTS idx_contact_account ON Contact (accountId);
     CREATE INDEX IF NOT EXISTS idx_lead_status ON Lead (status);
     CREATE INDEX IF NOT EXISTS idx_lead_source ON Lead (source);
+    CREATE INDEX IF NOT EXISTS idx_lead_status_created ON Lead (status, createdAt);
     CREATE INDEX IF NOT EXISTS idx_product_category ON Product (category);
     CREATE INDEX IF NOT EXISTS idx_product_status ON Product (status);
     CREATE INDEX IF NOT EXISTS idx_quotation_status ON Quotation (status);
     CREATE INDEX IF NOT EXISTS idx_quotation_account ON Quotation (accountId);
     CREATE INDEX IF NOT EXISTS idx_quotation_date ON Quotation (quoteDate);
+    CREATE INDEX IF NOT EXISTS idx_quotationlineitem_quote ON QuotationLineItem (quotationId, sortOrder);
+    CREATE INDEX IF NOT EXISTS idx_quotationtermitem_quote ON QuotationTermItem (quotationId, sortOrder);
     CREATE INDEX IF NOT EXISTS idx_supplierquote_supplier ON SupplierQuote (supplierId);
     CREATE INDEX IF NOT EXISTS idx_supplierquote_status ON SupplierQuote (status);
     CREATE INDEX IF NOT EXISTS idx_activity_entity ON Activity (entityId, entityType);
     CREATE INDEX IF NOT EXISTS idx_activity_created ON Activity (createdAt);
     CREATE INDEX IF NOT EXISTS idx_project_status ON Project (status);
+    CREATE INDEX IF NOT EXISTS idx_project_stage ON Project (projectStage);
     CREATE INDEX IF NOT EXISTS idx_project_account ON Project (accountId);
     CREATE INDEX IF NOT EXISTS idx_project_start_date ON Project (startDate);
     CREATE INDEX IF NOT EXISTS idx_project_end_date ON Project (endDate);
@@ -516,6 +561,7 @@ export async function bootstrapSqliteSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_task_account ON Task (accountId);
     CREATE INDEX IF NOT EXISTS idx_task_start_date ON Task (startDate);
     CREATE INDEX IF NOT EXISTS idx_task_due_date ON Task (dueDate);
+    CREATE INDEX IF NOT EXISTS idx_task_project_status_due ON Task (projectId, status, dueDate);
     CREATE INDEX IF NOT EXISTS idx_project_contract_project ON ProjectContract (projectId, effectiveDate);
     CREATE INDEX IF NOT EXISTS idx_project_appendix_project ON ProjectContractAppendix (projectId, contractId, effectiveDate);
     CREATE INDEX IF NOT EXISTS idx_project_baseline_project ON ProjectExecutionBaseline (projectId, isCurrent, baselineNo);
@@ -524,47 +570,12 @@ export async function bootstrapSqliteSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_project_delivery_project ON ProjectDeliveryLine (projectId, procurementLineId);
     CREATE INDEX IF NOT EXISTS idx_project_milestone_project ON ProjectMilestone (projectId, plannedDate, actualDate);
     CREATE INDEX IF NOT EXISTS idx_project_timeline_project ON ProjectTimelineEvent (projectId, createdAt);
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS SupplierQuote (
-      id TEXT PRIMARY KEY,
-      supplierId TEXT,
-      category TEXT,
-      quoteDate DATETIME,
-      validUntil DATETIME,
-      items TEXT,
-      attachments TEXT,
-      status TEXT DEFAULT 'active',
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(supplierId) REFERENCES Account(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS Quotation (
-      id TEXT PRIMARY KEY,
-      quoteNumber TEXT UNIQUE,
-      quoteDate TEXT,
-      subject TEXT,
-      accountId TEXT,
-      contactId TEXT,
-      salesperson TEXT,
-      salespersonPhone TEXT,
-      currency TEXT DEFAULT 'VND',
-      opportunityId TEXT,
-      items TEXT,
-      financialParams TEXT,
-      terms TEXT,
-      subtotal REAL,
-      taxTotal REAL,
-      grandTotal REAL,
-      status TEXT DEFAULT 'draft',
-      validUntil DATETIME,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(accountId) REFERENCES Account(id) ON DELETE SET NULL,
-      FOREIGN KEY(contactId) REFERENCES Contact(id) ON DELETE SET NULL
-    )
+    CREATE INDEX IF NOT EXISTS idx_approval_project ON ApprovalRequest (projectId);
+    CREATE INDEX IF NOT EXISTS idx_approval_quote ON ApprovalRequest (quotationId);
+    CREATE INDEX IF NOT EXISTS idx_approval_requested_by ON ApprovalRequest (requestedBy);
+    CREATE INDEX IF NOT EXISTS idx_approval_approver_user ON ApprovalRequest (approverUserId);
+    CREATE INDEX IF NOT EXISTS idx_approval_status ON ApprovalRequest (status);
+    CREATE INDEX IF NOT EXISTS idx_approval_department ON ApprovalRequest (department);
   `);
 
   await db.exec(`
@@ -593,6 +604,30 @@ export async function bootstrapSqliteSchema(db: Database) {
       buyFxRate REAL DEFAULT 26300,
       loanInterestDays INTEGER DEFAULT 240,
       loanInterestRate REAL DEFAULT 0.08,
+      investmentQty INTEGER DEFAULT 2,
+      depreciationMonths INTEGER DEFAULT 60,
+      stlPct REAL DEFAULT 0.3,
+      stlPeriodMonths INTEGER DEFAULT 24,
+      stlRate REAL DEFAULT 0.09,
+      stlRateChange REAL DEFAULT 0.05,
+      ltlPeriodMonths INTEGER DEFAULT 60,
+      ltlRate REAL DEFAULT 0.12,
+      ltlRateChange REAL DEFAULT 0.03,
+      rentPeriodMonths INTEGER DEFAULT 60,
+      downpaymentMonths INTEGER DEFAULT 3,
+      paymentDelayDays INTEGER DEFAULT 30,
+      expectedProfitPct REAL DEFAULT 0.185,
+      contingencyPct REAL DEFAULT 0.03,
+      workingDaysMonth INTEGER DEFAULT 30,
+      dailyHours REAL DEFAULT 20,
+      movesPerDay REAL DEFAULT 70,
+      kmPerMove REAL DEFAULT 1,
+      electricityPriceVnd REAL DEFAULT 3000,
+      kwhPerKm REAL DEFAULT 2.3,
+      driversPerUnit REAL DEFAULT 2,
+      driverSalaryVnd REAL DEFAULT 20000000,
+      insuranceRate REAL DEFAULT 0.225,
+      pmIntervalsHours TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
       ,
@@ -614,50 +649,6 @@ export async function bootstrapSqliteSchema(db: Database) {
       sellUnitPriceVnd REAL,
       buyUnitPriceVnd REAL,
       buyUnitPriceUsd REAL,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(quotationId) REFERENCES PricingQuotation(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS PricingRentalConfig (
-      id TEXT PRIMARY KEY,
-      quotationId TEXT NOT NULL UNIQUE,
-      investmentQty INTEGER DEFAULT 2,
-      depreciationMonths INTEGER DEFAULT 60,
-      stlPct REAL DEFAULT 0.3,
-      stlPeriodMonths INTEGER DEFAULT 24,
-      stlRate REAL DEFAULT 0.09,
-      stlRateChange REAL DEFAULT 0.05,
-      ltlPeriodMonths INTEGER DEFAULT 60,
-      ltlRate REAL DEFAULT 0.12,
-      ltlRateChange REAL DEFAULT 0.03,
-      rentPeriodMonths INTEGER DEFAULT 60,
-      downpaymentMonths INTEGER DEFAULT 3,
-      paymentDelayDays INTEGER DEFAULT 30,
-      expectedProfitPct REAL DEFAULT 0.185,
-      contingencyPct REAL DEFAULT 0.03,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(quotationId) REFERENCES PricingQuotation(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS PricingOperationConfig (
-      id TEXT PRIMARY KEY,
-      quotationId TEXT NOT NULL UNIQUE,
-      workingDaysMonth INTEGER DEFAULT 30,
-      dailyHours REAL DEFAULT 20,
-      movesPerDay REAL DEFAULT 70,
-      kmPerMove REAL DEFAULT 1,
-      electricityPriceVnd REAL DEFAULT 3000,
-      kwhPerKm REAL DEFAULT 2.3,
-      driversPerUnit REAL DEFAULT 2,
-      driverSalaryVnd REAL DEFAULT 20000000,
-      insuranceRate REAL DEFAULT 0.225,
-      pmIntervalsHours TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(quotationId) REFERENCES PricingQuotation(id) ON DELETE CASCADE
@@ -689,8 +680,6 @@ export async function bootstrapSqliteSchema(db: Database) {
 
   await db.exec(`
     CREATE INDEX IF NOT EXISTS idx_pricing_lineitem_quote ON PricingLineItem (quotationId, sortOrder);
-    CREATE INDEX IF NOT EXISTS idx_pricing_rental_quote ON PricingRentalConfig (quotationId);
-    CREATE INDEX IF NOT EXISTS idx_pricing_operation_quote ON PricingOperationConfig (quotationId);
     CREATE INDEX IF NOT EXISTS idx_pricing_maintenance_quote ON PricingMaintenancePart (quotationId, sortOrder);
   `);
 
@@ -733,16 +722,6 @@ export async function bootstrapSqliteSchema(db: Database) {
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(quotationId) REFERENCES Quotation(id) ON DELETE SET NULL,
       FOREIGN KEY(accountId) REFERENCES Account(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS SalesPerson (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      email TEXT,
-      phone TEXT,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -850,6 +829,7 @@ export async function bootstrapSqliteSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_chatmessage_created ON ChatMessage (createdAt);
     CREATE INDEX IF NOT EXISTS idx_notification_user_read_created ON Notification (userId, readAt, createdAt);
     CREATE INDEX IF NOT EXISTS idx_notification_user_created ON Notification (userId, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_projectdocument_thread ON ProjectDocument (threadId);
     CREATE INDEX IF NOT EXISTS idx_entitythread_entity ON EntityThread (entityType, entityId, status, createdAt);
     CREATE INDEX IF NOT EXISTS idx_entitythreadmessage_thread ON EntityThreadMessage (threadId, createdAt);
     CREATE INDEX IF NOT EXISTS idx_supportticket_createdby_created ON SupportTicket (createdBy, createdAt);
@@ -857,23 +837,8 @@ export async function bootstrapSqliteSchema(db: Database) {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_erpoutbox_dedupe ON ErpOutbox (dedupeKey);
     CREATE INDEX IF NOT EXISTS idx_erpoutbox_status_next ON ErpOutbox (status, nextRunAt, createdAt);
     CREATE INDEX IF NOT EXISTS idx_salesorder_created ON SalesOrder (createdAt);
+    CREATE INDEX IF NOT EXISTS idx_salesorder_quotation ON SalesOrder (quotationId);
     CREATE INDEX IF NOT EXISTS idx_salesorder_status ON SalesOrder (status, updatedAt);
-  `);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS Activity (
-      id TEXT PRIMARY KEY,
-      title TEXT,
-      description TEXT,
-      category TEXT,
-      icon TEXT,
-      color TEXT,
-      iconColor TEXT,
-      entityId TEXT,
-      entityType TEXT,
-      link TEXT,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
   `);
 
   await db.exec(`
@@ -962,20 +927,6 @@ export async function bootstrapSqliteSchema(db: Database) {
     )
   `);
 
-  // ─── HULY PORT: Milestone (tracker) ──────────────────────────────────────
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS Milestone (
-      id TEXT PRIMARY KEY,
-      projectId TEXT NOT NULL REFERENCES Project(id) ON DELETE CASCADE,
-      label TEXT NOT NULL,
-      description TEXT,
-      status TEXT DEFAULT 'planned',
-      targetDate TEXT,
-      createdAt TEXT DEFAULT (datetime('now')),
-      updatedAt TEXT DEFAULT (datetime('now'))
-    )
-  `);
-
   // ─── HULY PORT: Time Spend Report ────────────────────────────────────────
   await db.exec(`
     CREATE TABLE IF NOT EXISTS TimeSpendReport (
@@ -1056,6 +1007,7 @@ export async function bootstrapSqliteSchema(db: Database) {
 
   await db.exec(`
     CREATE INDEX IF NOT EXISTS idx_todo_user_done ON ToDo (userId, doneAt);
+    CREATE INDEX IF NOT EXISTS idx_todo_entity_done ON ToDo (entityType, entityId, doneAt);
   `);
 
   await db.exec(`
@@ -1081,6 +1033,5 @@ export async function bootstrapSqliteSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_publicholiday_date ON PublicHoliday (holidayDate);
     CREATE INDEX IF NOT EXISTS idx_productcategory_parent ON ProductCategory (parentId);
     CREATE INDEX IF NOT EXISTS idx_contactchannel_contact ON ContactChannel (contactId);
-    CREATE INDEX IF NOT EXISTS idx_milestone_project ON Milestone (projectId, status);
   `);
 }

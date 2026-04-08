@@ -1,5 +1,17 @@
 import { type Database } from 'sqlite';
 import { normalizeGender } from '../../../gender';
+import {
+  DEFAULT_QUOTATION_FINANCIAL_CONFIG,
+  parseLegacyQuotationCommercialTerms,
+  parseLegacyQuotationFinancialConfig,
+  parseLegacyQuotationLineItems,
+} from '../../modules/quotations/typedState';
+import {
+  DEFAULT_OPERATION_CONFIG,
+  DEFAULT_RENTAL_CONFIG,
+  normalizeOperationConfig,
+  normalizeRentalConfig,
+} from '../../../pricing/compute';
 
 function isImageAssetCandidate(url: string, mimeType: string) {
   const normalizedMime = mimeType.trim().toLowerCase();
@@ -201,6 +213,224 @@ export async function finalizeSqliteSchema(db: Database) {
     }
   };
 
+  const createTypedQuotationChildTables = async () => {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS QuotationLineItem (
+        id TEXT PRIMARY KEY,
+        quotationId TEXT NOT NULL,
+        sortOrder INTEGER DEFAULT 0,
+        sku TEXT,
+        name TEXT,
+        unit TEXT,
+        technicalSpecs TEXT,
+        remarks TEXT,
+        quantity REAL DEFAULT 1,
+        unitPrice REAL DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(quotationId) REFERENCES Quotation(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS QuotationTermItem (
+        id TEXT PRIMARY KEY,
+        quotationId TEXT NOT NULL,
+        sortOrder INTEGER DEFAULT 0,
+        labelViPrint TEXT,
+        labelEn TEXT,
+        textVi TEXT,
+        textEn TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(quotationId) REFERENCES Quotation(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_quotationlineitem_quote ON QuotationLineItem (quotationId, sortOrder);
+      CREATE INDEX IF NOT EXISTS idx_quotationtermitem_quote ON QuotationTermItem (quotationId, sortOrder);
+    `);
+  };
+
+  const backfillTypedQuotationState = async () => {
+    if (!(await tableExists('Quotation'))) return;
+    await createTypedQuotationChildTables();
+
+    const quotationRows: any[] = await db.all(
+      `SELECT id, items, financialParams, terms, createdAt
+       FROM Quotation`
+    );
+
+    for (const row of quotationRows) {
+      const quotationId = String(row?.id || '').trim();
+      if (!quotationId) continue;
+
+      const existingLineItemCount = await db.get(
+        `SELECT COUNT(*) as c FROM QuotationLineItem WHERE quotationId = ?`,
+        [quotationId]
+      );
+      if (Number(existingLineItemCount?.c || 0) === 0) {
+        const lineItems = parseLegacyQuotationLineItems(row.items);
+        for (const item of lineItems) {
+          await db.run(
+            `INSERT INTO QuotationLineItem (
+              id, quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
+            [
+              item.id || `${quotationId}:line:${item.sortOrder + 1}`,
+              quotationId,
+              item.sortOrder,
+              item.sku,
+              item.name,
+              item.unit,
+              item.technicalSpecs,
+              item.remarks,
+              item.quantity,
+              item.unitPrice,
+              row.createdAt || null,
+            ]
+          );
+        }
+      }
+
+      const financialConfig = parseLegacyQuotationFinancialConfig(row.financialParams);
+      const commercialTerms = parseLegacyQuotationCommercialTerms(row.terms);
+      await db.run(
+        `UPDATE Quotation
+         SET interestRate = COALESCE(interestRate, ?),
+             exchangeRate = COALESCE(exchangeRate, ?),
+             loanTermMonths = COALESCE(loanTermMonths, ?),
+             markup = COALESCE(markup, ?),
+             vatRate = COALESCE(vatRate, ?),
+             remarksVi = COALESCE(remarksVi, ?),
+             remarksEn = COALESCE(remarksEn, ?)
+         WHERE id = ?`,
+        [
+          financialConfig.interestRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.interestRate,
+          financialConfig.exchangeRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.exchangeRate,
+          financialConfig.loanTermMonths ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.loanTermMonths,
+          financialConfig.markup ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.markup,
+          financialConfig.vatRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate,
+          commercialTerms.remarksVi ?? null,
+          commercialTerms.remarksEn ?? null,
+          quotationId,
+        ]
+      );
+
+      const existingTermItemCount = await db.get(
+        `SELECT COUNT(*) as c FROM QuotationTermItem WHERE quotationId = ?`,
+        [quotationId]
+      );
+      if (Number(existingTermItemCount?.c || 0) === 0) {
+        for (const termItem of commercialTerms.termItems) {
+          await db.run(
+            `INSERT INTO QuotationTermItem (
+              id, quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
+            [
+              termItem.id || `${quotationId}:term:${termItem.sortOrder + 1}`,
+              quotationId,
+              termItem.sortOrder,
+              termItem.labelViPrint,
+              termItem.labelEn,
+              termItem.textVi,
+              termItem.textEn,
+              row.createdAt || null,
+            ]
+          );
+        }
+      }
+    }
+  };
+
+  const backfillPricingConfigState = async () => {
+    if (!(await tableExists('PricingQuotation'))) return;
+
+    const hasRentalTable = await tableExists('PricingRentalConfig');
+    const hasOperationTable = await tableExists('PricingOperationConfig');
+    if (!hasRentalTable && !hasOperationTable) return;
+
+    const quotationRows: any[] = await db.all(`SELECT id FROM PricingQuotation`);
+    for (const row of quotationRows) {
+      const quotationId = String(row?.id || '').trim();
+      if (!quotationId) continue;
+
+      const rentalSource = hasRentalTable
+        ? await db.get(`SELECT * FROM PricingRentalConfig WHERE quotationId = ?`, [quotationId])
+        : null;
+      const operationSource = hasOperationTable
+        ? await db.get(`SELECT * FROM PricingOperationConfig WHERE quotationId = ?`, [quotationId])
+        : null;
+
+      if (!rentalSource && !operationSource) continue;
+
+      const rentalConfig = normalizeRentalConfig(rentalSource || DEFAULT_RENTAL_CONFIG);
+      const operationConfig = normalizeOperationConfig({
+        ...(operationSource || DEFAULT_OPERATION_CONFIG),
+        pmIntervalsHours: operationSource?.pmIntervalsHours
+          ? JSON.parse(operationSource.pmIntervalsHours)
+          : DEFAULT_OPERATION_CONFIG.pmIntervalsHours,
+      });
+
+      await db.run(
+        `UPDATE PricingQuotation
+         SET investmentQty = COALESCE(investmentQty, ?),
+             depreciationMonths = COALESCE(depreciationMonths, ?),
+             stlPct = COALESCE(stlPct, ?),
+             stlPeriodMonths = COALESCE(stlPeriodMonths, ?),
+             stlRate = COALESCE(stlRate, ?),
+             stlRateChange = COALESCE(stlRateChange, ?),
+             ltlPeriodMonths = COALESCE(ltlPeriodMonths, ?),
+             ltlRate = COALESCE(ltlRate, ?),
+             ltlRateChange = COALESCE(ltlRateChange, ?),
+             rentPeriodMonths = COALESCE(rentPeriodMonths, ?),
+             downpaymentMonths = COALESCE(downpaymentMonths, ?),
+             paymentDelayDays = COALESCE(paymentDelayDays, ?),
+             expectedProfitPct = COALESCE(expectedProfitPct, ?),
+             contingencyPct = COALESCE(contingencyPct, ?),
+             workingDaysMonth = COALESCE(workingDaysMonth, ?),
+             dailyHours = COALESCE(dailyHours, ?),
+             movesPerDay = COALESCE(movesPerDay, ?),
+             kmPerMove = COALESCE(kmPerMove, ?),
+             electricityPriceVnd = COALESCE(electricityPriceVnd, ?),
+             kwhPerKm = COALESCE(kwhPerKm, ?),
+             driversPerUnit = COALESCE(driversPerUnit, ?),
+             driverSalaryVnd = COALESCE(driverSalaryVnd, ?),
+             insuranceRate = COALESCE(insuranceRate, ?),
+             pmIntervalsHours = COALESCE(pmIntervalsHours, ?)
+         WHERE id = ?`,
+        [
+          rentalConfig.investmentQty,
+          rentalConfig.depreciationMonths,
+          rentalConfig.stlPct,
+          rentalConfig.stlPeriodMonths,
+          rentalConfig.stlRate,
+          rentalConfig.stlRateChange,
+          rentalConfig.ltlPeriodMonths,
+          rentalConfig.ltlRate,
+          rentalConfig.ltlRateChange,
+          rentalConfig.rentPeriodMonths,
+          rentalConfig.downpaymentMonths,
+          rentalConfig.paymentDelayDays,
+          rentalConfig.expectedProfitPct,
+          rentalConfig.contingencyPct,
+          operationConfig.workingDaysMonth,
+          operationConfig.dailyHours,
+          operationConfig.movesPerDay,
+          operationConfig.kmPerMove,
+          operationConfig.electricityPriceVnd,
+          operationConfig.kwhPerKm,
+          operationConfig.driversPerUnit,
+          operationConfig.driverSalaryVnd,
+          operationConfig.insuranceRate,
+          JSON.stringify(operationConfig.pmIntervalsHours),
+          quotationId,
+        ]
+      );
+    }
+  };
+
   const migrateLegacySupplierTable = async () => {
     if (!(await tableExists('Supplier'))) return;
 
@@ -227,6 +457,49 @@ export async function finalizeSqliteSchema(db: Database) {
 
     await db.exec('DROP TABLE IF EXISTS Supplier');
     console.log('[DB] Legacy Supplier table migrated into Account and dropped.');
+  };
+
+  const migrateLegacySalesPersonTable = async () => {
+    if (!(await tableExists('SalesPerson'))) return;
+
+    const cols: any[] = await db.all(`PRAGMA table_info('SalesPerson')`);
+    const has = (name: string) => cols.some((c: any) => c.name === name);
+
+    const count: any = await db.get('SELECT COUNT(*) as c FROM SalesPerson');
+    if (count?.c > 0) {
+      const nameExpr = has('name') ? 'name' : "''";
+      const emailExpr = has('email') ? 'email' : 'NULL';
+      const phoneExpr = has('phone') ? 'phone' : 'NULL';
+      await db.exec(`
+        INSERT INTO User (
+          id, fullName, gender, email, phone, role, department, status,
+          username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language, createdAt
+        )
+        SELECT
+          id,
+          ${nameExpr},
+          'unknown',
+          ${emailExpr},
+          ${phoneExpr},
+          'Salesperson',
+          'Sales',
+          'Active',
+          NULL,
+          NULL,
+          'sales',
+          '["sales"]',
+          'active',
+          0,
+          'vi',
+          COALESCE(createdAt, datetime('now'))
+        FROM SalesPerson
+        WHERE id IS NOT NULL
+          AND id NOT IN (SELECT id FROM User)
+      `);
+    }
+
+    await db.exec('DROP TABLE IF EXISTS SalesPerson');
+    console.log('[DB] Legacy SalesPerson table migrated into User and dropped.');
   };
 
   const ensureUniqueIndexIfNoDuplicates = async (table: string, column: string, indexName: string) => {
@@ -372,10 +645,46 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Lead', 'contactId', 'contactId TEXT REFERENCES Contact(id) ON DELETE SET NULL');
   // Product: category hierarchy
   await ensureColumn('Product', 'categoryId', 'categoryId TEXT REFERENCES ProductCategory(id) ON DELETE SET NULL');
-  // Task: milestone
-  await ensureColumn('Task', 'milestoneId', 'milestoneId TEXT REFERENCES Milestone(id) ON DELETE SET NULL');
   // User: department
   await ensureColumn('User', 'departmentId', 'departmentId TEXT REFERENCES Department(id) ON DELETE SET NULL');
+  // ─── Seed Department from User.department text and backfill departmentId ────
+  const deptCount = await db.get<{ c: number }>('SELECT COUNT(*) as c FROM Department');
+  if (deptCount && deptCount.c === 0) {
+    const deptNames = await db.all<{ department: string }>(
+      "SELECT DISTINCT department FROM User WHERE department IS NOT NULL AND TRIM(department) != '' ORDER BY department"
+    );
+    for (const { department } of deptNames) {
+      const deptId = `dept-${department.toLowerCase().replace(/\s+/g, '-')}`;
+      await db.run(
+        `INSERT OR IGNORE INTO Department (id, name, sortOrder, createdAt, updatedAt) VALUES (?, ?, 0, datetime('now'), datetime('now'))`,
+        [deptId, department]
+      );
+    }
+    await db.run(
+      `UPDATE User SET departmentId = (SELECT id FROM Department WHERE Department.name = User.department) WHERE departmentId IS NULL AND department IS NOT NULL AND TRIM(department) != ''`
+    );
+    console.log('[DB] Seeded Department from User.department and backfilled User.departmentId.');
+  }
+
+  // ─── Seed ProductCategory from Product.category text and backfill categoryId
+  const catCount = await db.get<{ c: number }>('SELECT COUNT(*) as c FROM ProductCategory');
+  if (catCount && catCount.c === 0) {
+    const catNames = await db.all<{ category: string }>(
+      "SELECT DISTINCT category FROM Product WHERE category IS NOT NULL AND TRIM(category) != '' ORDER BY category"
+    );
+    let sortOrder = 0;
+    for (const { category } of catNames) {
+      const catId = `cat-${category.toLowerCase().replace(/[\s\/]+/g, '-').replace(/[^\w-]/g, '')}`;
+      await db.run(
+        `INSERT OR IGNORE INTO ProductCategory (id, name, sortOrder, createdAt) VALUES (?, ?, ?, datetime('now'))`,
+        [catId, category, sortOrder++]
+      );
+    }
+    await db.run(
+      `UPDATE Product SET categoryId = (SELECT id FROM ProductCategory WHERE ProductCategory.name = Product.category) WHERE categoryId IS NULL AND category IS NOT NULL AND TRIM(category) != ''`
+    );
+    console.log('[DB] Seeded ProductCategory from Product.category and backfilled Product.categoryId.');
+  }
   // ─── end HULY PORT migrations ─────────────────────────────────────────────
 
   await ensureColumn('Product', 'qbuRateSource', 'qbuRateSource TEXT');
@@ -416,6 +725,30 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('PricingQuotation', 'qbuSubmittedAt', 'qbuSubmittedAt TEXT');
   await ensureColumn('PricingQuotation', 'qbuSubmittedBy', 'qbuSubmittedBy TEXT');
   await ensureColumn('PricingQuotation', 'qbuCompletedAt', 'qbuCompletedAt TEXT');
+  await ensureColumn('PricingQuotation', 'investmentQty', 'investmentQty INTEGER DEFAULT 2');
+  await ensureColumn('PricingQuotation', 'depreciationMonths', 'depreciationMonths INTEGER DEFAULT 60');
+  await ensureColumn('PricingQuotation', 'stlPct', 'stlPct REAL DEFAULT 0.3');
+  await ensureColumn('PricingQuotation', 'stlPeriodMonths', 'stlPeriodMonths INTEGER DEFAULT 24');
+  await ensureColumn('PricingQuotation', 'stlRate', 'stlRate REAL DEFAULT 0.09');
+  await ensureColumn('PricingQuotation', 'stlRateChange', 'stlRateChange REAL DEFAULT 0.05');
+  await ensureColumn('PricingQuotation', 'ltlPeriodMonths', 'ltlPeriodMonths INTEGER DEFAULT 60');
+  await ensureColumn('PricingQuotation', 'ltlRate', 'ltlRate REAL DEFAULT 0.12');
+  await ensureColumn('PricingQuotation', 'ltlRateChange', 'ltlRateChange REAL DEFAULT 0.03');
+  await ensureColumn('PricingQuotation', 'rentPeriodMonths', 'rentPeriodMonths INTEGER DEFAULT 60');
+  await ensureColumn('PricingQuotation', 'downpaymentMonths', 'downpaymentMonths INTEGER DEFAULT 3');
+  await ensureColumn('PricingQuotation', 'paymentDelayDays', 'paymentDelayDays INTEGER DEFAULT 30');
+  await ensureColumn('PricingQuotation', 'expectedProfitPct', 'expectedProfitPct REAL DEFAULT 0.185');
+  await ensureColumn('PricingQuotation', 'contingencyPct', 'contingencyPct REAL DEFAULT 0.03');
+  await ensureColumn('PricingQuotation', 'workingDaysMonth', 'workingDaysMonth INTEGER DEFAULT 30');
+  await ensureColumn('PricingQuotation', 'dailyHours', 'dailyHours REAL DEFAULT 20');
+  await ensureColumn('PricingQuotation', 'movesPerDay', 'movesPerDay REAL DEFAULT 70');
+  await ensureColumn('PricingQuotation', 'kmPerMove', 'kmPerMove REAL DEFAULT 1');
+  await ensureColumn('PricingQuotation', 'electricityPriceVnd', 'electricityPriceVnd REAL DEFAULT 3000');
+  await ensureColumn('PricingQuotation', 'kwhPerKm', 'kwhPerKm REAL DEFAULT 2.3');
+  await ensureColumn('PricingQuotation', 'driversPerUnit', 'driversPerUnit REAL DEFAULT 2');
+  await ensureColumn('PricingQuotation', 'driverSalaryVnd', 'driverSalaryVnd REAL DEFAULT 20000000');
+  await ensureColumn('PricingQuotation', 'insuranceRate', 'insuranceRate REAL DEFAULT 0.225');
+  await ensureColumn('PricingQuotation', 'pmIntervalsHours', 'pmIntervalsHours TEXT');
   await ensureColumn('PricingLineItem', 'costRoutingType', 'costRoutingType TEXT');
   await ensureColumn('Notification', 'entityType', 'entityType TEXT');
   await ensureColumn('Notification', 'entityId', 'entityId TEXT');
@@ -441,6 +774,13 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Quotation', 'parentQuotationId', 'parentQuotationId TEXT');
   await ensureColumn('Quotation', 'changeReason', 'changeReason TEXT');
   await ensureColumn('Quotation', 'isWinningVersion', 'isWinningVersion INTEGER DEFAULT 0');
+  await ensureColumn('Quotation', 'interestRate', 'interestRate REAL DEFAULT 8.5');
+  await ensureColumn('Quotation', 'exchangeRate', 'exchangeRate REAL DEFAULT 25400');
+  await ensureColumn('Quotation', 'loanTermMonths', 'loanTermMonths INTEGER DEFAULT 36');
+  await ensureColumn('Quotation', 'markup', 'markup REAL DEFAULT 15');
+  await ensureColumn('Quotation', 'vatRate', 'vatRate REAL DEFAULT 8');
+  await ensureColumn('Quotation', 'remarksVi', 'remarksVi TEXT');
+  await ensureColumn('Quotation', 'remarksEn', 'remarksEn TEXT');
   await ensureColumn('SupplierQuote', 'projectId', 'projectId TEXT');
   await ensureColumn('SupplierQuote', 'linkedQuotationId', 'linkedQuotationId TEXT');
   await ensureColumn('SupplierQuote', 'changeReason', 'changeReason TEXT');
@@ -509,6 +849,7 @@ export async function finalizeSqliteSchema(db: Database) {
   `);
 
   await migrateLegacySupplierTable();
+  await migrateLegacySalesPersonTable();
   await ensureUniqueIndexIfNoDuplicates('User', 'username', 'idx_user_username_unique');
   await nullifyInvalidRefs('Account', 'assignedTo', 'User', 'id');
   await nullifyInvalidRefs('Project', 'managerId', 'User', 'id');
@@ -551,6 +892,7 @@ export async function finalizeSqliteSchema(db: Database) {
         'CREATE INDEX IF NOT EXISTS idx_quotation_status ON Quotation (status)',
         'CREATE INDEX IF NOT EXISTS idx_quotation_account ON Quotation (accountId)',
         'CREATE INDEX IF NOT EXISTS idx_quotation_date ON Quotation (quoteDate)',
+        'CREATE INDEX IF NOT EXISTS idx_quotation_project_latest ON Quotation (projectId, quoteDate, revisionNo, createdAt)',
         'CREATE INDEX IF NOT EXISTS idx_quotation_project ON Quotation (projectId)',
         'CREATE INDEX IF NOT EXISTS idx_quotation_revision ON Quotation (projectId, revisionNo)',
         'CREATE INDEX IF NOT EXISTS idx_quotation_parent ON Quotation (parentQuotationId)',
@@ -573,7 +915,10 @@ export async function finalizeSqliteSchema(db: Database) {
     {
       table: 'Project',
       foreignKeys: [{ from: 'managerId', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' }],
-      indexes: ['CREATE INDEX IF NOT EXISTS idx_project_manager ON Project (managerId)'],
+      indexes: [
+        'CREATE INDEX IF NOT EXISTS idx_project_manager ON Project (managerId)',
+        'CREATE INDEX IF NOT EXISTS idx_project_stage ON Project (projectStage)',
+      ],
     },
     {
       table: 'Task',
@@ -592,6 +937,7 @@ export async function finalizeSqliteSchema(db: Database) {
         'CREATE INDEX IF NOT EXISTS idx_task_account ON Task (accountId)',
         'CREATE INDEX IF NOT EXISTS idx_task_start_date ON Task (startDate)',
         'CREATE INDEX IF NOT EXISTS idx_task_due_date ON Task (dueDate)',
+        'CREATE INDEX IF NOT EXISTS idx_task_project_status_due ON Task (projectId, status, dueDate)',
         'CREATE INDEX IF NOT EXISTS idx_task_lead ON Task (leadId)',
         'CREATE INDEX IF NOT EXISTS idx_task_quotation ON Task (quotationId)',
         'CREATE INDEX IF NOT EXISTS idx_task_type ON Task (taskType)',
@@ -606,6 +952,7 @@ export async function finalizeSqliteSchema(db: Database) {
       ],
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_salesorder_created ON SalesOrder (createdAt)',
+        'CREATE INDEX IF NOT EXISTS idx_salesorder_quotation ON SalesOrder (quotationId)',
         'CREATE INDEX IF NOT EXISTS idx_salesorder_status ON SalesOrder (status, updatedAt)',
       ],
     },
@@ -619,6 +966,8 @@ export async function finalizeSqliteSchema(db: Database) {
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_approval_project ON ApprovalRequest (projectId)',
         'CREATE INDEX IF NOT EXISTS idx_approval_quote ON ApprovalRequest (quotationId)',
+        'CREATE INDEX IF NOT EXISTS idx_approval_requested_by ON ApprovalRequest (requestedBy)',
+        'CREATE INDEX IF NOT EXISTS idx_approval_approver_user ON ApprovalRequest (approverUserId)',
         'CREATE INDEX IF NOT EXISTS idx_approval_status ON ApprovalRequest (status)',
         'CREATE INDEX IF NOT EXISTS idx_approval_department ON ApprovalRequest (department)',
       ],
@@ -635,6 +984,7 @@ export async function finalizeSqliteSchema(db: Database) {
         'CREATE INDEX IF NOT EXISTS idx_projectdocument_status ON ProjectDocument (status)',
         'CREATE INDEX IF NOT EXISTS idx_projectdocument_department ON ProjectDocument (department)',
         'CREATE INDEX IF NOT EXISTS idx_projectdocument_review_status ON ProjectDocument (reviewStatus)',
+        'CREATE INDEX IF NOT EXISTS idx_projectdocument_thread ON ProjectDocument (threadId)',
       ],
     },
     {
@@ -687,7 +1037,16 @@ export async function finalizeSqliteSchema(db: Database) {
   await db.exec(`
     CREATE INDEX IF NOT EXISTS idx_task_lead ON Task (leadId);
     CREATE INDEX IF NOT EXISTS idx_task_quotation ON Task (quotationId);
+    CREATE INDEX IF NOT EXISTS idx_task_project_status_due ON Task (projectId, status, dueDate);
+    CREATE INDEX IF NOT EXISTS idx_quotation_project_latest ON Quotation (projectId, quoteDate, revisionNo, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_account_type_created ON Account (accountType, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_lead_status_created ON Lead (status, createdAt);
     CREATE INDEX IF NOT EXISTS idx_entitythread_entity ON EntityThread (entityType, entityId, status, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_project_stage ON Project (projectStage);
+    CREATE INDEX IF NOT EXISTS idx_salesorder_quotation ON SalesOrder (quotationId);
+    CREATE INDEX IF NOT EXISTS idx_approval_requested_by ON ApprovalRequest (requestedBy);
+    CREATE INDEX IF NOT EXISTS idx_approval_approver_user ON ApprovalRequest (approverUserId);
+    CREATE INDEX IF NOT EXISTS idx_projectdocument_thread ON ProjectDocument (threadId);
   `);
   await db.exec(`
     CREATE TABLE IF NOT EXISTS TaskViewPreset (
@@ -710,6 +1069,9 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('TaskViewPreset', 'groupBy', "groupBy TEXT DEFAULT 'none'");
   await db.exec(`
     CREATE INDEX IF NOT EXISTS idx_taskviewpreset_user ON TaskViewPreset (userId, isDefault, createdAt);
+  `);
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_todo_entity_done ON ToDo (entityType, entityId, doneAt);
   `);
   await db.run(
     'INSERT OR IGNORE INTO SystemSetting (key, value) VALUES (?, ?)',
@@ -737,4 +1099,14 @@ export async function finalizeSqliteSchema(db: Database) {
   await canonicalizeGenderColumn('User', 'id');
   await canonicalizeGenderColumn('Contact', 'id');
   await normalizeLegacyProductStructuredFields();
+  await backfillPricingConfigState();
+  await backfillTypedQuotationState();
+  await db.exec('DROP TABLE IF EXISTS PricingRentalConfig');
+  await db.exec('DROP TABLE IF EXISTS PricingOperationConfig');
+  await db.exec('DROP TABLE IF EXISTS QuotationFinancialConfig');
+  await db.exec('DROP TABLE IF EXISTS QuotationTermProfile');
+  // Ghost/orphaned tables — no source code references
+  await db.exec('DROP TABLE IF EXISTS Milestone');
+  await db.exec('DROP TABLE IF EXISTS HulyBridgeJob');
+  await db.exec('DROP TABLE IF EXISTS TaskIntegrationLink');
 }

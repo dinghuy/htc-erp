@@ -37,14 +37,17 @@ tmp/
 test-results/
 .worktrees/
 worktrees/
+.codex-e2e/
 .npm-cache/
 .npm-cache-local/
 .codex/npm-cache/
 **/.codex/npm-cache/
+.venv/
 __pycache__/
 *.pyc
 .superpowers/
 tmp-*.js
+graphify-out/
 
 # Runtime uploads and local vendor artifacts
 backend/uploads/
@@ -61,3 +64,7 @@ frontend/qa-product-form-*.png
 .obsidian/
 .DS_Store
 Thumbs.db
+
+# Local machine-specific files
+.claude/settings.local-*.json
+*-MSI-GF63.*

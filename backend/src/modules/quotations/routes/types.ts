@@ -28,6 +28,7 @@ export type QuotationMutationServices = {
   createProjectQuotation: (input: { projectId: string; body: any; actorUserId: string | null }) => Promise<any>;
   createStandaloneQuotation: (input: { body: any; actorUserId: string | null }) => Promise<any>;
   reviseQuotation: (input: { quotationId: string; body: any }) => Promise<any>;
+  getQuotationForUpdate: (quotationId: string) => Promise<any>;
   updateQuotation: (input: {
     quotationId: string;
     body: any;
@@ -36,9 +37,11 @@ export type QuotationMutationServices = {
     hasStatusField: boolean;
     nextStatus: unknown;
   }) => Promise<any>;
+  deleteQuotation: (quotationId: string) => Promise<boolean>;
 };
 
 export type QuotationRepository = {
+  findById: (id: string) => Promise<any>;
   deleteById: (id: string) => Promise<void>;
   findPdfPayloadById: (id: string) => Promise<any>;
 };

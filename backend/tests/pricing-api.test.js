@@ -570,8 +570,8 @@ async function main() {
         subject: 'Execution release quote',
         salesperson: 'Admin User',
         currency: 'VND',
-        items: [
-          { sku: 'SKU-001', name: 'Xe nang dien', qty: 1, unitPrice: 1000000 },
+        lineItems: [
+          { sku: 'SKU-001', name: 'Xe nang dien', quantity: 1, unitPrice: 1000000, unit: 'Chiếc' },
         ],
         subtotal: 1000000,
         taxTotal: 80000,
@@ -837,8 +837,8 @@ async function main() {
         subject: 'Project delivery quote',
         salesperson: 'Admin User',
         currency: 'VND',
-        items: [
-          { sku: 'SKU-001', name: 'Xe nang dien', qty: 1, unitPrice: 1000000 },
+        lineItems: [
+          { sku: 'SKU-001', name: 'Xe nang dien', quantity: 1, unitPrice: 1000000, unit: 'Chiếc' },
         ],
         subtotal: 1000000,
         taxTotal: 80000,
@@ -1001,8 +1001,8 @@ async function main() {
         subject: 'Submission quote',
         salesperson: 'Admin User',
         currency: 'VND',
-        items: [
-          { sku: 'SKU-003', name: 'Tu dien', qty: 1, unitPrice: 300000 },
+        lineItems: [
+          { sku: 'SKU-003', name: 'Tu dien', quantity: 1, unitPrice: 300000, unit: 'Chiếc' },
         ],
         subtotal: 300000,
         taxTotal: 24000,
@@ -1108,6 +1108,102 @@ async function main() {
     });
     assert.equal(list.response.status, 200);
     assert.equal(list.body.filter((item) => item.quoteNumber === 'Q-NO-GRAND-001').length, 1);
+  });
+
+  await run('quotation detail exposes typed payloads and sales order creation snapshots typed line items', async () => {
+    const create = await api('/api/quotations', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-TYPED-001',
+        subject: 'Typed quotation payload',
+        currency: 'VND',
+        salesperson: 'Admin User',
+        lineItems: [
+          {
+            sku: 'SKU-TYPED-1',
+            name: 'Typed item 1',
+            unit: 'Chiếc',
+            technicalSpecs: 'Spec 1',
+            remarks: 'Remark 1',
+            quantity: 2,
+            unitPrice: 500000,
+          },
+          {
+            sku: 'SKU-TYPED-2',
+            name: 'Typed item 2',
+            unit: 'Bộ',
+            technicalSpecs: 'Spec 2',
+            remarks: 'Remark 2',
+            quantity: 1,
+            unitPrice: 250000,
+          },
+        ],
+        financialConfig: {
+          interestRate: 8.5,
+          exchangeRate: 25400,
+          loanTermMonths: 36,
+          markup: 15,
+          vatRate: 8,
+        },
+        commercialTerms: {
+          remarksVi: 'Ghi chú điều khoản',
+          remarksEn: 'Commercial remarks',
+          termItems: [
+            {
+              labelViPrint: 'Thanh toán',
+              labelEn: 'Payment',
+              textVi: '30/70',
+              textEn: '30/70',
+            },
+          ],
+        },
+        subtotal: 1250000,
+        taxTotal: 100000,
+        grandTotal: 1350000,
+        status: 'accepted',
+        autoCreateProject: true,
+      }),
+    });
+
+    assert.equal(create.response.status, 201);
+    assert.ok(create.body.id);
+    assert.ok(Array.isArray(create.body.lineItems));
+    assert.equal(create.body.lineItems.length, 2);
+    assert.deepEqual(create.body.financialConfig, {
+      interestRate: 8.5,
+      exchangeRate: 25400,
+      loanTermMonths: 36,
+      markup: 15,
+      vatRate: 8,
+    });
+    assert.equal(create.body.commercialTerms.remarksVi, 'Ghi chú điều khoản');
+    assert.equal(create.body.commercialTerms.termItems.length, 1);
+    assert.equal('items' in create.body, false);
+    assert.equal('financialParams' in create.body, false);
+    assert.equal('terms' in create.body, false);
+
+    const detail = await api(`/api/quotations/${create.body.id}`, {
+      headers: authHeaders,
+    });
+    assert.equal(detail.response.status, 200);
+    assert.equal(detail.body.quoteNumber, 'Q-TYPED-001');
+    assert.equal(detail.body.lineItems.length, 2);
+    assert.equal(detail.body.lineItems[0].sku, 'SKU-TYPED-1');
+    assert.equal(detail.body.financialConfig.loanTermMonths, 36);
+    assert.equal(detail.body.commercialTerms.termItems[0].labelViPrint, 'Thanh toán');
+    assert.equal('items' in detail.body, false);
+    assert.equal('financialParams' in detail.body, false);
+    assert.equal('terms' in detail.body, false);
+
+    const createSalesOrder = await api(`/api/sales-orders/from-quotation/${create.body.id}`, {
+      method: 'POST',
+      headers: authHeaders,
+    });
+    assert.equal(createSalesOrder.response.status, 201);
+    assert.ok(Array.isArray(createSalesOrder.body.salesOrder.items));
+    assert.equal(createSalesOrder.body.salesOrder.items.length, 2);
+    assert.equal(createSalesOrder.body.salesOrder.items[0].sku, 'SKU-TYPED-1');
   });
 
   await run('viewer cannot create standalone quotation', async () => {

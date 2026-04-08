@@ -264,6 +264,22 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
 
     const id = uuidv4();
     const orderNumber = `SO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${id.slice(0, 6).toUpperCase()}`;
+    const typedLineItems = await database.all(
+      `SELECT sku, name, unit, technicalSpecs, remarks, quantity, unitPrice
+       FROM QuotationLineItem
+       WHERE quotationId = ?
+       ORDER BY sortOrder ASC, createdAt ASC`,
+      [quotationId]
+    );
+    const salesOrderItems = (Array.isArray(typedLineItems) ? typedLineItems : []).map((item: any) => ({
+      sku: item?.sku || null,
+      name: item?.name || null,
+      unit: item?.unit || null,
+      technicalSpecs: item?.technicalSpecs || null,
+      remarks: item?.remarks || null,
+      quantity: Number.isFinite(Number(item?.quantity)) ? Number(item.quantity) : 1,
+      unitPrice: Number.isFinite(Number(item?.unitPrice)) ? Number(item.unitPrice) : 0,
+    }));
     await database.run(
       `INSERT INTO SalesOrder (
         id, orderNumber, quotationId, accountId, status, currency, items, subtotal, taxTotal, grandTotal, notes
@@ -275,7 +291,7 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
         quotation.accountId || null,
         'draft',
         quotation.currency || 'VND',
-        quotation.items || '[]',
+        JSON.stringify(salesOrderItems),
         quotation.subtotal || 0,
         quotation.taxTotal || 0,
         quotation.grandTotal || 0,
@@ -283,6 +299,13 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
       ]
     );
     const salesOrder = await database.get(`SELECT * FROM SalesOrder WHERE id = ?`, [id]);
+    if (salesOrder?.items) {
+      try {
+        salesOrder.items = JSON.parse(salesOrder.items);
+      } catch {
+        salesOrder.items = [];
+      }
+    }
     return { created: true, salesOrder };
   }
 

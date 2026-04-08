@@ -155,12 +155,12 @@ async function getCostEntries(db: any, quotationId: string) {
 }
 
 async function getRentalConfig(db: any, quotationId: string): Promise<Required<PricingRentalConfigInput>> {
-  const row = await db.get(`SELECT * FROM PricingRentalConfig WHERE quotationId = ?`, [quotationId]);
+  const row = await db.get(`SELECT * FROM PricingQuotation WHERE id = ?`, [quotationId]);
   return normalizeRentalConfig(row || DEFAULT_RENTAL_CONFIG);
 }
 
 async function getOperationConfig(db: any, quotationId: string): Promise<Required<PricingOperationConfigInput>> {
-  const row = await db.get(`SELECT * FROM PricingOperationConfig WHERE quotationId = ?`, [quotationId]);
+  const row = await db.get(`SELECT * FROM PricingQuotation WHERE id = ?`, [quotationId]);
   const pmIntervalsHours = row?.pmIntervalsHours ? JSON.parse(row.pmIntervalsHours) : undefined;
   return normalizeOperationConfig({ ...(row || DEFAULT_OPERATION_CONFIG), pmIntervalsHours });
 }
@@ -183,30 +183,12 @@ async function getVarianceThresholds(db: any) {
 async function upsertRentalConfig(db: any, quotationId: string, input: PricingRentalConfigInput | null | undefined) {
   const rental = normalizeRentalConfig(input || DEFAULT_RENTAL_CONFIG);
   await db.run(
-    `INSERT INTO PricingRentalConfig (
-      id, quotationId, investmentQty, depreciationMonths, stlPct, stlPeriodMonths, stlRate, stlRateChange,
-      ltlPeriodMonths, ltlRate, ltlRateChange, rentPeriodMonths, downpaymentMonths, paymentDelayDays,
-      expectedProfitPct, contingencyPct, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    ON CONFLICT(quotationId) DO UPDATE SET
-      investmentQty = excluded.investmentQty,
-      depreciationMonths = excluded.depreciationMonths,
-      stlPct = excluded.stlPct,
-      stlPeriodMonths = excluded.stlPeriodMonths,
-      stlRate = excluded.stlRate,
-      stlRateChange = excluded.stlRateChange,
-      ltlPeriodMonths = excluded.ltlPeriodMonths,
-      ltlRate = excluded.ltlRate,
-      ltlRateChange = excluded.ltlRateChange,
-      rentPeriodMonths = excluded.rentPeriodMonths,
-      downpaymentMonths = excluded.downpaymentMonths,
-      paymentDelayDays = excluded.paymentDelayDays,
-      expectedProfitPct = excluded.expectedProfitPct,
-      contingencyPct = excluded.contingencyPct,
-      updatedAt = datetime('now')`,
+    `UPDATE PricingQuotation
+     SET investmentQty = ?, depreciationMonths = ?, stlPct = ?, stlPeriodMonths = ?, stlRate = ?, stlRateChange = ?,
+         ltlPeriodMonths = ?, ltlRate = ?, ltlRateChange = ?, rentPeriodMonths = ?, downpaymentMonths = ?, paymentDelayDays = ?,
+         expectedProfitPct = ?, contingencyPct = ?, updatedAt = datetime('now')
+     WHERE id = ?`,
     [
-      uuidv4(),
-      quotationId,
       rental.investmentQty,
       rental.depreciationMonths,
       rental.stlPct,
@@ -221,6 +203,7 @@ async function upsertRentalConfig(db: any, quotationId: string, input: PricingRe
       rental.paymentDelayDays,
       rental.expectedProfitPct,
       rental.contingencyPct,
+      quotationId,
     ]
   );
 }
@@ -228,25 +211,12 @@ async function upsertRentalConfig(db: any, quotationId: string, input: PricingRe
 async function upsertOperationConfig(db: any, quotationId: string, input: PricingOperationConfigInput | null | undefined) {
   const ops = normalizeOperationConfig(input || DEFAULT_OPERATION_CONFIG);
   await db.run(
-    `INSERT INTO PricingOperationConfig (
-      id, quotationId, workingDaysMonth, dailyHours, movesPerDay, kmPerMove, electricityPriceVnd,
-      kwhPerKm, driversPerUnit, driverSalaryVnd, insuranceRate, pmIntervalsHours, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    ON CONFLICT(quotationId) DO UPDATE SET
-      workingDaysMonth = excluded.workingDaysMonth,
-      dailyHours = excluded.dailyHours,
-      movesPerDay = excluded.movesPerDay,
-      kmPerMove = excluded.kmPerMove,
-      electricityPriceVnd = excluded.electricityPriceVnd,
-      kwhPerKm = excluded.kwhPerKm,
-      driversPerUnit = excluded.driversPerUnit,
-      driverSalaryVnd = excluded.driverSalaryVnd,
-      insuranceRate = excluded.insuranceRate,
-      pmIntervalsHours = excluded.pmIntervalsHours,
-      updatedAt = datetime('now')`,
+    `UPDATE PricingQuotation
+     SET workingDaysMonth = ?, dailyHours = ?, movesPerDay = ?, kmPerMove = ?, electricityPriceVnd = ?,
+         kwhPerKm = ?, driversPerUnit = ?, driverSalaryVnd = ?, insuranceRate = ?, pmIntervalsHours = ?,
+         updatedAt = datetime('now')
+     WHERE id = ?`,
     [
-      uuidv4(),
-      quotationId,
       ops.workingDaysMonth,
       ops.dailyHours,
       ops.movesPerDay,
@@ -257,6 +227,7 @@ async function upsertOperationConfig(db: any, quotationId: string, input: Pricin
       ops.driverSalaryVnd,
       ops.insuranceRate,
       JSON.stringify(ops.pmIntervalsHours),
+      quotationId,
     ]
   );
 }

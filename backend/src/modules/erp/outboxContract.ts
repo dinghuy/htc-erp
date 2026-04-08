@@ -1,6 +1,9 @@
 export const ERP_OUTBOX_MAX_ATTEMPTS = 5;
 export const ERP_OUTBOX_PAYLOAD_VERSION = 'v1';
 export const ERP_OUTBOX_API_STATUSES = ['pending', 'sending', 'sent', 'retryable_failed', 'dead_letter'] as const;
+export const ERP_OUTBOX_STATUS_FILTER_ALIASES = {
+  'dead-letter': 'dead_letter',
+} as const;
 export type ErpOutboxApiStatus = (typeof ERP_OUTBOX_API_STATUSES)[number];
 
 export type ErpOutboxRow = {
@@ -69,5 +72,19 @@ export function buildErpOutboxStats(stats: Record<string, unknown> | null | unde
     retryableFailed,
     failed: retryableFailed + deadLetter,
     deadLetter,
+  };
+}
+
+export function buildErpOutboxPolicy() {
+  return {
+    maxAttempts: ERP_OUTBOX_MAX_ATTEMPTS,
+    payloadVersion: ERP_OUTBOX_PAYLOAD_VERSION,
+    statuses: [...ERP_OUTBOX_API_STATUSES],
+    statusFilterAliases: { ...ERP_OUTBOX_STATUS_FILTER_ALIASES },
+    retrySchedule: {
+      strategy: 'exponential_backoff',
+      initialDelaySeconds: 30,
+      maxDelaySeconds: 3600,
+    },
   };
 }

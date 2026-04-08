@@ -23,6 +23,7 @@ HTC ERP is the official product repository for the Huynh Thy CRM-to-ERP revenue 
 - `frontend/`: UI application
 - `backend/`: API, domain logic, persistence, ERP integration
 - `docs/index.md`: source-of-truth entrypoint for active docs and plans
+- `docs/workstreams/`: active implementation plans that still drive execution
 - `docs/product/`: product scope and business goals
 - `docs/architecture/`: engineering architecture and module boundaries
 - `docs/adr/`: architecture decisions

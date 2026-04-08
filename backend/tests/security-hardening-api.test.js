@@ -123,14 +123,31 @@ async function main() {
   });
 
   await run('manager can manage salespersons while sales is restricted to read-only access', async () => {
-    const seededSalespersonId = uuidv4();
     const db = getDb();
-    await db.run('INSERT INTO SalesPerson (id, name, email, phone) VALUES (?, ?, ?, ?)', [
-      seededSalespersonId,
-      'Existing Salesperson',
-      'existing.salesperson@example.com',
-      '0900000000',
-    ]);
+    const seededSalespersonId = uuidv4();
+    await db.run(
+      `INSERT INTO User (
+        id, fullName, gender, email, phone, role, department, status,
+        username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        seededSalespersonId,
+        'Existing Salesperson',
+        'male',
+        'existing.salesperson@example.com',
+        '0900000000',
+        'Salesperson',
+        'Sales',
+        'Active',
+        null,
+        null,
+        'sales',
+        JSON.stringify(['sales']),
+        'active',
+        0,
+        'vi',
+      ],
+    );
 
     await seedUser({
       username: 'route_manager',
@@ -168,6 +185,7 @@ async function main() {
     });
     assert.equal(managerList.response.status, 200);
     assert.equal(Array.isArray(managerList.body), true);
+    assert.ok(managerList.body.some((item) => item.id === seededSalespersonId));
 
     const salesList = await api('/api/salespersons', {
       headers: { Authorization: `Bearer ${salesLogin.body.token}` },
@@ -189,6 +207,12 @@ async function main() {
     });
     assert.equal(managerCreate.response.status, 201);
     assert.equal(managerCreate.body.name, 'Manager Created');
+    const createdUser = await db.get('SELECT id, username, systemRole, roleCodes, department FROM User WHERE id = ?', [managerCreate.body.id]);
+    assert.ok(createdUser);
+    assert.equal(createdUser.username, null);
+    assert.equal(createdUser.systemRole, 'sales');
+    assert.equal(createdUser.department, 'Sales');
+    assert.equal(createdUser.roleCodes, JSON.stringify(['sales']));
 
     const forbiddenDelete = await api(`/api/salespersons/${seededSalespersonId}`, {
       method: 'DELETE',
@@ -202,6 +226,8 @@ async function main() {
     });
     assert.equal(managerDelete.response.status, 200);
     assert.equal(managerDelete.body.success, true);
+    const deletedUser = await db.get('SELECT id FROM User WHERE id = ?', [managerCreate.body.id]);
+    assert.equal(deletedUser, undefined);
   });
 
   await teardown();

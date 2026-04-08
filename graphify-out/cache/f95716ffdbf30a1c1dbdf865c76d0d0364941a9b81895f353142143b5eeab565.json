@@ -1,0 +1,1 @@
+{"nodes": [{"id": "sales", "label": "sales.ts", "file_type": "code", "source_file": "frontend\\src\\i18n\\sales.ts", "source_location": "L1"}], "edges": [{"source": "sales", "target": "i18n", "relation": "imports_from", "confidence": "EXTRACTED", "source_file": "frontend\\src\\i18n\\sales.ts", "source_location": "L1", "weight": 1.0}]}

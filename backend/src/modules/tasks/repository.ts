@@ -76,46 +76,35 @@ type TaskViewPresetWriteInput = {
 };
 
 const TASK_ROUTE_SELECT = `
+  WITH task_rollups AS (
+    SELECT
+      parentTaskId AS taskId,
+      COUNT(*) AS subtaskCount,
+      SUM(CASE WHEN LOWER(COALESCE(status, '')) = 'completed' THEN 1 ELSE 0 END) AS completedSubtaskCount
+    FROM Task
+    WHERE parentTaskId IS NOT NULL
+    GROUP BY parentTaskId
+  ),
+  checklist_rollups AS (
+    SELECT
+      entityId AS taskId,
+      COUNT(*) AS checklistCount,
+      SUM(CASE WHEN doneAt IS NOT NULL THEN 1 ELSE 0 END) AS checklistCompletedCount
+    FROM ToDo
+    WHERE entityType = 'Task'
+    GROUP BY entityId
+  )
   SELECT t.*,
          pt.name AS parentTaskName,
-         (
-           SELECT COUNT(*)
-           FROM Task child
-           WHERE child.parentTaskId = t.id
-         ) AS subtaskCount,
-         (
-           SELECT COUNT(*)
-           FROM Task child
-           WHERE child.parentTaskId = t.id
-             AND LOWER(COALESCE(child.status, '')) = 'completed'
-         ) AS completedSubtaskCount,
-         (
-           SELECT COUNT(*)
-           FROM ToDo todo
-           WHERE todo.entityType = 'Task'
-             AND todo.entityId = t.id
-         ) AS checklistCount,
-         (
-           SELECT COUNT(*)
-           FROM ToDo todo
-           WHERE todo.entityType = 'Task'
-             AND todo.entityId = t.id
-             AND todo.doneAt IS NOT NULL
-         ) AS checklistCompletedCount,
+         COALESCE(tr.subtaskCount, 0) AS subtaskCount,
+         COALESCE(tr.completedSubtaskCount, 0) AS completedSubtaskCount,
+         COALESCE(cr.checklistCount, 0) AS checklistCount,
+         COALESCE(cr.checklistCompletedCount, 0) AS checklistCompletedCount,
          CASE
-           WHEN (
-             (SELECT COUNT(*) FROM Task child WHERE child.parentTaskId = t.id) +
-             (SELECT COUNT(*) FROM ToDo todo WHERE todo.entityType = 'Task' AND todo.entityId = t.id)
-           ) = 0 THEN NULL
+           WHEN (COALESCE(tr.subtaskCount, 0) + COALESCE(cr.checklistCount, 0)) = 0 THEN NULL
            ELSE ROUND(
-             (
-               (SELECT COUNT(*) FROM Task child WHERE child.parentTaskId = t.id AND LOWER(COALESCE(child.status, '')) = 'completed') +
-               (SELECT COUNT(*) FROM ToDo todo WHERE todo.entityType = 'Task' AND todo.entityId = t.id AND todo.doneAt IS NOT NULL)
-             ) * 100.0 /
-             (
-               (SELECT COUNT(*) FROM Task child WHERE child.parentTaskId = t.id) +
-               (SELECT COUNT(*) FROM ToDo todo WHERE todo.entityType = 'Task' AND todo.entityId = t.id)
-             )
+             (COALESCE(tr.completedSubtaskCount, 0) + COALESCE(cr.checklistCompletedCount, 0)) * 100.0 /
+             (COALESCE(tr.subtaskCount, 0) + COALESCE(cr.checklistCount, 0))
            )
          END AS rollupCompletionPct,
          u.fullName AS assigneeName,
@@ -128,6 +117,8 @@ const TASK_ROUTE_SELECT = `
          q.status AS quotationStatus
   FROM Task t
   LEFT JOIN Task pt ON t.parentTaskId = pt.id
+  LEFT JOIN task_rollups tr ON tr.taskId = t.id
+  LEFT JOIN checklist_rollups cr ON cr.taskId = t.id
   LEFT JOIN User u ON t.assigneeId = u.id
   LEFT JOIN Project p ON t.projectId = p.id
   LEFT JOIN Account a ON t.accountId = a.id
@@ -136,46 +127,35 @@ const TASK_ROUTE_SELECT = `
 `;
 
 const TASK_WITH_LINKS_SELECT = `
+  WITH task_rollups AS (
+    SELECT
+      parentTaskId AS taskId,
+      COUNT(*) AS subtaskCount,
+      SUM(CASE WHEN LOWER(COALESCE(status, '')) = 'completed' THEN 1 ELSE 0 END) AS completedSubtaskCount
+    FROM Task
+    WHERE parentTaskId IS NOT NULL
+    GROUP BY parentTaskId
+  ),
+  checklist_rollups AS (
+    SELECT
+      entityId AS taskId,
+      COUNT(*) AS checklistCount,
+      SUM(CASE WHEN doneAt IS NOT NULL THEN 1 ELSE 0 END) AS checklistCompletedCount
+    FROM ToDo
+    WHERE entityType = 'Task'
+    GROUP BY entityId
+  )
   SELECT t.*,
          pt.name AS parentTaskName,
-         (
-           SELECT COUNT(*)
-           FROM Task child
-           WHERE child.parentTaskId = t.id
-         ) AS subtaskCount,
-         (
-           SELECT COUNT(*)
-           FROM Task child
-           WHERE child.parentTaskId = t.id
-             AND LOWER(COALESCE(child.status, '')) = 'completed'
-         ) AS completedSubtaskCount,
-         (
-           SELECT COUNT(*)
-           FROM ToDo todo
-           WHERE todo.entityType = 'Task'
-             AND todo.entityId = t.id
-         ) AS checklistCount,
-         (
-           SELECT COUNT(*)
-           FROM ToDo todo
-           WHERE todo.entityType = 'Task'
-             AND todo.entityId = t.id
-             AND todo.doneAt IS NOT NULL
-         ) AS checklistCompletedCount,
+         COALESCE(tr.subtaskCount, 0) AS subtaskCount,
+         COALESCE(tr.completedSubtaskCount, 0) AS completedSubtaskCount,
+         COALESCE(cr.checklistCount, 0) AS checklistCount,
+         COALESCE(cr.checklistCompletedCount, 0) AS checklistCompletedCount,
          CASE
-           WHEN (
-             (SELECT COUNT(*) FROM Task child WHERE child.parentTaskId = t.id) +
-             (SELECT COUNT(*) FROM ToDo todo WHERE todo.entityType = 'Task' AND todo.entityId = t.id)
-           ) = 0 THEN NULL
+           WHEN (COALESCE(tr.subtaskCount, 0) + COALESCE(cr.checklistCount, 0)) = 0 THEN NULL
            ELSE ROUND(
-             (
-               (SELECT COUNT(*) FROM Task child WHERE child.parentTaskId = t.id AND LOWER(COALESCE(child.status, '')) = 'completed') +
-               (SELECT COUNT(*) FROM ToDo todo WHERE todo.entityType = 'Task' AND todo.entityId = t.id AND todo.doneAt IS NOT NULL)
-             ) * 100.0 /
-             (
-               (SELECT COUNT(*) FROM Task child WHERE child.parentTaskId = t.id) +
-               (SELECT COUNT(*) FROM ToDo todo WHERE todo.entityType = 'Task' AND todo.entityId = t.id)
-             )
+             (COALESCE(tr.completedSubtaskCount, 0) + COALESCE(cr.checklistCompletedCount, 0)) * 100.0 /
+             (COALESCE(tr.subtaskCount, 0) + COALESCE(cr.checklistCount, 0))
            )
          END AS rollupCompletionPct,
          u.fullName AS assigneeName,
@@ -189,6 +169,8 @@ const TASK_WITH_LINKS_SELECT = `
          q.status AS quotationStatus
   FROM Task t
   LEFT JOIN Task pt ON t.parentTaskId = pt.id
+  LEFT JOIN task_rollups tr ON tr.taskId = t.id
+  LEFT JOIN checklist_rollups cr ON cr.taskId = t.id
   LEFT JOIN User u ON t.assigneeId = u.id
   LEFT JOIN Project p ON t.projectId = p.id
   LEFT JOIN Account a ON t.accountId = a.id

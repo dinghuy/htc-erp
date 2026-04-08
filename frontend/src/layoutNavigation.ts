@@ -52,6 +52,11 @@ export type VisibleShellNavigationGroup = {
   }>;
 };
 
+type ShellNavigationOptions = {
+  includeMaintenance?: boolean;
+  forceVisibleRoutes?: AppModule[];
+};
+
 const SHELL_NAVIGATION: ShellNavigationDefinition[] = [
   {
     key: 'Workspace',
@@ -134,12 +139,20 @@ const SHELL_NAVIGATION: ShellNavigationDefinition[] = [
 export function getShellNavigationGroups(
   allowedModules: AppModule[],
   translateCategoryLabel?: (group: TabName, fallback: string) => string,
+  options: ShellNavigationOptions = {},
 ): VisibleShellNavigationGroup[] {
+  const includeMaintenance = options.includeMaintenance === true;
+  const forceVisibleRoutes = new Set(options.forceVisibleRoutes || []);
+
   return SHELL_NAVIGATION
     .map((category) => {
       const groups = category.groups
         .map((group, index) => {
-          const visibleItems = group.items.filter((item) => allowedModules.includes(item.label));
+          const visibleItems = group.items.filter((item) => {
+            if (!allowedModules.includes(item.label)) return false;
+            const phaseOneExposure = getAppModulePhaseOneExposure(item.label);
+            return phaseOneExposure !== 'maintenance' || includeMaintenance || forceVisibleRoutes.has(item.label);
+          });
           if (visibleItems.length === 0) return null;
 
           return {

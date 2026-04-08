@@ -1,6 +1,23 @@
+import { randomUUID } from 'node:crypto';
 import { getDb } from '../../../sqlite-db';
+import {
+  buildPdfTermsFromCommercialTerms,
+  buildTypedQuotationStateFromBody,
+  parseLegacyQuotationCommercialTerms,
+  parseLegacyQuotationFinancialConfig,
+  parseLegacyQuotationLineItems,
+  type QuotationCommercialTerms,
+  type QuotationFinancialConfig,
+  type QuotationLineItemInput,
+} from './typedState';
 
-export type QuotationRecord = {
+type DatabaseLike = {
+  get: (sql: string, params?: unknown[]) => Promise<any>;
+  all: (sql: string, params?: unknown[]) => Promise<any[]>;
+  run: (sql: string, params?: unknown[]) => Promise<any>;
+};
+
+type QuotationHeaderWriteRecord = {
   id: string;
   quoteNumber: string;
   quoteDate: string;
@@ -17,9 +34,6 @@ export type QuotationRecord = {
   parentQuotationId: string | null;
   changeReason: string | null;
   isWinningVersion: number;
-  items: string;
-  financialParams: string;
-  terms: string;
   subtotal: number;
   taxTotal: number;
   grandTotal: number;
@@ -27,9 +41,161 @@ export type QuotationRecord = {
   validUntil: string | null;
 };
 
+export type QuotationRecord = QuotationHeaderWriteRecord & {
+  lineItems: QuotationLineItemInput[];
+  financialConfig: QuotationFinancialConfig;
+  commercialTerms: QuotationCommercialTerms;
+};
+
+function resolveDb(db?: DatabaseLike) {
+  return db || getDb();
+}
+
+function stripLegacyBlobFields<T extends Record<string, any>>(row: T) {
+  if (!row || typeof row !== 'object') return row;
+  const { items, financialParams, terms, ...rest } = row;
+  return rest as T;
+}
+
+function normalizeLineItemRow(row: any) {
+  return {
+    id: String(row?.id || ''),
+    sortOrder: Number.isFinite(Number(row?.sortOrder)) ? Number(row.sortOrder) : 0,
+    sku: row?.sku || null,
+    name: row?.name || null,
+    unit: row?.unit || null,
+    technicalSpecs: row?.technicalSpecs || null,
+    remarks: row?.remarks || null,
+    quantity: Number.isFinite(Number(row?.quantity)) ? Number(row.quantity) : 1,
+    unitPrice: Number.isFinite(Number(row?.unitPrice)) ? Number(row.unitPrice) : 0,
+  };
+}
+
+function normalizeCommercialTermItemRow(row: any) {
+  return {
+    id: String(row?.id || ''),
+    sortOrder: Number.isFinite(Number(row?.sortOrder)) ? Number(row.sortOrder) : 0,
+    labelViPrint: row?.labelViPrint || null,
+    labelEn: row?.labelEn || null,
+    textVi: row?.textVi || null,
+    textEn: row?.textEn || null,
+  };
+}
+
+async function readTypedState(db: DatabaseLike, sourceRow: any) {
+  const quotationId = String(sourceRow?.id || '').trim();
+  if (!quotationId) {
+    return {
+      lineItems: [],
+      financialConfig: parseLegacyQuotationFinancialConfig(null),
+      commercialTerms: parseLegacyQuotationCommercialTerms(null),
+    };
+  }
+
+  const [lineItemRows, financialConfigRow, termProfileRow, termItemRows] = await Promise.all([
+    db.all(
+      `SELECT id, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice
+       FROM QuotationLineItem
+       WHERE quotationId = ?
+       ORDER BY sortOrder ASC, createdAt ASC`,
+      [quotationId]
+    ),
+    Promise.resolve({
+      interestRate: sourceRow?.interestRate,
+      exchangeRate: sourceRow?.exchangeRate,
+      loanTermMonths: sourceRow?.loanTermMonths,
+      markup: sourceRow?.markup,
+      vatRate: sourceRow?.vatRate,
+    }),
+    Promise.resolve({
+      remarksVi: sourceRow?.remarksVi,
+      remarksEn: sourceRow?.remarksEn,
+    }),
+    db.all(
+      `SELECT id, sortOrder, labelViPrint, labelEn, textVi, textEn
+       FROM QuotationTermItem
+       WHERE quotationId = ?
+       ORDER BY sortOrder ASC, createdAt ASC`,
+      [quotationId]
+    ),
+  ]);
+
+  const lineItems = Array.isArray(lineItemRows) && lineItemRows.length > 0
+    ? lineItemRows.map(normalizeLineItemRow)
+    : [];
+
+  const financialConfig = financialConfigRow
+    ? parseLegacyQuotationFinancialConfig(financialConfigRow)
+    : parseLegacyQuotationFinancialConfig(null);
+
+  const commercialTerms = termProfileRow || (Array.isArray(termItemRows) && termItemRows.length > 0)
+    ? {
+        remarksVi: termProfileRow?.remarksVi || null,
+        remarksEn: termProfileRow?.remarksEn || null,
+        termItems: (termItemRows || []).map(normalizeCommercialTermItemRow),
+      }
+    : parseLegacyQuotationCommercialTerms(null);
+
+  return {
+    lineItems,
+    financialConfig,
+    commercialTerms,
+  };
+}
+
+async function hydrateQuotationRow(db: DatabaseLike, sourceRow: any) {
+  if (!sourceRow) return null;
+  const typedState = await readTypedState(db, sourceRow);
+  return {
+    ...stripLegacyBlobFields(sourceRow),
+    ...typedState,
+  };
+}
+
+async function replaceTypedState(db: DatabaseLike, quotationId: string, record: Pick<QuotationRecord, 'lineItems' | 'financialConfig' | 'commercialTerms'>) {
+  await db.run('DELETE FROM QuotationLineItem WHERE quotationId = ?', [quotationId]);
+  for (const [index, lineItem] of record.lineItems.entries()) {
+    await db.run(
+      `INSERT INTO QuotationLineItem (
+        id, quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [
+        lineItem.id || randomUUID(),
+        quotationId,
+        Number.isFinite(Number(lineItem.sortOrder)) ? Number(lineItem.sortOrder) : index,
+        lineItem.sku || null,
+        lineItem.name || null,
+        lineItem.unit || null,
+        lineItem.technicalSpecs || null,
+        lineItem.remarks || null,
+        Number.isFinite(Number(lineItem.quantity)) ? Number(lineItem.quantity) : 1,
+        Number.isFinite(Number(lineItem.unitPrice)) ? Number(lineItem.unitPrice) : 0,
+      ]
+    );
+  }
+
+  await db.run('DELETE FROM QuotationTermItem WHERE quotationId = ?', [quotationId]);
+  for (const [index, termItem] of record.commercialTerms.termItems.entries()) {
+    await db.run(
+      `INSERT INTO QuotationTermItem (
+        id, quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [
+        termItem.id || randomUUID(),
+        quotationId,
+        Number.isFinite(Number(termItem.sortOrder)) ? Number(termItem.sortOrder) : index,
+        termItem.labelViPrint || null,
+        termItem.labelEn || null,
+        termItem.textVi || null,
+        termItem.textEn || null,
+      ]
+    );
+  }
+}
+
 export function createQuotationRepository() {
   async function listDetailed() {
-    return getDb().all(
+    return resolveDb().all(
       `SELECT q.*, a.companyName as accountName, p.name AS projectName, p.projectStage
        FROM Quotation q
        LEFT JOIN Account a ON q.accountId = a.id
@@ -38,8 +204,9 @@ export function createQuotationRepository() {
     );
   }
 
-  async function findDetailedById(id: string) {
-    return getDb().get(
+  async function findDetailedById(id: string, db?: DatabaseLike) {
+    const resolvedDb = resolveDb(db);
+    const row = await resolvedDb.get(
       `SELECT q.*, a.companyName as accountName, p.name AS projectName, p.projectStage
        FROM Quotation q
        LEFT JOIN Account a ON q.accountId = a.id
@@ -47,16 +214,21 @@ export function createQuotationRepository() {
        WHERE q.id = ?`,
       [id]
     );
+    return hydrateQuotationRow(resolvedDb, row);
   }
 
-  async function findById(id: string) {
-    return getDb().get('SELECT * FROM Quotation WHERE id = ?', [id]);
+  async function findById(id: string, db?: DatabaseLike) {
+    const resolvedDb = resolveDb(db);
+    const row = await resolvedDb.get('SELECT * FROM Quotation WHERE id = ?', [id]);
+    return hydrateQuotationRow(resolvedDb, row);
   }
 
-  async function insert(record: QuotationRecord) {
-    await getDb().run(
-      `INSERT INTO Quotation (id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson, salespersonPhone, currency, opportunityId, revisionNo, revisionLabel, parentQuotationId, changeReason, isWinningVersion, items, financialParams, terms, subtotal, taxTotal, grandTotal, status, validUntil)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  async function insert(record: QuotationRecord, db?: DatabaseLike) {
+    const resolvedDb = resolveDb(db);
+    await resolvedDb.run(
+      `INSERT INTO Quotation (
+        id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson, salespersonPhone, currency, opportunityId, revisionNo, revisionLabel, parentQuotationId, changeReason, isWinningVersion, items, financialParams, terms, interestRate, exchangeRate, loanTermMonths, markup, vatRate, remarksVi, remarksEn, subtotal, taxTotal, grandTotal, status, validUntil
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         record.id,
         record.quoteNumber,
@@ -74,9 +246,13 @@ export function createQuotationRepository() {
         record.parentQuotationId,
         record.changeReason,
         record.isWinningVersion,
-        record.items,
-        record.financialParams,
-        record.terms,
+        record.financialConfig.interestRate,
+        record.financialConfig.exchangeRate,
+        record.financialConfig.loanTermMonths,
+        record.financialConfig.markup,
+        record.financialConfig.vatRate,
+        record.commercialTerms.remarksVi || null,
+        record.commercialTerms.remarksEn || null,
         record.subtotal,
         record.taxTotal,
         record.grandTotal,
@@ -84,11 +260,18 @@ export function createQuotationRepository() {
         record.validUntil,
       ]
     );
+    await replaceTypedState(resolvedDb, record.id, record);
   }
 
-  async function updateById(id: string, record: Omit<QuotationRecord, 'id' | 'quoteNumber' | 'opportunityId'>) {
-    await getDb().run(
-      `UPDATE Quotation SET quoteDate=?, subject=?, accountId=?, contactId=?, projectId=?, salesperson=?, salespersonPhone=?, currency=?, revisionNo=?, revisionLabel=?, parentQuotationId=?, changeReason=?, isWinningVersion=?, items=?, financialParams=?, terms=?, subtotal=?, taxTotal=?, grandTotal=?, status=?, validUntil=? WHERE id=?`,
+  async function updateById(id: string, record: Omit<QuotationRecord, 'id' | 'quoteNumber' | 'opportunityId'>, db?: DatabaseLike) {
+    const resolvedDb = resolveDb(db);
+    await resolvedDb.run(
+      `UPDATE Quotation
+       SET quoteDate = ?, subject = ?, accountId = ?, contactId = ?, projectId = ?, salesperson = ?, salespersonPhone = ?, currency = ?,
+           revisionNo = ?, revisionLabel = ?, parentQuotationId = ?, changeReason = ?, isWinningVersion = ?, items = NULL, financialParams = NULL, terms = NULL,
+           interestRate = ?, exchangeRate = ?, loanTermMonths = ?, markup = ?, vatRate = ?, remarksVi = ?, remarksEn = ?,
+           subtotal = ?, taxTotal = ?, grandTotal = ?, status = ?, validUntil = ?
+       WHERE id = ?`,
       [
         record.quoteDate,
         record.subject,
@@ -103,9 +286,13 @@ export function createQuotationRepository() {
         record.parentQuotationId,
         record.changeReason,
         record.isWinningVersion,
-        record.items,
-        record.financialParams,
-        record.terms,
+        record.financialConfig.interestRate,
+        record.financialConfig.exchangeRate,
+        record.financialConfig.loanTermMonths,
+        record.financialConfig.markup,
+        record.financialConfig.vatRate,
+        record.commercialTerms.remarksVi || null,
+        record.commercialTerms.remarksEn || null,
         record.subtotal,
         record.taxTotal,
         record.grandTotal,
@@ -114,19 +301,38 @@ export function createQuotationRepository() {
         id,
       ]
     );
+    await replaceTypedState(resolvedDb, id, record);
   }
 
   async function deleteById(id: string) {
-    await getDb().run('DELETE FROM Quotation WHERE id = ?', [id]);
+    await resolveDb().run('DELETE FROM Quotation WHERE id = ?', [id]);
   }
 
-  async function findPdfPayloadById(id: string) {
-    return getDb().get(
-      `SELECT q.*, a.companyName, a.address, a.taxCode FROM Quotation q
+  async function findPdfPayloadById(id: string, db?: DatabaseLike) {
+    const resolvedDb = resolveDb(db);
+    const row = await resolvedDb.get(
+      `SELECT q.*, a.companyName, a.address, a.taxCode
+       FROM Quotation q
        LEFT JOIN Account a ON q.accountId = a.id
        WHERE q.id = ?`,
       [id]
     );
+    if (!row) return null;
+    const typed = await readTypedState(resolvedDb, row);
+    return {
+      ...stripLegacyBlobFields(row),
+      lineItems: typed.lineItems,
+      financialConfig: typed.financialConfig,
+      commercialTerms: typed.commercialTerms,
+      pdfTerms: buildPdfTermsFromCommercialTerms(typed.commercialTerms),
+    };
+  }
+
+  async function findTypedStateById(id: string, db?: DatabaseLike) {
+    const resolvedDb = resolveDb(db);
+    const row = await resolvedDb.get('SELECT * FROM Quotation WHERE id = ?', [id]);
+    if (!row) return null;
+    return readTypedState(resolvedDb, row);
   }
 
   return {
@@ -137,5 +343,7 @@ export function createQuotationRepository() {
     updateById,
     deleteById,
     findPdfPayloadById,
+    findTypedStateById,
+    buildTypedQuotationStateFromBody,
   };
 }

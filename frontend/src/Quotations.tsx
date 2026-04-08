@@ -242,6 +242,47 @@ function ensureArray<T = any>(value: unknown): T[] {
   return Array.isArray(value) ? value as T[] : [];
 }
 
+function normalizeQuotationLineItems(value: unknown) {
+  const source = ensureArray<any>(value);
+  return source.map((item: any) => ({
+    id: item?.id || null,
+    sku: item?.sku || '',
+    name: item?.name || '',
+    unit: item?.unit || 'Chiếc',
+    technicalSpecs: item?.technicalSpecs || '',
+    remarks: item?.remarks || '',
+    quantity: item?.quantity ?? 1,
+    unitPrice: item?.unitPrice ?? 0,
+    sortOrder: item?.sortOrder ?? null,
+  }));
+}
+
+function normalizeCommercialTerms(value: any) {
+  const source = value && typeof value === 'object' ? value : {};
+  const explicitTermItems = ensureArray<any>(source.termItems);
+  const fallbackTermItems = !explicitTermItems.length
+    ? [
+        { labelViPrint: 'Hiệu lực', labelEn: 'Validity', textVi: source.validity || '', textEn: source.validityEn || '' },
+        { labelViPrint: 'Thanh toán', labelEn: 'Payment', textVi: source.payment || '', textEn: source.paymentEn || '' },
+        { labelViPrint: 'Giao hàng', labelEn: 'Delivery', textVi: source.delivery || '', textEn: source.deliveryEn || '' },
+        { labelViPrint: 'Bảo hành', labelEn: 'Warranty', textVi: source.warranty || '', textEn: source.warrantyEn || '' },
+      ].filter((item: any) => item.textVi || item.textEn)
+    : [];
+
+  return {
+    remarks: source.remarksVi ?? source.remarks ?? '',
+    remarksEn: source.remarksEn ?? '',
+    termItems: (explicitTermItems.length ? explicitTermItems : fallbackTermItems).map((item: any) => ({
+      id: item?.id || null,
+      sortOrder: item?.sortOrder ?? null,
+      labelViPrint: item?.labelViPrint || '',
+      labelEn: item?.labelEn || '',
+      textVi: item?.textVi || '',
+      textEn: item?.textEn || '',
+    })),
+  };
+}
+
 
 
 export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }: { autoOpenForm?: boolean; onFormOpened?: () => void; isMobile?: boolean; currentUser?: any } = {}) {
@@ -539,8 +580,30 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
       revisionNo,
       revisionLabel,
       changeReason,
-      items: items.map(i => ({ sku: i.sku, name: i.name, quantity: i.quantity, unitPrice: parseFloat(i.unitPrice), unit: i.unit, technicalSpecs: i.technicalSpecs, remarks: i.remarks })),
-      financialParams: fin, terms,
+      lineItems: items.map((i, index) => ({
+        id: i.id || null,
+        sortOrder: Number.isFinite(Number(i.sortOrder)) ? Number(i.sortOrder) : index,
+        sku: i.sku,
+        name: i.name,
+        quantity: parseInt(i.quantity || 1),
+        unitPrice: parseFloat(i.unitPrice || 0),
+        unit: i.unit,
+        technicalSpecs: i.technicalSpecs,
+        remarks: i.remarks,
+      })),
+      financialConfig: { ...fin },
+      commercialTerms: {
+        remarksVi: terms.remarks || '',
+        remarksEn: terms.remarksEn || '',
+        termItems: ensureArray(terms.termItems).map((item: any, index: number) => ({
+          id: item?.id || null,
+          sortOrder: Number.isFinite(Number(item?.sortOrder)) ? Number(item.sortOrder) : index,
+          labelViPrint: item?.labelViPrint || '',
+          labelEn: item?.labelEn || '',
+          textVi: item?.textVi || '',
+          textEn: item?.textEn || '',
+        })),
+      },
       subtotal: totals.subtotal, taxTotal: totals.taxTotal, grandTotal: totals.grandTotal, status,
       validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     };
@@ -655,18 +718,10 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
       setRevisionNo(Number(fullQ.revisionNo || 1));
       setRevisionLabel(fullQ.revisionLabel || `R${fullQ.revisionNo || 1}`);
       setChangeReason(fullQ.changeReason || '');
-      setItems(JSON.parse(fullQ.items || '[]'));
-      const parsedTerms = JSON.parse(fullQ.terms || '{}');
-      if (Object.keys(parsedTerms).length > 0) {
-        if (!parsedTerms.termItems) {
-            parsedTerms.termItems = [
-               { labelViPrint: 'Hiệu lực', labelEn: 'Validity', textVi: parsedTerms.validity || '', textEn: parsedTerms.validityEn || '' },
-               { labelViPrint: 'Thanh toán', labelEn: 'Payment', textVi: parsedTerms.payment || '', textEn: parsedTerms.paymentEn || '' },
-               { labelViPrint: 'Giao hàng', labelEn: 'Delivery', textVi: parsedTerms.delivery || '', textEn: parsedTerms.deliveryEn || '' },
-               { labelViPrint: 'Bảo hành', labelEn: 'Warranty', textVi: parsedTerms.warranty || '', textEn: parsedTerms.warrantyEn || '' },
-            ].filter((t:any) => t.textVi); 
-        }
-        setTerms(parsedTerms);
+      setItems(normalizeQuotationLineItems(fullQ.lineItems));
+      const normalizedTerms = normalizeCommercialTerms(fullQ.commercialTerms);
+      if (normalizedTerms.termItems.length > 0 || normalizedTerms.remarks || normalizedTerms.remarksEn) {
+        setTerms(normalizedTerms);
       }
       setMobileTab('form');
       setShowForm(true);

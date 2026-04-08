@@ -177,9 +177,9 @@ async function main() {
     const mapped = mapUpdateQuotationInput({
       body: {
         projectId: ' project-9 ',
-        items: [{ sku: 'A' }],
-        financialParams: { discountPct: 2 },
-        terms: { payment: '50/50' },
+        lineItems: [{ sku: 'A' }],
+        financialConfig: { exchangeRate: 26000 },
+        commercialTerms: { remarksVi: 'Term remark', termItems: [{ labelViPrint: 'Thanh toán', labelEn: 'Payment', textVi: '50/50' }] },
       },
       current: {
         revisionNo: 3,
@@ -187,6 +187,9 @@ async function main() {
         parentQuotationId: null,
         changeReason: null,
         isWinningVersion: 1,
+        lineItems: [],
+        financialConfig: { interestRate: 8.5, exchangeRate: 25400, loanTermMonths: 36, markup: 15, vatRate: 8 },
+        commercialTerms: { remarksVi: null, remarksEn: null, termItems: [] },
       },
       nextStatus: 'accepted',
       buildRevisionLabel: (no) => `R${no}`,
@@ -196,7 +199,9 @@ async function main() {
     assert.equal(mapped.revisionNo, 3);
     assert.equal(mapped.revisionLabel, 'R3');
     assert.equal(mapped.status, 'won');
-    assert.equal(mapped.items, JSON.stringify([{ sku: 'A' }]));
+    assert.deepEqual(mapped.lineItems, [{ sku: 'A', sortOrder: 0, name: null, unit: 'Chiếc', technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null }]);
+    assert.equal(mapped.financialConfig.exchangeRate, 26000);
+    assert.equal(mapped.commercialTerms.termItems[0].textVi, '50/50');
   });
 
   await run('revise mapper builds draft revision payload from source + overrides', async () => {
@@ -213,9 +218,13 @@ async function main() {
         salespersonPhone: '0900',
         currency: 'VND',
         opportunityId: 'opp-1',
-        items: JSON.stringify([{ sku: 'SKU-1' }]),
-        financialParams: JSON.stringify({ discount: 0 }),
-        terms: JSON.stringify({ payment: '100%' }),
+        lineItems: [{ sku: 'SKU-1' }],
+        financialConfig: { interestRate: 8.5, exchangeRate: 25400, loanTermMonths: 36, markup: 15, vatRate: 8 },
+        commercialTerms: {
+          remarksVi: null,
+          remarksEn: null,
+          termItems: [{ labelViPrint: 'Thanh toán', labelEn: 'Payment', textVi: '100%', textEn: '100%' }],
+        },
         subtotal: 100,
         taxTotal: 8,
         grandTotal: 108,
@@ -240,7 +249,9 @@ async function main() {
     assert.equal(mapped.subject, 'Revised');
     assert.equal(mapped.subtotal, 200);
     assert.equal(mapped.taxTotal, 8);
-    assert.equal(mapped.items, JSON.stringify([{ sku: 'SKU-1' }]));
+    assert.deepEqual(mapped.lineItems, [{ sku: 'SKU-1', sortOrder: 0, name: null, unit: 'Chiếc', technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null }]);
+    assert.equal(mapped.financialConfig.exchangeRate, 25400);
+    assert.equal(mapped.commercialTerms.termItems[0].textVi, '100%');
   });
 
   await run('revise validator rejects non-object body', async () => {

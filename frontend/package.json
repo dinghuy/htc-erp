@@ -16,8 +16,10 @@
     "test:ux:contracts": "node ./scripts/run-vitest-sandbox.mjs src/qa/uxAuditContracts.test.ts src/qa/uxRegressionExecution.test.ts",
     "typecheck": "tsc -b",
     "sync:contracts": "node ../scripts/sync-shared-contracts.mjs",
-    "test:ux:audit": "node ./scripts/qa/run-ux-audit.mjs",
-    "test:ux:audit:headed": "set QA_HEADLESS=0&& node ./scripts/qa/run-ux-audit.mjs"
+    "test:ux:audit": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/run-ux-audit.ps1",
+    "test:ux:audit:headed": "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File ./scripts/qa/run-ux-audit.ps1 -Headed",
+    "test:ux:audit:node": "node ./scripts/qa/run-ux-audit.mjs",
+    "test:ux:audit:node:headed": "set QA_HEADLESS=0&& node ./scripts/qa/run-ux-audit.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.10",

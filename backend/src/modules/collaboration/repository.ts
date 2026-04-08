@@ -12,6 +12,17 @@ type ListThreadsOptions = {
 };
 
 export function createCollaborationRepository() {
+  const THREAD_MESSAGE_ROLLUPS_JOIN = `
+    LEFT JOIN (
+      SELECT
+        threadId,
+        COUNT(*) AS messageCount,
+        MAX(createdAt) AS lastMessageAt
+      FROM EntityThreadMessage
+      GROUP BY threadId
+    ) tmr ON tmr.threadId = et.id
+  `;
+
   async function withDb<T>(operation: (db: any) => Promise<T>) {
     return operation(getDb());
   }
@@ -144,17 +155,10 @@ export function createCollaborationRepository() {
 
     return getDb().all(
       `SELECT et.*,
-              (
-                SELECT COUNT(*)
-                FROM EntityThreadMessage etm
-                WHERE etm.threadId = et.id
-              ) AS messageCount,
-              (
-                SELECT MAX(createdAt)
-                FROM EntityThreadMessage etm
-                WHERE etm.threadId = et.id
-              ) AS lastMessageAt
+              COALESCE(tmr.messageCount, 0) AS messageCount,
+              tmr.lastMessageAt AS lastMessageAt
        FROM EntityThread et
+       ${THREAD_MESSAGE_ROLLUPS_JOIN}
        ${whereClause}
        ORDER BY et.updatedAt DESC, et.createdAt DESC
        LIMIT ?`,
@@ -180,17 +184,10 @@ export function createCollaborationRepository() {
   function findEntityThreadById(id: string) {
     return getDb().get(
       `SELECT et.*,
-              (
-                SELECT COUNT(*)
-                FROM EntityThreadMessage etm
-                WHERE etm.threadId = et.id
-              ) AS messageCount,
-              (
-                SELECT MAX(createdAt)
-                FROM EntityThreadMessage etm
-                WHERE etm.threadId = et.id
-              ) AS lastMessageAt
+              COALESCE(tmr.messageCount, 0) AS messageCount,
+              tmr.lastMessageAt AS lastMessageAt
        FROM EntityThread et
+       ${THREAD_MESSAGE_ROLLUPS_JOIN}
        WHERE et.id = ?`,
       [id]
     );

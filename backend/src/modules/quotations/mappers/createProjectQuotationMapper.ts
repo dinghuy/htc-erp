@@ -1,5 +1,11 @@
 import { normalizeNumber, normalizeText } from './common';
 import { normalizeQuotationInputStatus } from '../../../../quotation-status';
+import {
+  buildTypedQuotationStateFromBody,
+  type QuotationCommercialTerms,
+  type QuotationFinancialConfig,
+  type QuotationLineItemInput,
+} from '../typedState';
 
 export type MappedProjectQuotationInput = {
   quoteNumber: string;
@@ -11,9 +17,9 @@ export type MappedProjectQuotationInput = {
   salespersonPhone: string | null;
   currency: string;
   opportunityId: string | null;
-  items: any[];
-  financialParams: Record<string, any>;
-  terms: Record<string, any>;
+  lineItems: QuotationLineItemInput[];
+  financialConfig: QuotationFinancialConfig;
+  commercialTerms: QuotationCommercialTerms;
   validUntil: string | null;
   parentQuotationId: string | null;
   requestedRevisionNo: number | null;
@@ -34,6 +40,7 @@ export function mapProjectQuotationInput(params: {
   const { body, projectId, projectAccountId } = params;
   const normalizedStatus = normalizeQuotationInputStatus(normalizeText(body?.status)) || 'draft';
   const requestedRevisionNoRaw = normalizeNumber(body?.revisionNo, NaN);
+  const typedState = buildTypedQuotationStateFromBody(body);
 
   return {
     quoteNumber: normalizeText(body?.quoteNumber) || '',
@@ -45,9 +52,9 @@ export function mapProjectQuotationInput(params: {
     salespersonPhone: normalizeText(body?.salespersonPhone),
     currency: normalizeText(body?.currency) || 'VND',
     opportunityId: normalizeText(body?.opportunityId),
-    items: Array.isArray(body?.items) ? body.items : [],
-    financialParams: body?.financialParams && typeof body.financialParams === 'object' ? body.financialParams : {},
-    terms: body?.terms && typeof body?.terms === 'object' ? body.terms : {},
+    lineItems: typedState.lineItems,
+    financialConfig: typedState.financialConfig,
+    commercialTerms: typedState.commercialTerms,
     validUntil: normalizeText(body?.validUntil),
     parentQuotationId: normalizeText(body?.parentQuotationId),
     requestedRevisionNo: Number.isFinite(requestedRevisionNoRaw) ? requestedRevisionNoRaw : null,

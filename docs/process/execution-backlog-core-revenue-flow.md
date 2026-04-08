@@ -114,7 +114,7 @@ Ownership:
 
 7. `P2-BE-01` Enforce module boundary pattern in one pilot domain (`quotations`)
 Status:
-- `partial`
+- `done`
 Acceptance criteria:
 - `quotations` module follows `route -> validator/schema -> service -> repository -> mapper`.
 - No business rule remains in route handlers for pilot scope.
@@ -122,10 +122,10 @@ Acceptance criteria:
 Evidence:
 - `backend/src/modules/quotations/*`
 - `backend/tests/route-boundary-guard.test.js`
+- `backend/src/modules/quotations/routes/mutationRoutes.ts`
+- `backend/src/modules/quotations/service.ts`
 - `docs/architecture/overview.md`
 - `docs/api/api-catalog.md`
-Open gaps:
-- The quotations module structure exists and is the backend reference pattern, but some route handlers still reach into persistence directly during mutation flows.
 Ownership:
 - `backend/src/modules/quotations/*`
 - `backend/tests/*`
@@ -150,7 +150,7 @@ Ownership:
 
 9. `P3-ERP-01` Harden ERP outbox with idempotency + retry + dead-letter visibility
 Status:
-- `partial`
+- `done`
 Acceptance criteria:
 - Outbox status transitions are explicit and auditable.
 - Retry policy and max attempts are enforced.
@@ -159,10 +159,11 @@ Evidence:
 - `backend/src/modules/erp/outboxContract.ts`
 - `backend/src/modules/erp/repository.ts`
 - `backend/src/modules/erp/service.ts`
+- `backend/erp-sync.ts`
+- `backend/tests/auth-api.test.js`
 - `docs/api/erp-outbox-contract.md`
 - `docs/adr/ADR-0003-erp-outbox-state-model.md`
-Open gaps:
-- Normalized status model, retry thresholds, and dead-letter query surfaces exist, but full closure still depends on broader auditability and end-to-end ERP workflow confirmation.
+- `docs/runbooks/erp-outbox-operations.md`
 Ownership:
 - `backend/src/modules/erp/*`
 - `docs/api/erp-outbox-contract.md`
@@ -186,8 +187,7 @@ Ownership:
 
 ## Current Execution Order
 
-1. `P2-BE-01` Finish quotations route boundary cleanup.
-2. `P3-ERP-01` Close ERP outbox auditability gaps and confirm runbook coverage.
+No active execution items remain in this core backlog snapshot. New work should start from a fresh bounded task brief against the canonical docs.
 
 ## Suggested Subagent Boundaries
 

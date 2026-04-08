@@ -24,7 +24,6 @@ export function registerQuotationRoutes(app: Express, deps: RegisterQuotationRou
     app,
     deps,
     quotationMutationServices,
-    quotationRepository,
   });
   registerQuotationReadRoutes(app, deps);
   registerQuotationPdfRoutes({

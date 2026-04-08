@@ -49,11 +49,44 @@ describe('layout navigation', () => {
 
     expect(groups.map((group) => group.label)).toEqual(['Workspace', 'Master data', 'Admin']);
     expect(groups[0]?.groups[0]?.showSectionLabel).toBe(false);
-    expect(groups[0]?.groups[1]?.section).toBe('MAINTENANCE ONLY');
-    expect(groups[0]?.groups[1]?.items.map((item) => item.label)).toEqual(['Ops Overview', 'Gantt', 'Ops Staff', 'Ops Chat', 'Reports']);
-    expect(groups[0]?.groups[1]?.items.every((item) => item.phaseOneExposure === 'maintenance')).toBe(true);
     expect(groups[1]?.groups[0]?.items.map((item) => item.label)).toEqual(['Sales', 'Leads', 'Accounts', 'Contacts', 'Equipment']);
-    expect(groups[1]?.groups[1]?.items.map((item) => item.label)).toEqual(['Suppliers', 'Partners']);
-    expect(groups[2]?.groups.at(-1)?.items.map((item) => item.label)).toEqual(['EventLog', 'Support']);
+    expect(groups.some((group) => group.groups.some((section) => section.section === 'MAINTENANCE ONLY'))).toBe(false);
+  });
+
+  it('can expose maintenance sections for admin shells or when a maintenance route is currently active', () => {
+    const allowedModules: AppModule[] = [
+      'Home',
+      'My Work',
+      'Inbox',
+      'Approvals',
+      'Projects',
+      'Tasks',
+      'ERP Orders',
+      'Ops Overview',
+      'Gantt',
+      'Ops Staff',
+      'Ops Chat',
+      'Reports',
+      'Sales',
+      'Leads',
+      'Accounts',
+      'Contacts',
+      'Equipment',
+      'Suppliers',
+      'Partners',
+      'Users',
+      'EventLog',
+      'Settings',
+      'Support',
+    ];
+
+    const adminGroups = layoutModule.getShellNavigationGroups(allowedModules, undefined, { includeMaintenance: true });
+    expect(adminGroups[0]?.groups[1]?.section).toBe('MAINTENANCE ONLY');
+    expect(adminGroups[0]?.groups[1]?.items.map((item) => item.label)).toEqual(['Ops Overview', 'Gantt', 'Ops Staff', 'Ops Chat', 'Reports']);
+    expect(adminGroups[1]?.groups[1]?.items.map((item) => item.label)).toEqual(['Suppliers', 'Partners']);
+    expect(adminGroups[2]?.groups.at(-1)?.items.map((item) => item.label)).toEqual(['EventLog', 'Support']);
+
+    const forcedGroups = layoutModule.getShellNavigationGroups(allowedModules, undefined, { forceVisibleRoutes: ['Ops Overview'] });
+    expect(forcedGroups[0]?.groups[1]?.items.map((item) => item.label)).toEqual(['Ops Overview']);
   });
 });

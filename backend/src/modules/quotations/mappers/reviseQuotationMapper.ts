@@ -1,4 +1,5 @@
 import { normalizeText } from './common';
+import { buildTypedQuotationStateFromBody } from '../typedState';
 
 type MapReviseQuotationInputParams = {
   source: any;
@@ -11,6 +12,11 @@ type MapReviseQuotationInputParams = {
 export function mapReviseQuotationInput(params: MapReviseQuotationInputParams) {
   const { source, body, id, revisionNo, buildRevisionLabel } = params;
   const nextQuoteNumber = normalizeText(body?.quoteNumber) || `${source.quoteNumber || source.id}-${buildRevisionLabel(revisionNo)}`;
+  const typedState = buildTypedQuotationStateFromBody({
+    lineItems: body?.lineItems ?? source?.lineItems,
+    financialConfig: body?.financialConfig ?? source?.financialConfig,
+    commercialTerms: body?.commercialTerms ?? source?.commercialTerms,
+  });
 
   return {
     id,
@@ -29,9 +35,9 @@ export function mapReviseQuotationInput(params: MapReviseQuotationInputParams) {
     parentQuotationId: source.id,
     changeReason: normalizeText(body?.changeReason) || `Revision from ${source.quoteNumber || source.id}`,
     isWinningVersion: 0,
-    items: JSON.stringify(body?.items || JSON.parse(source.items || '[]')),
-    financialParams: JSON.stringify(body?.financialParams || JSON.parse(source.financialParams || '{}')),
-    terms: JSON.stringify(body?.terms || JSON.parse(source.terms || '{}')),
+    lineItems: typedState.lineItems,
+    financialConfig: typedState.financialConfig,
+    commercialTerms: typedState.commercialTerms,
     subtotal: body?.subtotal ?? source.subtotal ?? 0,
     taxTotal: body?.taxTotal ?? source.taxTotal ?? 0,
     grandTotal: body?.grandTotal ?? source.grandTotal ?? 0,

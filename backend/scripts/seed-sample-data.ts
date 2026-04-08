@@ -50,8 +50,6 @@ const ids = {
     pq1: `${ID_PREFIX}-pricingq-001`,
     li1: `${ID_PREFIX}-pricingli-001`,
     li2: `${ID_PREFIX}-pricingli-002`,
-    rc1: `${ID_PREFIX}-rentalcfg-001`,
-    oc1: `${ID_PREFIX}-opcfg-001`,
     mp1: `${ID_PREFIX}-mainpart-001`,
     ce1: `${ID_PREFIX}-costentry-001`,
   },
@@ -109,9 +107,6 @@ async function main() {
        VALUES (?, ?, ?, ?, ?, 'Active', ?, ?, 'active', 0, 'vi')`,
       [ids.users.u5, 'Sample Hoang Duc Nam', 'sample.nam', 'Procurement Manager', 'Procurement', 'manager', 'SMP-E005']
     );
-
-    await db.run(`INSERT OR IGNORE INTO SalesPerson (id, name, email, phone) VALUES (?, ?, ?, ?)`, [ids.salespersons.s1, 'Sample Tran Thi Mai', 'sample.mai@htg.local', '0900000001']);
-    await db.run(`INSERT OR IGNORE INTO SalesPerson (id, name, email, phone) VALUES (?, ?, ?, ?)`, [ids.salespersons.s2, 'Sample Nguyen Van Hung', 'sample.hung@htg.local', '0900000002']);
 
     await db.run(
       `INSERT OR IGNORE INTO Account (id, companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country)
@@ -397,8 +392,8 @@ async function main() {
 
     await db.run(
       `INSERT OR IGNORE INTO PricingQuotation
-       (id, projectId, projectCode, customerName, supplierName, salePerson, changeReason, qbuType, batchNo, qbuWorkflowStage, date, vatRate, discountRate, citRate, tpcType, tpcRate, sellFxRate, buyFxRate, loanInterestDays, loanInterestRate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'INITIAL', 1, 'submitted', ?, 0.08, 0.02, 0.2, 'standard', 0, 25500, 26300, 240, 0.08)`,
+       (id, projectId, projectCode, customerName, supplierName, salePerson, changeReason, qbuType, batchNo, qbuWorkflowStage, date, vatRate, discountRate, citRate, tpcType, tpcRate, sellFxRate, buyFxRate, loanInterestDays, loanInterestRate, investmentQty, pmIntervalsHours)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'INITIAL', 1, 'submitted', ?, 0.08, 0.02, 0.2, 'standard', 0, 25500, 26300, 240, 0.08, 2, ?)`,
       [
         ids.pricing.pq1,
         ids.projects.p1,
@@ -408,6 +403,7 @@ async function main() {
         'Sample Tran Thi Mai',
         `Seed pricing quotation ${MARKER}`,
         '2026-03-25',
+        JSON.stringify([500, 1000, 2000]),
       ]
     );
     await db.run(
@@ -422,8 +418,6 @@ async function main() {
        VALUES (?, ?, 2, 'service', ?, '1 package', 1, 'indirect', 150000000, 90000000, 3500)`,
       [ids.pricing.li2, ids.pricing.pq1, `Sample implementation service ${MARKER}`]
     );
-    await db.run(`INSERT OR IGNORE INTO PricingRentalConfig (id, quotationId, investmentQty) VALUES (?, ?, 2)`, [ids.pricing.rc1, ids.pricing.pq1]);
-    await db.run(`INSERT OR IGNORE INTO PricingOperationConfig (id, quotationId, pmIntervalsHours) VALUES (?, ?, ?)`, [ids.pricing.oc1, ids.pricing.pq1, JSON.stringify([500, 1000, 2000])]);
     await db.run(
       `INSERT OR IGNORE INTO PricingMaintenancePart
        (id, quotationId, sortOrder, systemName, itemDescription, modelSpec, unit, qty, unitPriceVnd, level500h, level1000h, note)
@@ -590,6 +584,8 @@ async function main() {
 
   const counters: Record<string, number> = {};
   const countByIdLike = async (table: string) => {
+    const exists = await db.get<{ name?: string }>(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, [table]);
+    if (!exists?.name) return 0;
     const row = await db.get<{ c: number }>(`SELECT COUNT(*) AS c FROM ${table} WHERE id LIKE ?`, [`${ID_PREFIX}-%`]);
     return row?.c || 0;
   };
@@ -610,8 +606,6 @@ async function main() {
   counters.SupplierQuote = await countByIdLike('SupplierQuote');
   counters.PricingQuotation = await countByIdLike('PricingQuotation');
   counters.PricingLineItem = await countByIdLike('PricingLineItem');
-  counters.PricingRentalConfig = await countByIdLike('PricingRentalConfig');
-  counters.PricingOperationConfig = await countByIdLike('PricingOperationConfig');
   counters.PricingMaintenancePart = await countByIdLike('PricingMaintenancePart');
   counters.PricingCostEntry = await countByIdLike('PricingCostEntry');
   counters.SalesOrder = await countByIdLike('SalesOrder');
@@ -625,7 +619,6 @@ async function main() {
   counters.ProjectDeliveryLine = await countByIdLike('ProjectDeliveryLine');
   counters.ProjectMilestone = await countByIdLike('ProjectMilestone');
   counters.ProjectTimelineEvent = await countByIdLike('ProjectTimelineEvent');
-  counters.SalesPerson = await countByIdLike('SalesPerson');
   counters.ChatMessage = await countByIdLike('ChatMessage');
   counters.Notification = await countByIdLike('Notification');
   counters.ErpOutbox = await countByIdLike('ErpOutbox');
@@ -646,4 +639,3 @@ main().catch((error) => {
   console.error('[seed-sample-data] Error:', error?.message || error);
   process.exit(1);
 });
-

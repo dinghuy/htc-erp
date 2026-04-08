@@ -24,9 +24,6 @@ export function registerQuotationPdfRoutes(params: RegisterQuotationPdfRoutesPar
       : await db.get('SELECT * FROM Contact WHERE accountId = ? AND isPrimaryContact = 1', q.accountId)
         || await db.get('SELECT * FROM Contact WHERE accountId = ?', q.accountId);
 
-    const itemsParsed = JSON.parse(q.items || '[]');
-    const terms = JSON.parse(q.terms || '{}');
-
     const pdfData: QuotationPdfData = {
       quoteNumber: q.quoteNumber,
       subject: q.subject || 'Báo giá thiết bị HT Group',
@@ -41,7 +38,7 @@ export function registerQuotationPdfRoutes(params: RegisterQuotationPdfRoutesPar
       salesPerson: q.salesperson || 'Huynh Thy Sales Team',
       salesPersonPhone: q.salespersonPhone || '1900 9696 64',
       currency: q.currency || 'VND',
-      items: itemsParsed.map((item: any, idx: number) => {
+      items: (Array.isArray(q.lineItems) ? q.lineItems : []).map((item: any, idx: number) => {
         const commodity = (item.name || 'Unknown Item') + (item.technicalSpecs ? '\n' + item.technicalSpecs : '');
         return {
           no: idx + 1,
@@ -57,18 +54,7 @@ export function registerQuotationPdfRoutes(params: RegisterQuotationPdfRoutesPar
       subtotal: q.subtotal || 0,
       taxTotal: q.taxTotal || 0,
       grandTotal: q.grandTotal || 0,
-      terms: {
-        validity: terms.validity || '30 ngày kể từ ngày báo giá',
-        validityEn: terms.validityEn,
-        payment: terms.payment || 'Thanh toán 30% khi kí hợp đồng, 70% trước khi giao hàng',
-        paymentEn: terms.paymentEn,
-        delivery: terms.delivery || 'Giao hàng từ 4-6 tháng kể từ ngày kí hợp đồng',
-        deliveryEn: terms.deliveryEn,
-        warranty: terms.warranty || 'Bảo hành theo tiêu chuẩn nhà sản xuất',
-        warrantyEn: terms.warrantyEn,
-        remarks: terms.remarks,
-        remarksEn: terms.remarksEn,
-      },
+      terms: q.pdfTerms,
     };
 
     const pdfBytes = await generateQuotationPdf(pdfData).catch((err) => {

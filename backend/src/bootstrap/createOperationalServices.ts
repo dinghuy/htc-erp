@@ -190,8 +190,104 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
     }
   }
 
+  function buildWorkspaceProjectAggregateCtes(options: { includeScope: boolean }) {
+    const ctes = [
+      `task_project_rollups AS (
+        SELECT
+          projectId,
+          SUM(CASE WHEN status != 'completed' THEN 1 ELSE 0 END) AS openTaskCount,
+          SUM(CASE WHEN taskType = 'handoff' AND status != 'completed' THEN 1 ELSE 0 END) AS handoffPending,
+          SUM(CASE WHEN blockedReason IS NOT NULL AND trim(blockedReason) != '' AND status != 'completed' THEN 1 ELSE 0 END) AS blockers
+        FROM Task
+        WHERE projectId IS NOT NULL
+        GROUP BY projectId
+      )`,
+      `approval_project_rollups AS (
+        SELECT
+          projectId,
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pendingApprovalCount,
+          SUM(CASE WHEN department = 'Finance' AND status = 'pending' THEN 1 ELSE 0 END) AS receivableRisk,
+          SUM(CASE WHEN department = 'Legal' AND status = 'pending' THEN 1 ELSE 0 END) AS legalPending
+        FROM ApprovalRequest
+        WHERE projectId IS NOT NULL
+        GROUP BY projectId
+      )`,
+      `document_project_rollups AS (
+        SELECT
+          projectId,
+          SUM(CASE WHEN status IN ('missing', 'requested') THEN 1 ELSE 0 END) AS missingDocumentCount
+        FROM ProjectDocument
+        WHERE projectId IS NOT NULL
+        GROUP BY projectId
+      )`,
+      `procurement_project_rollups AS (
+        SELECT
+          projectId,
+          SUM(CASE WHEN shortageQty > 0 THEN 1 ELSE 0 END) AS shortages,
+          SUM(CASE WHEN etaDate IS NOT NULL AND date(etaDate) < date('now') AND COALESCE(receivedQty, 0) < CASE WHEN COALESCE(orderedQty, 0) > COALESCE(contractQty, 0) THEN COALESCE(orderedQty, 0) ELSE COALESCE(contractQty, 0) END THEN 1 ELSE 0 END) AS overdueEta,
+          SUM(CASE WHEN orderedQty < contractQty THEN 1 ELSE 0 END) AS procurementPending
+        FROM ProjectProcurementLine
+        WHERE projectId IS NOT NULL
+          AND COALESCE(isActive, 1) = 1
+        GROUP BY projectId
+      )`,
+      `sales_order_project_rollups AS (
+        SELECT
+          q.projectId AS projectId,
+          SUM(CASE WHEN so.status = 'processing' THEN 1 ELSE 0 END) AS paymentDue
+        FROM SalesOrder so
+        LEFT JOIN Quotation q ON q.id = so.quotationId
+        WHERE q.projectId IS NOT NULL
+        GROUP BY q.projectId
+      )`,
+      `erp_project_rollups AS (
+        SELECT
+          entityId AS projectId,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS erpFailed
+        FROM ErpOutbox
+        WHERE entityId IS NOT NULL
+        GROUP BY entityId
+      )`,
+    ];
+
+    if (options.includeScope) {
+      ctes.unshift(`workspace_project_scope AS (
+        SELECT id AS projectId
+        FROM Project
+        WHERE managerId = ?
+        UNION
+        SELECT projectId
+        FROM Task
+        WHERE assigneeId = ? AND projectId IS NOT NULL
+        UNION
+        SELECT projectId
+        FROM ApprovalRequest
+        WHERE projectId IS NOT NULL AND (requestedBy = ? OR approverUserId = ?)
+      )`);
+    }
+
+    return `WITH ${ctes.join(',\n')}`;
+  }
+
+  function buildWorkspaceProjectScopeCte() {
+    return `WITH workspace_project_scope AS (
+      SELECT id AS projectId
+      FROM Project
+      WHERE managerId = ?
+      UNION
+      SELECT projectId
+      FROM Task
+      WHERE assigneeId = ? AND projectId IS NOT NULL
+      UNION
+      SELECT projectId
+      FROM ApprovalRequest
+      WHERE projectId IS NOT NULL AND (requestedBy = ? OR approverUserId = ?)
+    )`;
+  }
+
   async function queryWorkspaceHighlights(userId: string, globalAccess = false) {
     const db = getDb();
+    const ctes = buildWorkspaceProjectAggregateCtes({ includeScope: !globalAccess });
     const sharedSelect = `
       SELECT
         p.id AS projectId,
@@ -200,25 +296,20 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
         p.projectStage,
         p.status AS projectStatus,
         a.companyName AS accountName,
-        (
-          SELECT COUNT(*) FROM Task t
-          WHERE t.projectId = p.id AND t.status != 'completed'
-        ) AS openTaskCount,
-        (
-          SELECT COUNT(*) FROM ApprovalRequest ar
-          WHERE ar.projectId = p.id AND ar.status = 'pending'
-        ) AS pendingApprovalCount,
-        (
-          SELECT COUNT(*) FROM ProjectDocument pd
-          WHERE pd.projectId = p.id AND pd.status IN ('missing', 'requested')
-        ) AS missingDocumentCount
+        COALESCE(tpr.openTaskCount, 0) AS openTaskCount,
+        COALESCE(apr.pendingApprovalCount, 0) AS pendingApprovalCount,
+        COALESCE(dpr.missingDocumentCount, 0) AS missingDocumentCount
       FROM Project p
       LEFT JOIN Account a ON a.id = p.accountId
+      LEFT JOIN task_project_rollups tpr ON tpr.projectId = p.id
+      LEFT JOIN approval_project_rollups apr ON apr.projectId = p.id
+      LEFT JOIN document_project_rollups dpr ON dpr.projectId = p.id
     `;
 
     if (globalAccess) {
       return db.all(
         `
+          ${ctes}
           ${sharedSelect}
           ORDER BY COALESCE(p.updatedAt, p.createdAt) DESC
           LIMIT 8
@@ -228,16 +319,9 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
 
     return db.all(
       `
+        ${ctes}
         ${sharedSelect}
-        WHERE p.managerId = ?
-           OR EXISTS (
-             SELECT 1 FROM Task t
-             WHERE t.projectId = p.id AND t.assigneeId = ?
-           )
-           OR EXISTS (
-             SELECT 1 FROM ApprovalRequest ar
-             WHERE ar.projectId = p.id AND (ar.requestedBy = ? OR ar.approverUserId = ?)
-           )
+        INNER JOIN workspace_project_scope wps ON wps.projectId = p.id
         ORDER BY COALESCE(p.updatedAt, p.createdAt) DESC
         LIMIT 8
       `,
@@ -272,32 +356,39 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
   const platformWorkspaceServices: PlatformWorkspaceServices = {
     async getHomeSummary(userId: string, globalAccess: boolean) {
       const db = getDb();
+      const ctes = buildWorkspaceProjectAggregateCtes({ includeScope: !globalAccess });
       return db.get(
         `
+          ${ctes}
           SELECT
-            SUM(CASE WHEN t.taskType = 'handoff' AND t.status != 'completed' THEN 1 ELSE 0 END) AS handoffPending,
             SUM(CASE WHEN p.status = 'active' THEN 1 ELSE 0 END) AS activeProjects,
-            SUM(CASE WHEN t.blockedReason IS NOT NULL AND trim(t.blockedReason) != '' AND t.status != 'completed' THEN 1 ELSE 0 END) AS blockers,
-            SUM(CASE WHEN ar.status = 'pending' THEN 1 ELSE 0 END) AS pendingApprovals,
-            SUM(CASE WHEN pd.status IN ('missing', 'requested') THEN 1 ELSE 0 END) AS missingDocuments,
-            SUM(CASE WHEN ppl.shortageQty > 0 THEN 1 ELSE 0 END) AS shortages,
-            SUM(CASE WHEN ppl.etaDate IS NOT NULL AND date(ppl.etaDate) < date('now') AND COALESCE(ppl.receivedQty, 0) < MAX(COALESCE(ppl.orderedQty, 0), COALESCE(ppl.contractQty, 0)) THEN 1 ELSE 0 END) AS overdueEta,
-            SUM(CASE WHEN ppl.orderedQty < ppl.contractQty THEN 1 ELSE 0 END) AS procurementPending,
-            SUM(CASE WHEN so.status = 'processing' THEN 1 ELSE 0 END) AS paymentDue,
-            SUM(CASE WHEN eo.status = 'failed' THEN 1 ELSE 0 END) AS erpFailed,
-            SUM(CASE WHEN ar.department = 'Finance' AND ar.status = 'pending' THEN 1 ELSE 0 END) AS receivableRisk,
-            SUM(CASE WHEN ar.department = 'Legal' AND ar.status = 'pending' THEN 1 ELSE 0 END) AS legalPending,
-            SUM(CASE WHEN p.projectStage IN ('won', 'order_released', 'procurement_active', 'delivery_active', 'delivery', 'delivery_completed') AND ((SELECT COUNT(*) FROM ApprovalRequest ap WHERE ap.projectId = p.id AND ap.status = 'pending') > 0 OR (SELECT COUNT(*) FROM ProjectDocument doc WHERE doc.projectId = p.id AND doc.status IN ('missing', 'requested')) > 0) THEN 1 ELSE 0 END) AS executiveRiskProjects
+            SUM(COALESCE(tpr.handoffPending, 0)) AS handoffPending,
+            SUM(COALESCE(tpr.blockers, 0)) AS blockers,
+            SUM(COALESCE(apr.pendingApprovalCount, 0)) AS pendingApprovals,
+            SUM(COALESCE(dpr.missingDocumentCount, 0)) AS missingDocuments,
+            SUM(COALESCE(ppr.shortages, 0)) AS shortages,
+            SUM(COALESCE(ppr.overdueEta, 0)) AS overdueEta,
+            SUM(COALESCE(ppr.procurementPending, 0)) AS procurementPending,
+            SUM(COALESCE(sopr.paymentDue, 0)) AS paymentDue,
+            SUM(COALESCE(epr.erpFailed, 0)) AS erpFailed,
+            SUM(COALESCE(apr.receivableRisk, 0)) AS receivableRisk,
+            SUM(COALESCE(apr.legalPending, 0)) AS legalPending,
+            SUM(
+              CASE
+                WHEN p.projectStage IN ('won', 'order_released', 'procurement_active', 'delivery_active', 'delivery', 'delivery_completed')
+                  AND (COALESCE(apr.pendingApprovalCount, 0) > 0 OR COALESCE(dpr.missingDocumentCount, 0) > 0)
+                THEN 1
+                ELSE 0
+              END
+            ) AS executiveRiskProjects
           FROM Project p
-          LEFT JOIN Task t ON t.projectId = p.id
-          LEFT JOIN ApprovalRequest ar ON ar.projectId = p.id
-          LEFT JOIN ProjectDocument pd ON pd.projectId = p.id
-          LEFT JOIN ProjectProcurementLine ppl ON ppl.projectId = p.id AND COALESCE(ppl.isActive, 1) = 1
-          LEFT JOIN SalesOrder so ON so.projectId = p.id
-          LEFT JOIN ErpOutbox eo ON eo.entityId = p.id
-          ${globalAccess ? '' : `WHERE p.managerId = ?
-             OR EXISTS (SELECT 1 FROM Task ownTask WHERE ownTask.projectId = p.id AND ownTask.assigneeId = ?)
-             OR EXISTS (SELECT 1 FROM ApprovalRequest ownApproval WHERE ownApproval.projectId = p.id AND (ownApproval.requestedBy = ? OR ownApproval.approverUserId = ?))`}
+          LEFT JOIN task_project_rollups tpr ON tpr.projectId = p.id
+          LEFT JOIN approval_project_rollups apr ON apr.projectId = p.id
+          LEFT JOIN document_project_rollups dpr ON dpr.projectId = p.id
+          LEFT JOIN procurement_project_rollups ppr ON ppr.projectId = p.id
+          LEFT JOIN sales_order_project_rollups sopr ON sopr.projectId = p.id
+          LEFT JOIN erp_project_rollups epr ON epr.projectId = p.id
+          ${globalAccess ? '' : 'INNER JOIN workspace_project_scope wps ON wps.projectId = p.id'}
         `,
         globalAccess ? [] : [userId, userId, userId, userId],
       ).catch(() => ({
@@ -371,6 +462,7 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
       const [documentItems, notificationItems, blockedTasks] = await Promise.all([
         db.all(
           `
+            ${globalAccess ? '' : `${buildWorkspaceProjectScopeCte()}`}
             SELECT
               pd.id AS entityId,
               'ProjectDocument' AS entityType,
@@ -383,12 +475,8 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
               p.name AS projectName
             FROM ProjectDocument pd
             INNER JOIN Project p ON p.id = pd.projectId
+            ${globalAccess ? '' : 'INNER JOIN workspace_project_scope wps ON wps.projectId = p.id'}
             WHERE pd.status IN ('missing', 'requested')
-              ${globalAccess ? '' : `AND (
-                p.managerId = ?
-                OR EXISTS (SELECT 1 FROM Task t WHERE t.projectId = p.id AND t.assigneeId = ?)
-                OR EXISTS (SELECT 1 FROM ApprovalRequest ar WHERE ar.projectId = p.id AND (ar.requestedBy = ? OR ar.approverUserId = ?))
-              )`}
             ORDER BY pd.updatedAt DESC, pd.createdAt DESC
             LIMIT 20
           `,
@@ -443,25 +531,41 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
       thisMonthStart.setHours(0, 0, 0, 0);
       const tsMonth = thisMonthStart.toISOString();
 
-      const [accounts, leads, products, suppliers, supplierQuotes, quotations,
-        newAccounts, newLeads, activeQuotations, wonLeads,
-        pipeline, wonQuotes, projects, tasks, activeTasks,
+      const [accountStats, leadStats, productStats, supplierQuoteStats, quotationStats, projectStats, taskStats,
         erpOutbox] = await Promise.all([
-        db.get("SELECT COUNT(*) as c FROM Account WHERE accountType = 'Customer'"),
-        db.get('SELECT COUNT(*) as c FROM Lead'),
-        db.get('SELECT COUNT(*) as c FROM Product'),
-        db.get("SELECT COUNT(*) as c FROM Account WHERE accountType = 'Supplier'"),
-        db.get('SELECT COUNT(*) as c FROM SupplierQuote'),
-        db.get('SELECT COUNT(*) as c FROM Quotation'),
-        db.get("SELECT COUNT(*) as c FROM Account WHERE accountType = 'Customer' AND createdAt >= ?", tsMonth),
-        db.get('SELECT COUNT(*) as c FROM Lead WHERE createdAt >= ?', tsMonth),
-        db.get("SELECT COUNT(*) as c FROM Quotation WHERE status IN ('draft','sent')"),
-        db.get("SELECT COUNT(*) as c FROM Lead WHERE status = 'Won'"),
-        db.get("SELECT SUM(grandTotal) as s FROM Quotation WHERE status != 'rejected'"),
-        db.get("SELECT COUNT(*) as c FROM Quotation WHERE status = 'accepted'"),
-        db.get('SELECT COUNT(*) as c FROM Project'),
-        db.get('SELECT COUNT(*) as c FROM Task'),
-        db.get("SELECT COUNT(*) as c FROM Task WHERE status = 'active'"),
+        db.get(
+          `SELECT
+             SUM(CASE WHEN accountType = 'Customer' THEN 1 ELSE 0 END) AS customerCount,
+             SUM(CASE WHEN accountType = 'Customer' AND createdAt >= ? THEN 1 ELSE 0 END) AS newCustomerCount,
+             SUM(CASE WHEN accountType = 'Supplier' THEN 1 ELSE 0 END) AS supplierCount
+           FROM Account`,
+          [tsMonth]
+        ),
+        db.get(
+          `SELECT
+             COUNT(*) AS total,
+             SUM(CASE WHEN createdAt >= ? THEN 1 ELSE 0 END) AS newCount,
+             SUM(CASE WHEN status = 'Won' THEN 1 ELSE 0 END) AS wonCount
+           FROM Lead`,
+          [tsMonth]
+        ),
+        db.get('SELECT COUNT(*) AS total FROM Product'),
+        db.get('SELECT COUNT(*) AS total FROM SupplierQuote'),
+        db.get(
+          `SELECT
+             COUNT(*) AS total,
+             SUM(CASE WHEN status IN ('draft', 'sent') THEN 1 ELSE 0 END) AS activeCount,
+             SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) AS acceptedCount,
+             SUM(CASE WHEN status != 'rejected' THEN COALESCE(grandTotal, 0) ELSE 0 END) AS pipelineValue
+           FROM Quotation`
+        ),
+        db.get('SELECT COUNT(*) AS total FROM Project'),
+        db.get(
+          `SELECT
+             COUNT(*) AS total,
+             SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS activeCount
+           FROM Task`
+        ),
         db.get(`
           SELECT
             SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
@@ -470,26 +574,27 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
         `).catch(() => ({ pending: 0, failed: 0 })),
       ]);
 
-      const totalQuotes = quotations?.c ?? 0;
-      const winRate = totalQuotes > 0 ? Math.round(((wonQuotes?.c ?? 0) / totalQuotes) * 100) : 0;
+      const totalQuotes = Number((quotationStats as any)?.total ?? 0);
+      const wonDealsCount = Number((quotationStats as any)?.acceptedCount ?? 0);
+      const winRate = totalQuotes > 0 ? Math.round((wonDealsCount / totalQuotes) * 100) : 0;
 
       return {
-        accounts: accounts?.c ?? 0,
-        leads: leads?.c ?? 0,
-        products: products?.c ?? 0,
-        suppliers: suppliers?.c ?? 0,
-        supplierQuotes: supplierQuotes?.c ?? 0,
+        accounts: Number((accountStats as any)?.customerCount ?? 0),
+        leads: Number((leadStats as any)?.total ?? 0),
+        products: Number((productStats as any)?.total ?? 0),
+        suppliers: Number((accountStats as any)?.supplierCount ?? 0),
+        supplierQuotes: Number((supplierQuoteStats as any)?.total ?? 0),
         quotations: totalQuotes,
-        newAccountsThisMonth: newAccounts?.c ?? 0,
-        newLeadsThisMonth: newLeads?.c ?? 0,
-        activeQuotations: activeQuotations?.c ?? 0,
-        wonLeads: wonLeads?.c ?? 0,
-        pipelineValue: pipeline?.s ?? 0,
-        wonDealsCount: wonQuotes?.c ?? 0,
+        newAccountsThisMonth: Number((accountStats as any)?.newCustomerCount ?? 0),
+        newLeadsThisMonth: Number((leadStats as any)?.newCount ?? 0),
+        activeQuotations: Number((quotationStats as any)?.activeCount ?? 0),
+        wonLeads: Number((leadStats as any)?.wonCount ?? 0),
+        pipelineValue: Number((quotationStats as any)?.pipelineValue ?? 0),
+        wonDealsCount,
         winRate,
-        projects: projects?.c ?? 0,
-        tasks: tasks?.c ?? 0,
-        activeTasks: activeTasks?.c ?? 0,
+        projects: Number((projectStats as any)?.total ?? 0),
+        tasks: Number((taskStats as any)?.total ?? 0),
+        activeTasks: Number((taskStats as any)?.activeCount ?? 0),
         erpOutboxPending: Number((erpOutbox as any)?.pending ?? 0),
         erpOutboxFailed: Number((erpOutbox as any)?.failed ?? 0),
       };
@@ -520,22 +625,36 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
     },
     async getFunnelReport() {
       const db = getDb();
-      const [leads, qualified, proposal, won] = await Promise.all([
-        db.get("SELECT COUNT(*) as c FROM Lead"),
-        db.get("SELECT COUNT(*) as c FROM Lead WHERE status != 'New'"),
-        db.get("SELECT COUNT(*) as c FROM Quotation"),
-        db.get("SELECT COUNT(*) as c FROM Quotation WHERE status = 'accepted'"),
+      const [leadStats, quotationStats] = await Promise.all([
+        db.get(
+          `SELECT
+             COUNT(*) AS total,
+             SUM(CASE WHEN status != 'New' THEN 1 ELSE 0 END) AS qualifiedCount
+           FROM Lead`
+        ),
+        db.get(
+          `SELECT
+             COUNT(*) AS total,
+             SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) AS wonCount
+           FROM Quotation`
+        ),
       ]);
 
       return [
-        { label: 'Leads', value: leads.c, color: '#1e293b' },
-        { label: 'Qualified', value: qualified.c, color: '#334155' },
-        { label: 'Proposal', value: proposal.c, color: '#009b6e' },
-        { label: 'Won', value: won.c, color: '#16a34a' },
+        { label: 'Leads', value: Number((leadStats as any)?.total ?? 0), color: '#1e293b' },
+        { label: 'Qualified', value: Number((leadStats as any)?.qualifiedCount ?? 0), color: '#334155' },
+        { label: 'Proposal', value: Number((quotationStats as any)?.total ?? 0), color: '#009b6e' },
+        { label: 'Won', value: Number((quotationStats as any)?.wonCount ?? 0), color: '#16a34a' },
       ];
     },
     async getOpsSummary() {
       const db = getDb();
+      const recentProjectSummaryCte = `WITH project_task_counts AS (
+        SELECT projectId, COUNT(*) AS taskCount
+        FROM Task
+        WHERE projectId IS NOT NULL
+        GROUP BY projectId
+      )`;
       const [projectStats, taskStats, topAssignees, recentProjects, recentTasks, erpStats] = await Promise.all([
         db.get(`
           SELECT
@@ -575,13 +694,15 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
           LIMIT 5
         `),
         db.all(`
+          ${recentProjectSummaryCte}
           SELECT p.*,
                  u.fullName AS managerName,
                  a.companyName AS accountName,
-                 (SELECT COUNT(*) FROM Task t WHERE t.projectId = p.id) AS taskCount
+                 COALESCE(ptc.taskCount, 0) AS taskCount
           FROM Project p
           LEFT JOIN User u ON p.managerId = u.id
           LEFT JOIN Account a ON p.accountId = a.id
+          LEFT JOIN project_task_counts ptc ON ptc.projectId = p.id
           ORDER BY p.createdAt DESC
           LIMIT 5
         `),

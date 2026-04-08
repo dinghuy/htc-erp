@@ -24,7 +24,11 @@ export function classifyFailureType(error) {
   if (message.includes('is not reachable at') || message.includes('start the local service first')) {
     return FAILURE_TYPES.STARTUP_UNREACHABLE;
   }
-  if (message.includes('không thể khởi chạy browser') || (message.includes('spawn eperm') && message.includes('browser'))) {
+  if (
+    message.includes('không thể khởi chạy browser')
+    || message.includes('unable to bootstrap a cdp browser')
+    || (message.includes('spawn eperm') && message.includes('browser'))
+  ) {
     return FAILURE_TYPES.BROWSER_LAUNCH_FAILED;
   }
   if (message.includes('back to admin') || message.includes('open settings') || message.includes('preview banner disappeared')) {

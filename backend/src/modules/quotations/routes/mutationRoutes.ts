@@ -1,5 +1,4 @@
 import type { Request, Response } from 'express';
-import { getDb } from '../../../../sqlite-db';
 import {
   parseCreateProjectQuotationBody,
   parseCreateStandaloneQuotationBody,
@@ -12,17 +11,16 @@ import {
   validateReviseQuotationRequest,
   validateUpdateQuotationRequest,
 } from '../validators/index';
-import type { ExpressApp, QuotationMutationServices, QuotationRepository, RegisterQuotationSubrouteDeps } from './types';
+import type { ExpressApp, QuotationMutationServices, RegisterQuotationSubrouteDeps } from './types';
 
 type RegisterQuotationMutationRoutesParams = {
   app: ExpressApp;
   deps: RegisterQuotationSubrouteDeps;
   quotationMutationServices: QuotationMutationServices;
-  quotationRepository: QuotationRepository;
 };
 
 export function registerQuotationMutationRoutes(params: RegisterQuotationMutationRoutesParams) {
-  const { app, deps, quotationMutationServices, quotationRepository } = params;
+  const { app, deps, quotationMutationServices } = params;
   const { ah, requireAuth, requireRole, getCurrentUserId } = deps;
 
   app.post('/api/projects/:id/quotations', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
@@ -68,9 +66,8 @@ export function registerQuotationMutationRoutes(params: RegisterQuotationMutatio
     if (parsedBody.ok === false) {
       return res.status(parsedBody.httpStatus).json(parsedBody.payload);
     }
-    const db = getDb();
     const quotationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const current = await db.get('SELECT * FROM Quotation WHERE id = ?', quotationId);
+    const current = await quotationMutationServices.getQuotationForUpdate(quotationId);
     if (!current) return res.status(404).json({ error: 'Not found' });
 
     const validation = validateUpdateQuotationRequest({
@@ -112,7 +109,8 @@ export function registerQuotationMutationRoutes(params: RegisterQuotationMutatio
 
   app.delete('/api/quotations/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
     const quotationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    await quotationRepository.deleteById(quotationId);
+    const deleted = await quotationMutationServices.deleteQuotation(quotationId);
+    if (!deleted) return res.status(404).json({ error: 'Quotation not found' });
     res.json({ success: true });
   }));
 }

@@ -8,6 +8,94 @@ export async function seedDatabase(
 ) {
   const genId = deps.createId;
 
+  async function insertSeedQuotation(input: {
+    id: string;
+    quoteNumber: string;
+    quoteDate: string;
+    subject: string;
+    accountId: string | null;
+    contactId: string | null;
+    salesperson: string;
+    salespersonPhone: string;
+    currency: string;
+    subtotal: number;
+    taxTotal: number;
+    grandTotal: number;
+    status: string;
+    lineItems: Array<{ sku: string; name: string; unit: string; quantity: number; unitPrice: number; technicalSpecs?: string | null; remarks?: string | null }>;
+    financialConfig?: { interestRate?: number; exchangeRate?: number; loanTermMonths?: number; markup?: number; vatRate?: number };
+    commercialTerms?: { remarksVi?: string | null; remarksEn?: string | null; termItems?: Array<{ labelViPrint: string; labelEn: string; textVi: string; textEn: string }> };
+  }) {
+    const financialConfig = input.financialConfig || {};
+    const commercialTerms = input.commercialTerms || {};
+    await db.run(
+      `INSERT OR IGNORE INTO Quotation (
+        id, quoteNumber, quoteDate, subject, accountId, contactId, salesperson, salespersonPhone, currency,
+        items, financialParams, terms, interestRate, exchangeRate, loanTermMonths, markup, vatRate, remarksVi, remarksEn,
+        subtotal, taxTotal, grandTotal, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        input.id,
+        input.quoteNumber,
+        input.quoteDate,
+        input.subject,
+        input.accountId,
+        input.contactId,
+        input.salesperson,
+        input.salespersonPhone,
+        input.currency,
+        financialConfig.interestRate ?? 8.5,
+        financialConfig.exchangeRate ?? 25400,
+        financialConfig.loanTermMonths ?? 36,
+        financialConfig.markup ?? 15,
+        financialConfig.vatRate ?? 8,
+        commercialTerms.remarksVi ?? null,
+        commercialTerms.remarksEn ?? null,
+        input.subtotal,
+        input.taxTotal,
+        input.grandTotal,
+        input.status,
+      ]
+    );
+
+    for (const [index, item] of input.lineItems.entries()) {
+      await db.run(
+        `INSERT OR IGNORE INTO QuotationLineItem (
+          id, quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          `${input.id}-line-${index + 1}`,
+          input.id,
+          index,
+          item.sku,
+          item.name,
+          item.unit,
+          item.technicalSpecs || null,
+          item.remarks || null,
+          item.quantity,
+          item.unitPrice,
+        ]
+      );
+    }
+
+    for (const [index, termItem] of (commercialTerms.termItems || []).entries()) {
+      await db.run(
+        `INSERT OR IGNORE INTO QuotationTermItem (
+          id, quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          `${input.id}-term-${index + 1}`,
+          input.id,
+          index,
+          termItem.labelViPrint,
+          termItem.labelEn,
+          termItem.textVi,
+          termItem.textEn,
+        ]
+      );
+    }
+  }
+
   const accountCount = await db.get('SELECT COUNT(*) as c FROM Account');
   const accIds = [genId(), genId(), genId(), genId(), genId()];
   const supIds = [genId(), genId(), genId(), genId(), genId()];
@@ -112,26 +200,26 @@ export async function seedDatabase(
 
   const quCount = await db.get('SELECT COUNT(*) as c FROM Quotation');
   if (quCount.c < 10) {
-    const qts = Array(10).fill(0).map((_, i) => [
-      genId(),
-      `QT-2026-00${i + 1}`,
-      new Date().toISOString().slice(0, 10),
-      `Báo giá thiết bị ${i + 1}`,
-      accIds[i % 5],
-      null,
-      'Nguyễn Văn Sales',
-      '0909090909',
-      'VND',
-      JSON.stringify([{ sku: 'KOM-PC8000', name: 'Komatsu PC8000', unit: 'Chiếc', quantity: 1, unitPrice: 125000000000 }]),
-      JSON.stringify({ exchangeRate: 25400 }),
-      JSON.stringify({ validity: '30 days' }),
-      125000000000,
-      10000000000,
-      135000000000,
-      ['draft', 'sent', 'accepted', 'rejected'][i % 4],
-    ]);
+    const qts = Array(10).fill(0).map((_, i) => ({
+      id: genId(),
+      quoteNumber: `QT-2026-00${i + 1}`,
+      quoteDate: new Date().toISOString().slice(0, 10),
+      subject: `Báo giá thiết bị ${i + 1}`,
+      accountId: accIds[i % 5],
+      contactId: null,
+      salesperson: 'Nguyễn Văn Sales',
+      salespersonPhone: '0909090909',
+      currency: 'VND',
+      lineItems: [{ sku: 'KOM-PC8000', name: 'Komatsu PC8000', unit: 'Chiếc', quantity: 1, unitPrice: 125000000000 }],
+      financialConfig: { exchangeRate: 25400 },
+      commercialTerms: { termItems: [{ labelViPrint: 'Hiệu lực', labelEn: 'Validity', textVi: '30 days', textEn: '30 days' }] },
+      subtotal: 125000000000,
+      taxTotal: 10000000000,
+      grandTotal: 135000000000,
+      status: ['draft', 'sent', 'accepted', 'rejected'][i % 4],
+    }));
     for (const qt of qts) {
-      await db.run('INSERT OR IGNORE INTO Quotation (id, quoteNumber, quoteDate, subject, accountId, contactId, salesperson, salespersonPhone, currency, items, financialParams, terms, subtotal, taxTotal, grandTotal, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', qt);
+      await insertSeedQuotation(qt);
     }
   }
 

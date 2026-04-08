@@ -6,7 +6,7 @@ This file is the source-of-truth entrypoint for active documentation and plannin
 
 - Start here when you need to understand the current product, architecture, delivery rules, or active documentation work.
 - Treat the files in the `Active Canonical Docs` and `Active Workstreams` sections as the default reading set.
-- Treat historical `docs/superpowers/*` artifacts as reference-only unless an active doc links to them explicitly.
+- Treat archived historical material as reference-only unless an active doc links to it explicitly.
 
 ## Active Canonical Docs
 
@@ -15,6 +15,13 @@ This file is the source-of-truth entrypoint for active documentation and plannin
 - `product/product-spec.md`: current product scope and success criteria
 - `architecture/overview.md`: current modular-monolith architecture direction
 - `architecture/huly-work-hub-roadmap.md`: active capability roadmap for Work Hub-style expansion
+- `architecture/database-doctrine.md`: repo-specific database design doctrine for `htc-erp`
+- `architecture/database-table-rationalization.md`: active keep/merge/remove/defer matrix for current SQLite tables
+- `adr/ADR-0001-modular-monolith.md`: decision record for keeping the current stack and modular-monolith direction
+- `adr/ADR-0002-backend-contract-ownership.md`: decision record for shared contract ownership boundaries
+- `adr/ADR-0003-erp-outbox-state-model.md`: decision record for ERP outbox state normalization
+- `adr/ADR-0004-sqlite-bootstrap-and-postgres-path.md`: decision record for local SQLite and production PostgreSQL path
+- `adr/ADR-0005-module-boundary-rules.md`: decision record for thin handlers and module-owned workflow logic
 
 ### Domain And API
 
@@ -39,7 +46,9 @@ This file is the source-of-truth entrypoint for active documentation and plannin
 - `runbooks/environment-strategy.md`: environment direction and constraints
 - `runbooks/backup-and-rollback.md`: rollback and recovery procedures
 - `runbooks/secret-management.md`: secret handling rules
+- `runbooks/erp-outbox-operations.md`: ERP outbox inspection, retry, and dead-letter operator runbook
 - `runbooks/mcp-orchestrator-setup.md`: project MCP orchestration setup
+- `runbooks/ui-theme-principles.md`: UI theme and token discipline for frontend changes
 - `ai/task-template.md`: template for new bounded implementation tasks
 
 ## OMX Workflow Skills
@@ -61,15 +70,15 @@ Treat `tmp/skills-global/` as a local cache, not as canonical project-owned skil
 
 ## Active Workstreams
 
-The following top-level plans are active or decision-relevant and should be read as planning inputs, not as canonical truth on their own:
+The following workstream plans are active or decision-relevant and should be read as planning inputs, not as canonical truth on their own:
 
-- `ai-delivery-governance-plan.md`
-- `approval-flow-plan.md`
-- `cross-functional-v1-plan.md`
-- `home-projects-reports-ui-refactor-plan.md`
-- `project-finance-workspace-plan.md`
-- `role-permission-matrix-plan.md`
-- `ux-audit-plan.md`
+- `workstreams/ai-delivery-governance-plan.md`: delivery governance and AI execution discipline still shaping active implementation work
+- `workstreams/approval-flow-plan.md`: approval-state expansion from quotation through delivery and ERP handoff
+- `workstreams/cross-functional-v1-plan.md`: cross-role convergence plan for shell, persona, and workflow alignment
+- `workstreams/home-projects-reports-ui-refactor-plan.md`: UI refactor plan for home, project, and reporting surfaces
+- `workstreams/project-finance-workspace-plan.md`: project finance workspace convergence and pricing-in-workspace direction
+- `workstreams/role-permission-matrix-plan.md`: active role surface and permission convergence plan for UI and workspace behavior
+- `workstreams/ux-audit-plan.md`: deterministic UX audit and regression-suite plan for browser-driven verification
 
 These plans must be interpreted alongside the canonical docs above. If a plan conflicts with canonical docs or current code reality, update the plan and/or canonical doc rather than treating the older wording as authoritative.
 
@@ -81,14 +90,32 @@ These plans must be interpreted alongside the canonical docs above. If a plan co
 
 Use Linear as the execution tracker and Notion as the plan/evidence tracker.
 
-## Reference-Only Material
+## Lean Docs Rule
 
-The following are not active source-of-truth by default:
+Keep `docs/` focused on active canonical docs, active workstreams, and current runbooks only.
 
-- `docs/superpowers/plans/*`
-- `docs/superpowers/specs/*`
-- generated reports, exported PDFs, temporary DOCX files, and one-off report scripts in `docs/`
+Do not reintroduce the following into `docs/` unless they are explicitly promoted as active references:
 
-At the moment, no historical `docs/superpowers/*` artifact is active by default. Promote one only by linking it intentionally from an active canonical doc or active workstream.
+- historical plan archives and branch-specific execution plans
+- generated reports, exported PDFs, and temporary DOCX files
+- one-off report-generation scripts
+- large speculative or consolidated plans that duplicate canonical docs
 
-Only rely on these reference artifacts when an active canonical doc or active workstream links to them intentionally.
+If historical material must be preserved, keep it outside the default docs reading set and link it intentionally from an active canonical doc or workstream.
+
+Current archive location for reference-only material:
+
+- `archive/docs-reference/`
+
+Agents should ignore this archive during normal work unless the user explicitly asks for historical context or file recovery.
+
+## File Classification Rule
+
+Use this rule when creating or moving files:
+
+- Put repeated source-of-truth material in the active docs tree and link it from this index.
+- Put active implementation plans that still drive execution in `docs/workstreams/` and list them in the `Active Workstreams` set.
+- Put superseded plans, generated reports, exports, temporary document variants, and branch-specific execution notes in `archive/`.
+- Put scratch work and disposable artifacts in `tmp/`, not in `docs/`.
+- If a file should not be opened during routine task startup, do not leave it in the active docs reading set.
+- When a workstream stops directing current execution, archive it and update this index in the same change.

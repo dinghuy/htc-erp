@@ -382,6 +382,11 @@ async function main() {
     assert.equal(outbox.body.items[0].payloadVersion, 'v1');
     assert.equal(outbox.body.items[0].isDeadLetter, true);
     assert.equal(outbox.body.stats.deadLetter >= 1, true);
+    assert.equal(outbox.body.query.status, 'dead_letter');
+    assert.equal(outbox.body.policy.maxAttempts, 5);
+    assert.equal(outbox.body.policy.payloadVersion, 'v1');
+    assert.equal(outbox.body.policy.statusFilterAliases['dead-letter'], 'dead_letter');
+    assert.equal(outbox.body.policy.retrySchedule.initialDelaySeconds, 30);
   });
 
   await teardown();

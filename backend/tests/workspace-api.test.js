@@ -174,11 +174,25 @@ async function main() {
     assert.equal(home.response.status, 200);
     assert.equal(home.body.persona.mode, 'sales_pm_combined');
     assert.equal(home.body.priorities[0].metricKey, 'handoff_pending');
+    assert.equal(home.body.priorities[0].value, 1);
+    assert.equal(home.body.priorities[1].value, 1);
+    assert.equal(home.body.priorities[2].value, 1);
     assert.ok(home.body.highlights.some((item) => item.projectId === projectId));
     const highlightedHomeProject = home.body.highlights.find((item) => item.projectId === projectId);
     assert.ok(highlightedHomeProject?.handoffActivation, 'home highlight should expose handoff activation');
     assert.equal(highlightedHomeProject.handoffActivation.status, 'ready_to_create_sales_order');
     assert.equal(highlightedHomeProject.handoffActivation.nextActionKey, 'create_sales_order');
+
+    const opsSummary = await api('/api/ops/summary', {
+      headers: { Authorization: `Bearer ${auth.body.token}` },
+    });
+    assert.equal(opsSummary.response.status, 200);
+    assert.equal(opsSummary.body.tasks.total, 1);
+    assert.equal(opsSummary.body.tasks.active, 1);
+    assert.equal(opsSummary.body.projects.total, 1);
+    const recentProject = opsSummary.body.recentProjects.find((item) => item.id === projectId);
+    assert.ok(recentProject);
+    assert.equal(recentProject.taskCount, 1);
 
     const myWork = await api('/api/workspace/my-work', {
       headers: { Authorization: `Bearer ${auth.body.token}` },

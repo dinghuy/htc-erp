@@ -19,6 +19,9 @@ describe('ux audit contracts', () => {
     expect(classifyFailureType(new Error('Không thể khởi chạy browser cho UX audit. Chi tiết: spawn EPERM'))).toBe(
       FAILURE_TYPES.BROWSER_LAUNCH_FAILED,
     );
+    expect(classifyFailureType(new Error('Unable to bootstrap a CDP browser for UX audit. Tried: chrome ExitCode=21.'))).toBe(
+      FAILURE_TYPES.BROWSER_LAUNCH_FAILED,
+    );
     expect(classifyFailureType(new Error('selector stayed visible unexpectedly'))).toBe(
       FAILURE_TYPES.UNEXPECTED_VISIBILITY,
     );

@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+*.err.log
+*.out.log
+*.err.txt
+*.out.txt
+logs-*.txt
+logs/
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Temporary and generated workspaces
+.omx/
+tmp/
+test-results/
+.worktrees/
+worktrees/
+.npm-cache/
+.npm-cache-local/
+.codex/npm-cache/
+**/.codex/npm-cache/
+__pycache__/
+*.pyc
+.superpowers/
+tmp-*.js
+
+# Runtime uploads and local vendor artifacts
+backend/uploads/
+backend/src/uploads/
+backend/vendor/
+
+# Frontend QA / local artifacts
+frontend/artifacts/
+frontend/tmp-*/
+frontend/qa-product-form-*.md
+frontend/qa-product-form-*.png
+graphify-out/
+.graphify_*.json
+.graphify_python
+tmp/graphify-semantic-chunk-*.json
+
+# IDE / OS
+.obsidian/
+.DS_Store
+Thumbs.db

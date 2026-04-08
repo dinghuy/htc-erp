@@ -40,6 +40,12 @@ The current frontend is still in a hybrid migration state:
 - Persistence access should go through repositories or dedicated data functions.
 - Shared enums and DTOs must be defined once per application side and mapped explicitly.
 - Integration side effects must use outbox semantics.
+- Treat each module as a bounded context. Cross-module collaboration should go through explicit service or repository interfaces, not direct table or state reach-through.
+- Keep UI thin and domain logic thick. Preact screens may orchestrate data loading and interaction state, but workflow rules, calculations, and normalization must live in focused helpers, services, or shared kernels.
+- Keep authorization decoupled. Permission builders and route/workspace guards should decide what is allowed before leaf components render or invoke actions.
+- When business rules are shared across backend and frontend, implement them once in a shared kernel of pure TypeScript types/constants/functions and consume them from both sides.
+- Deliver capability work as vertical slices, not horizontal layer batches.
+- Keep write models normalized and explicit; use rollups, read models, or controlled denormalization for dashboard/workspace/reporting reads when join-heavy queries would become a bottleneck.
 
 ## Persistence Direction
 

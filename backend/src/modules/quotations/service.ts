@@ -37,6 +37,18 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
   } = deps;
   const quotationRepository = createQuotationRepository();
 
+  async function withTransaction<T>(db: any, operation: () => Promise<T>) {
+    await db.exec('BEGIN');
+    try {
+      const result = await operation();
+      await db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      await db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
   async function createProjectQuotation(input: {
     projectId: string;
     body: any;
@@ -62,9 +74,9 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       salespersonPhone,
       currency,
       opportunityId,
-      items,
-      financialParams,
-      terms,
+      lineItems,
+      financialConfig,
+      commercialTerms,
       validUntil,
       parentQuotationId,
       requestedRevisionNo,
@@ -83,34 +95,36 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       ? revisionLabel.trim()
       : buildRevisionLabel(nextRevisionNo);
 
-    await quotationRepository.insert({
-      id,
-      quoteNumber,
-      quoteDate: quoteDate || new Date().toISOString().slice(0, 10),
-      subject,
-      accountId,
-      contactId,
-      projectId,
-      salesperson,
-      salespersonPhone,
-      currency,
-      opportunityId: opportunityId || null,
-      revisionNo: nextRevisionNo,
-      revisionLabel: finalRevisionLabel,
-      parentQuotationId: parentQuotationId || null,
-      changeReason: changeReason || null,
-      isWinningVersion: 0,
-      items: JSON.stringify(items || []),
-      financialParams: JSON.stringify(financialParams || {}),
-      terms: JSON.stringify(terms || {}),
-      subtotal: normalizedSubtotal,
-      taxTotal: normalizedTaxTotal,
-      grandTotal: normalizedGrandTotal,
-      status: finalStatus,
-      validUntil,
-    });
+    const created = await withTransaction(db, async () => {
+      await quotationRepository.insert({
+        id,
+        quoteNumber,
+        quoteDate: quoteDate || new Date().toISOString().slice(0, 10),
+        subject,
+        accountId,
+        contactId,
+        projectId,
+        salesperson,
+        salespersonPhone,
+        currency,
+        opportunityId: opportunityId || null,
+        revisionNo: nextRevisionNo,
+        revisionLabel: finalRevisionLabel,
+        parentQuotationId: parentQuotationId || null,
+        changeReason: changeReason || null,
+        isWinningVersion: 0,
+        lineItems,
+        financialConfig,
+        commercialTerms,
+        subtotal: normalizedSubtotal,
+        taxTotal: normalizedTaxTotal,
+        grandTotal: normalizedGrandTotal,
+        status: finalStatus,
+        validUntil,
+      }, db);
 
-    const created = await quotationRepository.findById(id);
+      return quotationRepository.findById(id, db);
+    });
     await updateProjectStageFromQuotation(db, projectId, finalStatus);
     if (isWinningQuotationStatus(finalStatus)) {
       await markWinningQuotation(db, id, projectId, true);
@@ -164,9 +178,9 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       salespersonPhone,
       currency,
       opportunityId,
-      items,
-      financialParams,
-      terms,
+      lineItems,
+      financialConfig,
+      commercialTerms,
       validUntil,
       parentQuotationId,
       requestedRevisionNo,
@@ -204,31 +218,35 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       ? revisionLabel.trim()
       : buildRevisionLabel(nextRevisionNo);
 
-    await quotationRepository.insert({
-      id,
-      quoteNumber,
-      quoteDate: quoteDate || new Date().toISOString().slice(0, 10),
-      subject,
-      accountId,
-      contactId,
-      projectId,
-      salesperson,
-      salespersonPhone,
-      currency,
-      opportunityId: opportunityId || null,
-      revisionNo: nextRevisionNo,
-      revisionLabel: finalRevisionLabel,
-      parentQuotationId: parentQuotationId || null,
-      changeReason: changeReason || null,
-      isWinningVersion: 0,
-      items: JSON.stringify(items || []),
-      financialParams: JSON.stringify(financialParams || {}),
-      terms: JSON.stringify(terms || {}),
-      subtotal: normalizedSubtotal,
-      taxTotal: normalizedTaxTotal,
-      grandTotal: normalizedGrandTotal,
-      status: finalStatus,
-      validUntil,
+    const created = await withTransaction(db, async () => {
+      await quotationRepository.insert({
+        id,
+        quoteNumber,
+        quoteDate: quoteDate || new Date().toISOString().slice(0, 10),
+        subject,
+        accountId,
+        contactId,
+        projectId,
+        salesperson,
+        salespersonPhone,
+        currency,
+        opportunityId: opportunityId || null,
+        revisionNo: nextRevisionNo,
+        revisionLabel: finalRevisionLabel,
+        parentQuotationId: parentQuotationId || null,
+        changeReason: changeReason || null,
+        isWinningVersion: 0,
+        lineItems,
+        financialConfig,
+        commercialTerms,
+        subtotal: normalizedSubtotal,
+        taxTotal: normalizedTaxTotal,
+        grandTotal: normalizedGrandTotal,
+        status: finalStatus,
+        validUntil,
+      }, db);
+
+      return quotationRepository.findById(id, db);
     });
 
     await logAct(
@@ -242,7 +260,6 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       'Quotation'
     );
 
-    const created = await quotationRepository.findById(id);
     await updateProjectStageFromQuotation(db, projectId, finalStatus);
     if (isWinningQuotationStatus(finalStatus)) {
       await markWinningQuotation(db, id, projectId, true);
@@ -307,9 +324,15 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       revisionNo,
       buildRevisionLabel,
     });
-    await quotationRepository.insert(mappedRevision);
+    await withTransaction(db, async () => {
+      await quotationRepository.insert(mappedRevision, db);
+    });
 
-    return quotationRepository.findById(id);
+    return quotationRepository.findById(id, db);
+  }
+
+  async function getQuotationForUpdate(quotationId: string) {
+    return quotationRepository.findById(quotationId);
   }
 
   async function updateQuotation(input: {
@@ -328,7 +351,9 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       buildRevisionLabel,
     });
 
-    await quotationRepository.updateById(input.quotationId, mappedUpdate);
+    await withTransaction(db, async () => {
+      await quotationRepository.updateById(input.quotationId, mappedUpdate, db);
+    });
 
     if (input.hasStatusField && input.nextStatus && input.nextStatus !== input.current.status) {
       await logAct(
@@ -343,7 +368,7 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       );
     }
 
-    const updated = await quotationRepository.findById(input.quotationId);
+    const updated = await quotationRepository.findById(input.quotationId, db);
 
     const normalizedNextStatus = normalizeQuotationInputStatus(String(input.nextStatus));
     if (input.hasStatusField && isWinningQuotationStatus(normalizedNextStatus) && input.nextStatus !== input.current.status) {
@@ -402,10 +427,19 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
     return updated;
   }
 
+  async function deleteQuotation(quotationId: string) {
+    const current = await quotationRepository.findById(quotationId);
+    if (!current) return false;
+    await quotationRepository.deleteById(quotationId);
+    return true;
+  }
+
   return {
     createProjectQuotation,
     createStandaloneQuotation,
     reviseQuotation,
+    getQuotationForUpdate,
     updateQuotation,
+    deleteQuotation,
   };
 }

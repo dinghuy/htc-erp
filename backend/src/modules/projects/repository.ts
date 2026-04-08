@@ -30,6 +30,56 @@ function appendDateRangeFilter(
   }
 }
 
+const PROJECT_SUMMARY_JOINS = `
+  LEFT JOIN (
+    SELECT
+      projectId,
+      COUNT(*) AS taskCount,
+      SUM(CASE WHEN status != 'completed' THEN 1 ELSE 0 END) AS openTaskCount,
+      SUM(CASE WHEN dueDate IS NOT NULL AND date(dueDate) < date('now') AND status != 'completed' THEN 1 ELSE 0 END) AS overdueTaskCount
+    FROM Task
+    GROUP BY projectId
+  ) ts ON ts.projectId = p.id
+  LEFT JOIN (
+    SELECT projectId, COUNT(*) AS quotationCount
+    FROM Quotation
+    GROUP BY projectId
+  ) qs ON qs.projectId = p.id
+  LEFT JOIN (
+    SELECT projectId, COUNT(*) AS supplierQuoteCount
+    FROM SupplierQuote
+    GROUP BY projectId
+  ) sqs ON sqs.projectId = p.id
+  LEFT JOIN (
+    SELECT projectId, id AS latestQuotationId, status AS latestQuotationStatus, quoteNumber AS latestQuotationNumber
+    FROM (
+      SELECT
+        projectId,
+        id,
+        status,
+        quoteNumber,
+        ROW_NUMBER() OVER (
+          PARTITION BY projectId
+          ORDER BY COALESCE(quoteDate, createdAt) DESC, COALESCE(revisionNo, 0) DESC, createdAt DESC
+        ) AS rowNo
+      FROM Quotation
+    ) latestQuotation
+    WHERE rowNo = 1
+  ) lq ON lq.projectId = p.id
+`;
+
+const PROJECT_DOCUMENT_THREAD_ROLLUPS_JOIN = `
+  LEFT JOIN (
+    SELECT
+      threadId,
+      COUNT(*) AS threadMessageCount,
+      MAX(createdAt) AS threadLastMessageAt
+    FROM EntityThreadMessage
+    WHERE threadId IS NOT NULL
+    GROUP BY threadId
+  ) pdtr ON pdtr.threadId = pd.threadId
+`;
+
 export function createProjectRepository() {
   async function withDb<T>(operation: (db: any) => Promise<T>) {
     return operation(getDb());
@@ -130,32 +180,18 @@ export function createProjectRepository() {
         SELECT p.*,
                u.fullName AS managerName,
                a.companyName AS accountName,
-               (SELECT COUNT(*) FROM Task t WHERE t.projectId = p.id) AS taskCount,
-               (SELECT COUNT(*) FROM Quotation q WHERE q.projectId = p.id) AS quotationCount,
-               (SELECT COUNT(*) FROM SupplierQuote sq WHERE sq.projectId = p.id) AS supplierQuoteCount,
-               (SELECT COUNT(*) FROM Task t WHERE t.projectId = p.id AND t.status != 'completed') AS openTaskCount,
-               (SELECT COUNT(*) FROM Task t WHERE t.projectId = p.id AND t.dueDate IS NOT NULL AND date(t.dueDate) < date('now') AND t.status != 'completed') AS overdueTaskCount,
-               (
-                 SELECT q.id FROM Quotation q
-                 WHERE q.projectId = p.id
-                 ORDER BY COALESCE(q.quoteDate, q.createdAt) DESC, COALESCE(q.revisionNo, 0) DESC, q.createdAt DESC
-                 LIMIT 1
-               ) AS latestQuotationId,
-               (
-                 SELECT q.status FROM Quotation q
-                 WHERE q.projectId = p.id
-                 ORDER BY COALESCE(q.quoteDate, q.createdAt) DESC, COALESCE(q.revisionNo, 0) DESC, q.createdAt DESC
-                 LIMIT 1
-               ) AS latestQuotationStatus,
-               (
-                 SELECT q.quoteNumber FROM Quotation q
-                 WHERE q.projectId = p.id
-                 ORDER BY COALESCE(q.quoteDate, q.createdAt) DESC, COALESCE(q.revisionNo, 0) DESC, q.createdAt DESC
-                 LIMIT 1
-               ) AS latestQuotationNumber
+               COALESCE(ts.taskCount, 0) AS taskCount,
+               COALESCE(qs.quotationCount, 0) AS quotationCount,
+               COALESCE(sqs.supplierQuoteCount, 0) AS supplierQuoteCount,
+               COALESCE(ts.openTaskCount, 0) AS openTaskCount,
+               COALESCE(ts.overdueTaskCount, 0) AS overdueTaskCount,
+               lq.latestQuotationId,
+               lq.latestQuotationStatus,
+               lq.latestQuotationNumber
         FROM Project p
         LEFT JOIN User u ON p.managerId = u.id
         LEFT JOIN Account a ON p.accountId = a.id
+        ${PROJECT_SUMMARY_JOINS}
         ${whereClause}
         ORDER BY p.createdAt DESC
       `,
@@ -169,35 +205,18 @@ export function createProjectRepository() {
         SELECT p.*,
                u.fullName AS managerName,
                a.companyName AS accountName,
-               (
-                 SELECT q.id
-                 FROM Quotation q
-                 WHERE q.projectId = p.id
-                 ORDER BY COALESCE(q.quoteDate, q.createdAt) DESC, COALESCE(q.revisionNo, 0) DESC, q.createdAt DESC
-                 LIMIT 1
-               ) AS latestQuotationId,
-               (
-                 SELECT q.status
-                 FROM Quotation q
-                 WHERE q.projectId = p.id
-                 ORDER BY COALESCE(q.quoteDate, q.createdAt) DESC, COALESCE(q.revisionNo, 0) DESC, q.createdAt DESC
-                 LIMIT 1
-               ) AS latestQuotationStatus,
-               (
-                 SELECT q.quoteNumber
-                 FROM Quotation q
-                 WHERE q.projectId = p.id
-                 ORDER BY COALESCE(q.quoteDate, q.createdAt) DESC, COALESCE(q.revisionNo, 0) DESC, q.createdAt DESC
-                 LIMIT 1
-               ) AS latestQuotationNumber,
-               (SELECT COUNT(*) FROM Quotation q WHERE q.projectId = p.id) AS quotationCount,
-               (SELECT COUNT(*) FROM SupplierQuote sq WHERE sq.projectId = p.id) AS supplierQuoteCount,
-               (SELECT COUNT(*) FROM Task t WHERE t.projectId = p.id) AS taskCount,
-               (SELECT COUNT(*) FROM Task t WHERE t.projectId = p.id AND t.status != 'completed') AS openTaskCount,
-               (SELECT COUNT(*) FROM Task t WHERE t.projectId = p.id AND t.dueDate IS NOT NULL AND date(t.dueDate) < date('now') AND t.status != 'completed') AS overdueTaskCount
+               lq.latestQuotationId,
+               lq.latestQuotationStatus,
+               lq.latestQuotationNumber,
+               COALESCE(qs.quotationCount, 0) AS quotationCount,
+               COALESCE(sqs.supplierQuoteCount, 0) AS supplierQuoteCount,
+               COALESCE(ts.taskCount, 0) AS taskCount,
+               COALESCE(ts.openTaskCount, 0) AS openTaskCount,
+               COALESCE(ts.overdueTaskCount, 0) AS overdueTaskCount
         FROM Project p
         LEFT JOIN User u ON p.managerId = u.id
         LEFT JOIN Account a ON p.accountId = a.id
+        ${PROJECT_SUMMARY_JOINS}
         WHERE p.id = ?
       `,
       [projectId]
@@ -411,17 +430,10 @@ export function createProjectRepository() {
     return getDb().all(
       `
         SELECT pd.*,
-               (
-                 SELECT COUNT(*)
-                 FROM EntityThreadMessage etm
-                 WHERE etm.threadId = pd.threadId
-               ) AS threadMessageCount,
-               (
-                 SELECT MAX(createdAt)
-                 FROM EntityThreadMessage etm
-                 WHERE etm.threadId = pd.threadId
-               ) AS threadLastMessageAt
+               COALESCE(pdtr.threadMessageCount, 0) AS threadMessageCount,
+               pdtr.threadLastMessageAt AS threadLastMessageAt
         FROM ProjectDocument pd
+        ${PROJECT_DOCUMENT_THREAD_ROLLUPS_JOIN}
         WHERE pd.projectId = ?
         ORDER BY pd.department ASC, pd.documentCode ASC, pd.createdAt DESC
       `,
@@ -446,17 +458,10 @@ export function createProjectRepository() {
   async function findProjectDocumentById(id: string) {
     return getDb().get(
       `SELECT pd.*,
-              (
-                SELECT COUNT(*)
-                FROM EntityThreadMessage etm
-                WHERE etm.threadId = pd.threadId
-              ) AS threadMessageCount,
-              (
-                SELECT MAX(createdAt)
-                FROM EntityThreadMessage etm
-                WHERE etm.threadId = pd.threadId
-              ) AS threadLastMessageAt
+              COALESCE(pdtr.threadMessageCount, 0) AS threadMessageCount,
+              pdtr.threadLastMessageAt AS threadLastMessageAt
        FROM ProjectDocument pd
+       ${PROJECT_DOCUMENT_THREAD_ROLLUPS_JOIN}
        WHERE pd.id = ?`,
       [id]
     );
@@ -465,17 +470,10 @@ export function createProjectRepository() {
   async function findProjectDocumentByIdForProject(id: string, projectId: string) {
     return getDb().get(
       `SELECT pd.*,
-              (
-                SELECT COUNT(*)
-                FROM EntityThreadMessage etm
-                WHERE etm.threadId = pd.threadId
-              ) AS threadMessageCount,
-              (
-                SELECT MAX(createdAt)
-                FROM EntityThreadMessage etm
-                WHERE etm.threadId = pd.threadId
-              ) AS threadLastMessageAt
+              COALESCE(pdtr.threadMessageCount, 0) AS threadMessageCount,
+              pdtr.threadLastMessageAt AS threadLastMessageAt
        FROM ProjectDocument pd
+       ${PROJECT_DOCUMENT_THREAD_ROLLUPS_JOIN}
        WHERE pd.id = ? AND pd.projectId = ?`,
       [id, projectId]
     );

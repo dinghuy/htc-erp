@@ -7,6 +7,12 @@ import { createQuotationRepository } from './repository';
 
 const quotationRepository = createQuotationRepository();
 
+function stripLegacyBlobFields(row: any) {
+  if (!row || typeof row !== 'object') return row;
+  const { items, financialParams, terms, ...rest } = row;
+  return rest;
+}
+
 function normalizeStatus(value: unknown) {
   return normalizeLegacyQuotationStatus(value) || 'draft';
 }
@@ -151,7 +157,7 @@ export async function listQuotations(currentUser?: AuthenticatedUser | null) {
     const releaseApprovalState = buildCommercialApprovalState(releaseApprovalsByProjectId.get(String(row.projectId || '')) || []);
     const actionAvailability = buildQuotationActionAvailability(row, currentUser, commercialApprovalState, linkedSalesOrder);
     return {
-      ...row,
+      ...stripLegacyBlobFields(row),
       isRemind: computeIsRemind(row.status, row.createdAt, nowMs),
       approvalGateState: commercialApprovalState,
       actionAvailability,
@@ -181,7 +187,7 @@ export async function getQuotationById(id: string, currentUser?: AuthenticatedUs
   const releaseApprovalState = buildCommercialApprovalState(releaseApprovalRows);
   const actionAvailability = buildQuotationActionAvailability(row, currentUser, commercialApprovalState, linkedSalesOrder);
   return {
-    ...row,
+    ...stripLegacyBlobFields(row),
     isRemind: computeIsRemind(row.status, row.createdAt),
     approvalGateState: commercialApprovalState,
     actionAvailability,

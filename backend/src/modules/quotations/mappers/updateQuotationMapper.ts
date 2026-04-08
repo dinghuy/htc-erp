@@ -1,5 +1,6 @@
 import { normalizeText } from './common';
 import { normalizeQuotationInputStatus } from '../../../../quotation-status';
+import { buildTypedQuotationStateFromBody } from '../typedState';
 
 type MapUpdateQuotationInputParams = {
   body: any;
@@ -12,6 +13,11 @@ export function mapUpdateQuotationInput(params: MapUpdateQuotationInputParams) {
   const { body, current, nextStatus, buildRevisionLabel } = params;
   const currentRevisionNo = Number.isFinite(Number(current?.revisionNo)) ? Number(current.revisionNo) : 1;
   const revisionNo = Number.isFinite(Number(body?.revisionNo)) ? Number(body.revisionNo) : currentRevisionNo;
+  const typedState = buildTypedQuotationStateFromBody({
+    lineItems: body?.lineItems ?? current?.lineItems,
+    financialConfig: body?.financialConfig ?? current?.financialConfig,
+    commercialTerms: body?.commercialTerms ?? current?.commercialTerms,
+  });
 
   return {
     quoteDate: body?.quoteDate || new Date().toISOString().slice(0, 10),
@@ -29,9 +35,9 @@ export function mapUpdateQuotationInput(params: MapUpdateQuotationInputParams) {
     isWinningVersion: typeof body?.isWinningVersion === 'boolean' || typeof body?.isWinningVersion === 'number'
       ? Number(body.isWinningVersion ? 1 : 0)
       : Number(current?.isWinningVersion ? 1 : 0),
-    items: JSON.stringify(body?.items || []),
-    financialParams: JSON.stringify(body?.financialParams || {}),
-    terms: JSON.stringify(body?.terms || {}),
+    lineItems: typedState.lineItems,
+    financialConfig: typedState.financialConfig,
+    commercialTerms: typedState.commercialTerms,
     subtotal: body?.subtotal,
     taxTotal: body?.taxTotal,
     grandTotal: body?.grandTotal,

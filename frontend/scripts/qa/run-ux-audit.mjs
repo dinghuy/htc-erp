@@ -498,6 +498,10 @@ async function main() {
   let context;
 
   try {
+    if (process.env.QA_CDP_BOOTSTRAP_ERROR) {
+      throw new Error(process.env.QA_CDP_BOOTSTRAP_ERROR);
+    }
+
     const contract = await bootstrapSeed(DEFAULT_BACKEND_URL);
     frontendUrl = resolveFrontendUrl(contract.baseUrl.frontend, process.env.QA_FRONTEND_URL);
     backendUrl = contract.baseUrl.backend || DEFAULT_BACKEND_URL;

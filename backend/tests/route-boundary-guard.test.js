@@ -17,6 +17,7 @@ const coreRouteFiles = [
   'src/modules/platform/workspaceRoutes.ts',
   'src/modules/platform/reportingRoutes.ts',
   'src/modules/collaboration/routes.ts',
+  'src/modules/quotations/routes/mutationRoutes.ts',
 ];
 
 let failures = 0;

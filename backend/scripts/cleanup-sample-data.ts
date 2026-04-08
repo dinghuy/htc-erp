@@ -5,6 +5,8 @@ const ID_PREFIX = 'sample-20260325';
 const MARKER = `[${BATCH_TAG}]`;
 
 async function runDelete(db: any, table: string, whereSql: string, params: any[] = []) {
+  const exists = await db.get(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, [table]);
+  if (!exists?.name) return 0;
   const result = await db.run(`DELETE FROM ${table} WHERE ${whereSql}`, params);
   return Number(result?.changes || 0);
 }
@@ -68,4 +70,3 @@ main().catch((error) => {
   console.error('[cleanup-sample-data] Error:', error?.message || error);
   process.exit(1);
 });
-

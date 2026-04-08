@@ -1,8 +1,12 @@
 [features]
 rmcp_client = true
+multi_agent = true
 
 [mcp_servers.linear]
 url = "https://mcp.linear.app/mcp"
+
+[mcp_servers.linear.tools.save_milestone]
+approval_mode = "approve"
 
 [mcp_servers.notion]
 url = "https://mcp.notion.com/mcp"

@@ -192,6 +192,8 @@ const RESET_TABLES = [
   'Task',
   'PricingLineItem',
   'PricingQuotation',
+  'QuotationTermItem',
+  'QuotationLineItem',
   'Quotation',
   'SupplierQuote',
   'Contact',
@@ -234,7 +236,11 @@ export function buildUxSeedContract(): UxSeedContract {
 }
 
 async function clearQaTables(db: Database) {
+  const existingTables = new Set(
+    (await db.all(`SELECT name FROM sqlite_master WHERE type = 'table'`)).map((row: any) => row.name)
+  );
   for (const table of RESET_TABLES) {
+    if (!existingTables.has(table)) continue;
     await db.run(`DELETE FROM ${table}`);
   }
 }
@@ -302,6 +308,104 @@ async function insertQaAccounts(db: Database) {
   );
 }
 
+async function insertQaQuotation(
+  db: Database,
+  input: {
+    id: string;
+    quoteNumber: string;
+    subject: string;
+    accountId: string;
+    contactId: string;
+    projectId: string;
+    salesperson: string;
+    salespersonPhone: string;
+    revisionNo: number;
+    revisionLabel: string;
+    isWinningVersion: number;
+    subtotal: number;
+    taxTotal: number;
+    grandTotal: number;
+    status: string;
+    lineItems: Array<{ sku: string; name: string; quantity: number; unitPrice: number; unit?: string; technicalSpecs?: string | null; remarks?: string | null }>;
+    financialConfig?: { exchangeRate?: number; interestRate?: number; loanTermMonths?: number; markup?: number; vatRate?: number };
+    commercialTerms?: { remarksVi?: string | null; remarksEn?: string | null; termItems?: Array<{ labelViPrint: string; labelEn: string; textVi: string; textEn: string }> };
+    quoteDateSql?: string;
+    validUntilSql?: string;
+  }
+) {
+  const financialConfig = input.financialConfig || {};
+  const commercialTerms = input.commercialTerms || {};
+  await db.run(
+    `INSERT INTO Quotation (
+      id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson,
+      salespersonPhone, currency, revisionNo, revisionLabel, isWinningVersion, items, financialParams, terms,
+      interestRate, exchangeRate, loanTermMonths, markup, vatRate, remarksVi, remarksEn,
+      subtotal, taxTotal, grandTotal, status, validUntil
+    ) VALUES (?, ?, ${input.quoteDateSql || "date('now')"}, ?, ?, ?, ?, ?, ?, 'VND', ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${input.validUntilSql || "date('now', '+15 day')"})`,
+    [
+      input.id,
+      input.quoteNumber,
+      input.subject,
+      input.accountId,
+      input.contactId,
+      input.projectId,
+      input.salesperson,
+      input.salespersonPhone,
+      input.revisionNo,
+      input.revisionLabel,
+      input.isWinningVersion,
+      financialConfig.interestRate ?? 8.5,
+      financialConfig.exchangeRate ?? 25450,
+      financialConfig.loanTermMonths ?? 36,
+      financialConfig.markup ?? 15,
+      financialConfig.vatRate ?? 8,
+      commercialTerms.remarksVi ?? null,
+      commercialTerms.remarksEn ?? null,
+      input.subtotal,
+      input.taxTotal,
+      input.grandTotal,
+      input.status,
+    ]
+  );
+
+  for (const [index, item] of input.lineItems.entries()) {
+    await db.run(
+      `INSERT INTO QuotationLineItem (
+        id, quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        `${input.id}-line-${index + 1}`,
+        input.id,
+        index,
+        item.sku,
+        item.name,
+        item.unit || 'Chiếc',
+        item.technicalSpecs || null,
+        item.remarks || null,
+        item.quantity,
+        item.unitPrice,
+      ]
+    );
+  }
+
+  for (const [index, termItem] of (commercialTerms.termItems || []).entries()) {
+    await db.run(
+      `INSERT INTO QuotationTermItem (
+        id, quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        `${input.id}-term-${index + 1}`,
+        input.id,
+        index,
+        termItem.labelViPrint,
+        termItem.labelEn,
+        termItem.textVi,
+        termItem.textEn,
+      ]
+    );
+  }
+}
+
 async function insertQaProjectsAndQuotes(db: Database) {
   await db.run(
     `INSERT INTO Project (id, code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
@@ -319,80 +423,74 @@ async function insertQaProjectsAndQuotes(db: Database) {
     [IDS.projects.delivery, 'QA-DEL-001', 'QA Delivery Project', 'Representative project for delivery, finance and procurement checks.', QA_USERS.projectManager.id, IDS.accounts.gamma, 'delivery', 'active'],
   );
 
-  await db.run(
-    `INSERT INTO Quotation (
-      id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson,
-      salespersonPhone, currency, revisionNo, revisionLabel, isWinningVersion, items, financialParams, terms,
-      subtotal, taxTotal, grandTotal, status, validUntil
-    ) VALUES (?, ?, date('now', '-2 day'), ?, ?, ?, ?, ?, ?, 'VND', 1, 'R1', 0, ?, ?, ?, ?, ?, ?, ?, date('now', '+15 day'))`,
-    [
-      IDS.quotations.quoting,
-      'QA-Q-001',
-      'QA Quoting Package',
-      IDS.accounts.alpha,
-      IDS.contacts.alpha,
-      IDS.projects.quoting,
-      QA_USERS.sales.fullName,
-      '0900000101',
-      JSON.stringify([{ sku: 'QA-KIT-001', name: 'QA Equipment Bundle', quantity: 1, unitPrice: 150000000 }]),
-      JSON.stringify({ exchangeRate: 25450 }),
-      JSON.stringify({ validity: '15 days' }),
-      150000000,
-      12000000,
-      162000000,
-      'sent',
-    ],
-  );
+  await insertQaQuotation(db, {
+    id: IDS.quotations.quoting,
+    quoteNumber: 'QA-Q-001',
+    subject: 'QA Quoting Package',
+    accountId: IDS.accounts.alpha,
+    contactId: IDS.contacts.alpha,
+    projectId: IDS.projects.quoting,
+    salesperson: QA_USERS.sales.fullName,
+    salespersonPhone: '0900000101',
+    revisionNo: 1,
+    revisionLabel: 'R1',
+    isWinningVersion: 0,
+    subtotal: 150000000,
+    taxTotal: 12000000,
+    grandTotal: 162000000,
+    status: 'sent',
+    quoteDateSql: "date('now', '-2 day')",
+    validUntilSql: "date('now', '+15 day')",
+    lineItems: [{ sku: 'QA-KIT-001', name: 'QA Equipment Bundle', quantity: 1, unitPrice: 150000000, unit: 'Chiếc' }],
+    financialConfig: { exchangeRate: 25450 },
+    commercialTerms: { termItems: [{ labelViPrint: 'Hiệu lực', labelEn: 'Validity', textVi: '15 days', textEn: '15 days' }] },
+  });
 
-  await db.run(
-    `INSERT INTO Quotation (
-      id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson,
-      salespersonPhone, currency, revisionNo, revisionLabel, isWinningVersion, items, financialParams, terms,
-      subtotal, taxTotal, grandTotal, status, validUntil
-    ) VALUES (?, ?, date('now', '-10 day'), ?, ?, ?, ?, ?, ?, 'VND', 2, 'R2', 1, ?, ?, ?, ?, ?, ?, ?, date('now', '+20 day'))`,
-    [
-      IDS.quotations.won,
-      'QA-Q-002',
-      'QA Winning Package',
-      IDS.accounts.beta,
-      IDS.contacts.beta,
-      IDS.projects.won,
-      QA_USERS.sales.fullName,
-      '0900000102',
-      JSON.stringify([{ sku: 'QA-KIT-002', name: 'QA Port Upgrade', quantity: 1, unitPrice: 240000000 }]),
-      JSON.stringify({ exchangeRate: 25450 }),
-      JSON.stringify({ validity: '30 days' }),
-      240000000,
-      19200000,
-      259200000,
-      'accepted',
-    ],
-  );
+  await insertQaQuotation(db, {
+    id: IDS.quotations.won,
+    quoteNumber: 'QA-Q-002',
+    subject: 'QA Winning Package',
+    accountId: IDS.accounts.beta,
+    contactId: IDS.contacts.beta,
+    projectId: IDS.projects.won,
+    salesperson: QA_USERS.sales.fullName,
+    salespersonPhone: '0900000102',
+    revisionNo: 2,
+    revisionLabel: 'R2',
+    isWinningVersion: 1,
+    subtotal: 240000000,
+    taxTotal: 19200000,
+    grandTotal: 259200000,
+    status: 'accepted',
+    quoteDateSql: "date('now', '-10 day')",
+    validUntilSql: "date('now', '+20 day')",
+    lineItems: [{ sku: 'QA-KIT-002', name: 'QA Port Upgrade', quantity: 1, unitPrice: 240000000, unit: 'Chiếc' }],
+    financialConfig: { exchangeRate: 25450 },
+    commercialTerms: { termItems: [{ labelViPrint: 'Hiệu lực', labelEn: 'Validity', textVi: '30 days', textEn: '30 days' }] },
+  });
 
-  await db.run(
-    `INSERT INTO Quotation (
-      id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson,
-      salespersonPhone, currency, revisionNo, revisionLabel, isWinningVersion, items, financialParams, terms,
-      subtotal, taxTotal, grandTotal, status, validUntil
-    ) VALUES (?, ?, date('now', '-20 day'), ?, ?, ?, ?, ?, ?, 'VND', 1, 'R1', 1, ?, ?, ?, ?, ?, ?, ?, date('now', '+10 day'))`,
-    [
-      IDS.quotations.delivery,
-      'QA-Q-003',
-      'QA Delivery Package',
-      IDS.accounts.gamma,
-      IDS.contacts.alpha,
-      IDS.projects.delivery,
-      QA_USERS.projectManager.fullName,
-      '0900000103',
-      JSON.stringify([{ sku: 'QA-KIT-003', name: 'QA Delivery Upgrade', quantity: 1, unitPrice: 320000000 }]),
-      JSON.stringify({ exchangeRate: 25450 }),
-      JSON.stringify({ validity: '30 days' }),
-      320000000,
-      25600000,
-      345600000,
-      'accepted',
-    ],
-  );
+  await insertQaQuotation(db, {
+    id: IDS.quotations.delivery,
+    quoteNumber: 'QA-Q-003',
+    subject: 'QA Delivery Package',
+    accountId: IDS.accounts.gamma,
+    contactId: IDS.contacts.alpha,
+    projectId: IDS.projects.delivery,
+    salesperson: QA_USERS.projectManager.fullName,
+    salespersonPhone: '0900000103',
+    revisionNo: 1,
+    revisionLabel: 'R1',
+    isWinningVersion: 1,
+    subtotal: 320000000,
+    taxTotal: 25600000,
+    grandTotal: 345600000,
+    status: 'accepted',
+    quoteDateSql: "date('now', '-20 day')",
+    validUntilSql: "date('now', '+10 day')",
+    lineItems: [{ sku: 'QA-KIT-003', name: 'QA Delivery Upgrade', quantity: 1, unitPrice: 320000000, unit: 'Chiếc' }],
+    financialConfig: { exchangeRate: 25450 },
+    commercialTerms: { termItems: [{ labelViPrint: 'Hiệu lực', labelEn: 'Validity', textVi: '30 days', textEn: '30 days' }] },
+  });
 }
 
 async function insertQaExecutionData(db: Database) {

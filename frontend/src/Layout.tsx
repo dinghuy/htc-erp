@@ -10,7 +10,7 @@ import { NotificationBell } from './ops/NotificationBell';
 import { useI18n } from './i18n';
 import { getShellNavigationGroups } from './layoutNavigation';
 import { setNavContext, type NavEntityType } from './navContext';
-import type { AppModule } from './shared/domain/contracts';
+import { isMaintenanceOnlyModule, type AppModule } from './shared/domain/contracts';
 import { QA_TEST_IDS, navItemTestId, previewPresetTestId } from './testing/testIds';
 import {
   ChatIcon,
@@ -178,11 +178,15 @@ export const Layout = ({
   const allowedModules = roleProfile?.allowedModules ?? [];
   const trimmedSearchQuery = searchQuery.trim();
   const hasSearchQuery = trimmedSearchQuery.length > 1;
+  const currentRouteModule = currentRoute && currentRoute !== 'Dashboard' ? (currentRoute as AppModule) : null;
   const shellNavigationGroups = getShellNavigationGroups(allowedModules, (group, fallback) => {
     if (group === 'Workspace') return t('nav.tab.workspace');
     if (group === 'Records') return t('nav.tab.master_data');
     if (group === 'Admin') return t('nav.tab.admin_primary');
     return fallback;
+  }, {
+    includeMaintenance: roleProfile?.primaryRole === 'admin',
+    forceVisibleRoutes: currentRouteModule && isMaintenanceOnlyModule(currentRouteModule) ? [currentRouteModule] : [],
   });
   const searchSections = searchResults
     ? Object.entries(searchResults)
