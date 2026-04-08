@@ -1,8 +1,0 @@
-name: backend-api-change-flow
-short_description: htc-erp backend API implementation and verification flow
-description: |
-  Backend workflow for htc-erp route, contract, auth, and runtime changes with the right
-  typecheck and test mapping.
-when_to_use: |
-  Use when an htc-erp task changes backend routes, contracts, auth, or server runtime behavior and
-  needs the correct verification path before handoff.

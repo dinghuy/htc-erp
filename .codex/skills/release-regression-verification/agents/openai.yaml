@@ -1,8 +1,0 @@
-name: release-regression-verification
-short_description: htc-erp cross-surface release and regression verification flow
-description: |
-  Release and regression verification workflow for htc-erp after frontend, backend, contract,
-  or UI-affecting changes.
-when_to_use: |
-  Use when an htc-erp task is ready for handoff, review, or release and needs explicit regression
-  coverage across frontend, backend, and browser-visible behavior.
