@@ -1,18 +1,20 @@
 type SeedDatabaseDeps = {
-  createId: () => string;
+  createId: () => number;
 };
 
 export async function seedDatabase(
   db: { get: (sql: string) => Promise<any>; run: (sql: string, params?: any[]) => Promise<any> },
   deps: SeedDatabaseDeps,
 ) {
-  const genId = deps.createId;
+  let idCounter = 1;
+  const genId = () => idCounter++;
 
+  console.log('--- Seeding Accounts ---');
   const accountCount = await db.get('SELECT COUNT(*) as c FROM Account');
   const accIds = [genId(), genId(), genId(), genId(), genId()];
   const supIds = [genId(), genId(), genId(), genId(), genId()];
 
-  if (accountCount.c < 10) {
+  if (accountCount.c < 5) {
     const accs = [
       [accIds[0], 'Cảng Nam Hải Đình Vũ', 'Miền Bắc', 'Khai thác cảng', 'namhaidinhvu.com', '020xxxxx', 'Hải Phòng', 'Customer', 'NHDV'],
       [accIds[1], 'Cảng Đà Nẵng', 'Miền Trung', 'Khai thác cảng', 'danangport.com', '040xxxxx', 'Đà Nẵng', 'Customer', 'DNGP'],
@@ -36,8 +38,9 @@ export async function seedDatabase(
     }
   }
 
+  console.log('--- Seeding Contacts ---');
   const contactCount = await db.get('SELECT COUNT(*) as c FROM Contact');
-  if (contactCount.c < 10) {
+  if (contactCount.c < 5) {
     const contacts = [
       [genId(), accIds[0], 'Nguyễn', 'Văn Nam', 'Kỹ thuật', 'Trưởng phòng', 'male', 'namnv@namhai.vn', '0901234567'],
       [genId(), accIds[0], 'Lê', 'Hoàng Thái', 'Kỹ thuật', 'Chuyên viên', 'male', 'thailh@namhai.vn', '0912345678'],
@@ -55,53 +58,46 @@ export async function seedDatabase(
     }
   }
 
+  console.log('--- Seeding Leads ---');
   const leadCount = await db.get('SELECT COUNT(*) as c FROM Lead');
-  if (leadCount.c < 10) {
+  if (leadCount.c < 5) {
     const leads = [
       [genId(), 'Tập đoàn Hòa Phát', 'Phạm Long', 'long.pham@hoaphat.com.vn', '098111222', 'New', 'Cold Call'],
       [genId(), 'Cảng Quy Nhơn', 'Lý Tự Trọng', 'tronglt@quynhonport.vn', '098222333', 'Qualified', 'Website'],
       [genId(), 'Khoáng sản ABC', 'Bạch Cốt', 'cotb@abc.vn', '098333444', 'Lost', 'Referral'],
       [genId(), 'Vinaconex', 'Trần Thắng', 'thangt@vinaconex.com', '098444555', 'Proposal', 'Event'],
       [genId(), 'Giao hàng Tiết Kiệm', 'Đinh Vĩnh', 'vinhd@ghtk.vn', '098555666', 'Won', 'Website'],
-      [genId(), 'Viettel Logistics', 'Trương Tuấn', 'tuan_vt@viettel.vn', '098666777', 'New', 'Partner'],
-      [genId(), 'Viconship', 'Đào Hà', 'had@viconship.vn', '098777888', 'Qualification', 'Cold Call'],
-      [genId(), 'Cảng Vũng Áng', 'Hồ Tấn', 'tanh@vungang.vn', '098888999', 'Proposal', 'Website'],
-      [genId(), 'Tôn Hoa Sen', 'Ca Thương', 'thuongc@hoasen.vn', '098999000', 'New', 'Event'],
-      [genId(), 'Hưng Thịnh', 'Thịnh Nguyễn', 'thinhng@hungthinh.vn', '098000111', 'Lost', 'Referral'],
     ];
     for (const ld of leads) {
       await db.run('INSERT OR IGNORE INTO Lead (id, companyName, contactName, email, phone, status, source) VALUES (?,?,?,?,?,?,?)', ld);
     }
   }
 
+  console.log('--- Seeding Products ---');
   const productCount = await db.get('SELECT COUNT(*) as c FROM Product');
-  if (productCount.c < 10) {
+  if (productCount.c < 5) {
     const prods = [
       [genId(), 'KOM-PC8000', 'Máy xúc siêu trường Komatsu PC8000', 'Máy xúc', 'Chiếc', 5000000, 'USD', 'Gầu 42m3'],
       [genId(), 'KOM-WA900', 'Xe xúc lật WA900-8', 'Xúc lật', 'Chiếc', 1200000, 'USD', 'Gầu 13m3'],
       [genId(), 'SHC-X3000', 'Xe đầu kéo Shacman X3000', 'Xe tải', 'Chiếc', 45000, 'USD', '400HP'],
       [genId(), 'VOL-FH16', 'Volvo FH16 6x4', 'Xe tải', 'Chiếc', 120000, 'USD', '750HP'],
       [genId(), 'CAT-797F', 'Xe tải mỏ Cat 797F', 'Xe siêu trọng', 'Chiếc', 3500000, 'USD', '400 tấn'],
-      [genId(), 'SNY-SY750', 'Máy xúc Sany SY750H', 'Máy xúc', 'Chiếc', 250000, 'USD', 'Gầu 5.4m3'],
-      [genId(), 'KAL-DRG', 'Xe nâng Kalmar Reachstacker', 'Xe nâng', 'Chiếc', 600000, 'USD', 'Nâng container 45t'],
-      [genId(), 'TFN-FD30', 'Phụ tùng lọc dầu Shacman', 'Phụ tùng', 'Cái', 50, 'USD', 'Bảo dưỡng'],
-      [genId(), 'HYD-MOT', 'Motor thủy lực Parker', 'Phụ tùng', 'Cái', 850, 'USD', 'Sửa chữa'],
-      [genId(), 'SER-MAINT', 'Gói bảo dưỡng định kỳ 500h', 'Dịch vụ', 'Gói', 1500, 'USD', 'SLA 48h'],
     ];
     for (const pt of prods) {
       await db.run('INSERT OR IGNORE INTO Product (id, sku, name, category, unit, basePrice, currency, technicalSpecs) VALUES (?,?,?,?,?,?,?,?)', pt);
     }
   }
 
+  console.log('--- Seeding SupplierQuotes ---');
   const sqCount = await db.get('SELECT COUNT(*) as c FROM SupplierQuote');
-  if (sqCount.c < 10) {
-    const sqs = Array(10).fill(0).map((_, i) => [
+  if (sqCount.c < 5) {
+    const sqs = Array(5).fill(0).map((_, i) => [
       genId(),
       supIds[i % 5],
       i % 2 === 0 ? 'Phụ tùng' : 'Máy nguyên chiếc',
       new Date().toISOString(),
       new Date(Date.now() + 30 * 24 * 3600000).toISOString(),
-      JSON.stringify([{ productId: '123', baseCost: 1000 + i * 100, shippingCost: 200, importTax: 0.1 }]),
+      JSON.stringify([{ productId: 1, baseCost: 1000 + i * 100, shippingCost: 200, importTax: 0.1 }]),
       '[]',
       'active',
     ]);
@@ -110,9 +106,10 @@ export async function seedDatabase(
     }
   }
 
+  console.log('--- Seeding Quotations ---');
   const quCount = await db.get('SELECT COUNT(*) as c FROM Quotation');
-  if (quCount.c < 10) {
-    const qts = Array(10).fill(0).map((_, i) => [
+  if (quCount.c < 5) {
+    const qts = Array(5).fill(0).map((_, i) => [
       genId(),
       `QT-2026-00${i + 1}`,
       new Date().toISOString().slice(0, 10),
@@ -135,44 +132,42 @@ export async function seedDatabase(
     }
   }
 
+  console.log('--- Seeding Users ---');
+  const userStartId = 1000; 
+  let userIdCounter = userStartId;
+  const genUserId = () => userIdCounter++;
+  const userIds = [genUserId(), genUserId(), genUserId(), genUserId(), genUserId() ];
+
   const uCount = await db.get('SELECT COUNT(*) as c FROM User');
-  if (uCount.c < 10) {
+  if (uCount.c < 5) {
     const usersList = [
-      [genId(), 'Huỳnh Thy Ngọc', 'female', 'ngoc.ht@huynhthy.com', '0911000001', 'CEO', 'Ban Giám Đốc'],
-      [genId(), 'Trần Anh Sales', 'male', 'anh.tr@huynhthy.com', '0911000002', 'Sales Rep', 'Kinh Doanh'],
-      [genId(), 'Lê Tuấn Mua', 'male', 'tuan.le@huynhthy.com', '0911000003', 'Purchasing', 'Cung Ứng'],
-      [genId(), 'Nguyễn Kỹ Thuật', 'male', 'kt.nguyen@huynhthy.com', '0911000004', 'Engineer', 'Kỹ Thuật'],
-      [genId(), 'Bùi Minh Trí', 'male', 'tri.bui@huynhthy.com', '0911000005', 'Manager', 'Kinh Doanh'],
-      [genId(), 'Hoàng Nhâm', 'female', 'nham.hoang@huynhthy.com', '0911000006', 'HR', 'Nhân Sự'],
-      [genId(), 'Võ Quang', 'male', 'quang.vo@huynhthy.com', '0911000007', 'Sales Rep', 'Kinh Doanh'],
-      [genId(), 'Phan Thanh', 'female', 'thanh.phan@huynhthy.com', '0911000008', 'Accountant', 'Kế Toán'],
-      [genId(), 'Đinh Bảo', 'male', 'bao.dinh@huynhthy.com', '0911000009', 'Marketing', 'Marketing'],
-      [genId(), 'Đỗ Ngọc', 'female', 'ngoc.do@huynhthy.com', '0911000010', 'Sales Rep', 'Kinh Doanh'],
+      [userIds[0], 'Huỳnh Thy Ngọc', 'female', 'ngoc.ht@huynhthy.com', '0911000001', 'CEO', 'Ban Giám Đốc'],
+      [userIds[1], 'Trần Anh Sales', 'male', 'anh.tr@huynhthy.com', '0911000002', 'Sales Rep', 'Kinh Doanh'],
+      [userIds[2], 'Lê Tuấn Mua', 'male', 'tuan.le@huynhthy.com', '0911000003', 'Purchasing', 'Cung Ứng'],
+      [userIds[3], 'Nguyễn Kỹ Thuật', 'male', 'kt.nguyen@huynhthy.com', '0911000004', 'Engineer', 'Kỹ Thuật'],
+      [userIds[4], 'Bùi Minh Trí', 'male', 'tri.bui@huynhthy.com', '0911000005', 'Manager', 'Kinh Doanh'],
     ];
     for (const u of usersList) {
       await db.run('INSERT OR IGNORE INTO User (id, fullName, gender, email, phone, role, department) VALUES (?,?,?,?,?,?,?)', u);
     }
   }
 
+  console.log('--- Seeding Activities ---');
   const actCount = await db.get('SELECT COUNT(*) as c FROM Activity');
-  if (actCount.c < 10) {
+  if (actCount.c < 5) {
     const acts = [
       [genId(), 'Gửi báo giá mới', 'Báo giá QT-2026-001 đã được gửi qua email cho khách.', 'Quotation', '📄', '#e0f2fe', '#0284c7', null, null],
       [genId(), 'Tạo Lead mới', 'Lead Tập đoàn Hòa Phát được tạo.', 'Lead', '🎯', '#fce7f3', '#db2777', null, null],
       [genId(), 'Cập nhật QBU', 'Cập nhật giá cước vận chuyển tháng 4.', 'Purchasing', '🏗️', '#fef3c7', '#d97706', null, null],
       [genId(), 'Deal Accepted!', 'Khách hàng Cảng Đà Nẵng đã chốt đơn KOM-WA900.', 'Win', '🏆', '#dcfce7', '#16a34a', null, null],
       [genId(), 'Chăm sóc KH', 'Gọi điện giới thiệu chính sách trả góp 70%.', 'Contact', '📞', '#e0e7ff', '#4f46e5', null, null],
-      [genId(), 'Họp với Partner', 'Trao đổi chiến lược với Shacman.', 'Meeting', '🤝', '#ffedd5', '#ea580c', null, null],
-      [genId(), 'Import Data', 'Import thành công 100 mã sản phẩm từ kho Excel.', 'System', '⚙️', '#f1f5f9', '#475569', null, null],
-      [genId(), 'Update Status', 'Lead Vinaconex nâng từ New -> Proposal.', 'Phase', '🔄', '#e0f2fe', '#0284c7', null, null],
-      [genId(), 'Hợp đồng kí kết', 'Hoàn thành Hợp đồng số 102/2026', 'Contract', '📝', '#dcfce7', '#16a34a', null, null],
-      [genId(), 'Gửi báo giá mẫu', 'Phục vụ review nội bộ', 'Internal', '📩', '#f3e8ff', '#9333ea', null, null],
     ];
     for (const a of acts) {
       await db.run('INSERT OR IGNORE INTO Activity (id, title, description, category, icon, color, iconColor, entityId, entityType) VALUES (?,?,?,?,?,?,?,?,?)', a);
     }
   }
 
+  console.log('--- Seeding SystemSettings ---');
   const defaults = [
     ['quote_vat', '10'],
     ['quote_exchange_rate', '25450'],

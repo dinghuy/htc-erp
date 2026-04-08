@@ -1,5 +1,4 @@
 import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
 import { normalizeGender } from '../../../gender';
 import { normalizeRoleCodes, resolvePrimaryRole, roleCodesToJson } from '../../shared/auth/roles';
 import { createImportReport, type ParsedImportRow } from '../../shared/imports/tabular';
@@ -7,7 +6,6 @@ import { createUsersRepository, usersRepository } from './repository';
 
 type CreateUsersServiceDeps = {
   repository?: ReturnType<typeof createUsersRepository>;
-  createId?: () => string;
   hashPassword?: (value: string) => Promise<string>;
 };
 
@@ -44,19 +42,17 @@ function normalizeOptionalLanguage(value: unknown): string | undefined {
 
 export function createUsersService(deps: CreateUsersServiceDeps = {}) {
   const repository = deps.repository ?? usersRepository;
-  const createId = deps.createId ?? uuidv4;
   const hashPassword = deps.hashPassword ?? ((value: string) => bcrypt.hash(value, 10));
 
   async function listUsers() {
     return repository.listUsers();
   }
 
-  async function getUserById(id: string) {
+  async function getUserById(id: number | string) {
     return repository.findUserById(id);
   }
 
   async function createUser(payload: UserWritePayload) {
-    const id = createId();
     const normalizedRoles = normalizeRoleCodes(payload.roleCodes, payload.systemRole);
     const persistedSystemRole = resolvePrimaryRole(normalizedRoles, payload.systemRole);
     let passwordHash: string | null = null;
@@ -65,8 +61,7 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
       passwordHash = await hashPassword(String(payload.password));
     }
 
-    await repository.createUser({
-      id,
+    const result = await repository.createUser({
       fullName: payload.fullName,
       gender: normalizeGender(payload.gender),
       email: payload.email,
@@ -87,11 +82,11 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
       mustChangePassword: 1,
       language: normalizeCreateLanguage(payload.language),
     });
-
+    const id = result.lastID;
     return repository.findUserById(id);
   }
 
-  async function updateUser(id: string, payload: UserWritePayload) {
+  async function updateUser(id: number | string, payload: UserWritePayload) {
     const existing = await repository.findUserPasswordHashById(id);
     if (!existing) {
       return null;
@@ -129,11 +124,11 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
     return repository.findUserById(id);
   }
 
-  async function deleteUser(id: string) {
+  async function deleteUser(id: number | string) {
     return repository.deleteUser(id);
   }
 
-  async function updateAvatar(id: string, avatar: string) {
+  async function updateAvatar(id: number | string, avatar: string) {
     const existing = await repository.findUserIdentityById(id);
     if (!existing) {
       return null;
@@ -143,7 +138,7 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
     return { avatar };
   }
 
-  async function setAccountStatus(id: string, accountStatus: string) {
+  async function setAccountStatus(id: number | string, accountStatus: string) {
     const existing = await repository.findUserIdentityById(id);
     if (!existing) {
       return null;
@@ -171,7 +166,6 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
 
       try {
         await repository.createImportedUser({
-          id: createId(),
           fullName,
           gender: normalizeGender(row.values.gender || row.values['Danh xưng']),
           email: row.values.email || '',
@@ -206,7 +200,7 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
     const rows = await repository.listUsersForProjectManagerNormalization();
     let updated = 0;
 
-    for (const row of rows as Array<{ id: string; systemRole: string; roleCodes: string | null }>) {
+    for (const row of rows as Array<{ id: number | string; systemRole: string; roleCodes: string | null }>) {
       const normalizedJson = roleCodesToJson(row.roleCodes, row.systemRole);
       const normalizedRoles = JSON.parse(normalizedJson) as string[];
       const hasProjectManager = normalizedRoles.includes('project_manager');

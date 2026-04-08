@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { normalizeGender } from '../../../gender';
 import { createCrmRepository } from './repository';
 import { createImportReport, parseTabularRowsFromFile } from '../../shared/imports/tabular';
@@ -43,9 +42,9 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
   }));
 
   app.post('/api/accounts', ah(async (req: Request, res: Response) => {
-    const id = uuidv4();
     const { companyName, region, industry, website, taxCode, address, assignedTo, status = 'active', accountType = 'Customer', code, shortName, description, tag, country } = req.body;
-    await crmRepository.insertAccount({ id, companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country });
+    const result = await crmRepository.insertAccount({ companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country });
+    const id = result.lastID;
     await logAct('Tạo khách hàng mới', `Đã thêm ${companyName} vào danh sách ${accountType}`, 'Account', '🏢', '#e0f2fe', '#0284c7', id, 'Account');
     res.status(201).json(await crmRepository.findAccountById(id));
   }));
@@ -81,11 +80,9 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
       }
 
       try {
-        const id = uuidv4();
         const accountType = (row.values.accountType || row.values['Phân loại'] || row.values['Loại'] || 'Customer').trim();
         const status = row.values.status || row.values['Trạng thái'] || 'active';
         await crmRepository.insertAccount({
-          id,
           companyName,
           region: row.values.region || row.values['Khu vực'] || '',
           industry: row.values.industry || row.values['Lĩnh vực'] || '',
@@ -127,10 +124,10 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
   }));
 
   app.post('/api/contacts', ah(async (req: Request, res: Response) => {
-    const id = uuidv4();
     const { accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact = false } = req.body;
     const normalizedGender = normalizeGender(gender);
-    await crmRepository.insertContact({ id, accountId, lastName, firstName, department, jobTitle, gender: normalizedGender, email, phone, isPrimaryContact: isPrimaryContact ? 1 : 0 });
+    const result = await crmRepository.insertContact({ accountId, lastName, firstName, department, jobTitle, gender: normalizedGender, email, phone, isPrimaryContact: isPrimaryContact ? 1 : 0 });
+    const id = result.lastID;
     res.status(201).json(mapGenderRecord(await crmRepository.findContactById(id)));
   }));
 
@@ -158,9 +155,9 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
   }));
 
   app.post('/api/leads', ah(async (req: Request, res: Response) => {
-    const id = uuidv4();
     const { companyName, contactName, email, phone, status = 'New', source } = req.body;
-    await crmRepository.insertLead({ id, companyName, contactName, email, phone, status, source });
+    const result = await crmRepository.insertLead({ companyName, contactName, email, phone, status, source });
+    const id = result.lastID;
     await logAct('Tạo Lead mới', `Khách tiềm năng: ${companyName}`, 'Lead', '🎯', '#fce7f3', '#db2777', id, 'Lead');
     res.status(201).json(await crmRepository.findLeadById(id));
   }));
@@ -202,7 +199,6 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
 
       try {
         await crmRepository.insertLead({
-          id: uuidv4(),
           companyName,
           contactName,
           email: row.values.email || '',

@@ -1,8 +1,8 @@
 import { getDb } from '../../../sqlite-db';
 
 type ListProjectsFilters = {
-  accountId?: string;
-  managerId?: string;
+  accountId?: number | string;
+  managerId?: number | string;
   status?: string;
   startDateFrom?: string;
   startDateTo?: string;
@@ -36,22 +36,20 @@ export function createProjectRepository() {
   }
 
   async function insertProject(input: {
-    id: string;
     code?: string | null;
     name: string;
     description?: string | null;
-    managerId?: string | null;
-    accountId?: string | null;
+    managerId?: number | string | null;
+    accountId?: number | string | null;
     projectStage: string;
     startDate?: string | null;
     endDate?: string | null;
     status?: string | null;
   }) {
-    await getDb().run(
-      `INSERT INTO Project (id, code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    return getDb().run(
+      `INSERT INTO Project (code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.code || null,
         input.name,
         input.description || null,
@@ -66,12 +64,12 @@ export function createProjectRepository() {
   }
 
   async function updateProjectById(input: {
-    id: string;
+    id: number | string;
     code?: string | null;
     name: string;
     description?: string | null;
-    managerId?: string | null;
-    accountId?: string | null;
+    managerId?: number | string | null;
+    accountId?: number | string | null;
     projectStage: string;
     startDate?: string | null;
     endDate?: string | null;
@@ -97,11 +95,11 @@ export function createProjectRepository() {
     );
   }
 
-  async function deleteTasksByProjectId(projectId: string) {
+  async function deleteTasksByProjectId(projectId: number | string) {
     await getDb().run('DELETE FROM Task WHERE projectId = ?', [projectId]);
   }
 
-  async function deleteProjectById(projectId: string) {
+  async function deleteProjectById(projectId: number | string) {
     await getDb().run('DELETE FROM Project WHERE id = ?', [projectId]);
   }
 
@@ -163,7 +161,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function findProjectSummaryById(projectId: string) {
+  async function findProjectSummaryById(projectId: number | string) {
     return getDb().get(
       `
         SELECT p.*,
@@ -204,7 +202,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listProjectQuotations(projectId: string) {
+  async function listProjectQuotations(projectId: number | string) {
     return getDb().all(
       `
         SELECT q.*, a.companyName AS accountName, p.name AS projectName
@@ -218,15 +216,15 @@ export function createProjectRepository() {
     );
   }
 
-  async function findQuotationByIdForProject(id: string, projectId: string) {
+  async function findQuotationByIdForProject(id: number | string, projectId: number | string) {
     return getDb().get(`SELECT * FROM Quotation WHERE id = ? AND projectId = ?`, [id, projectId]);
   }
 
-  async function findQuotationById(id: string) {
+  async function findQuotationById(id: number | string) {
     return getDb().get(`SELECT * FROM Quotation WHERE id = ?`, [id]);
   }
 
-  async function listProjectSupplierQuotes(projectId: string) {
+  async function listProjectSupplierQuotes(projectId: number | string) {
     return getDb().all(
       `
         SELECT sq.*, a.companyName AS supplierName, q.quoteNumber AS linkedQuotationNumber
@@ -240,7 +238,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listProjectTasks(projectId: string) {
+  async function listProjectTasks(projectId: number | string) {
     return getDb().all(
       `
         SELECT t.*,
@@ -261,7 +259,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listProjectActivities(projectId: string) {
+  async function listProjectActivities(projectId: number | string) {
     return getDb().all(
       `
         SELECT *
@@ -276,7 +274,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listProjectApprovals(projectId: string) {
+  async function listProjectApprovals(projectId: number | string) {
     return getDb().all(
       `
         SELECT ar.*, u.fullName AS approverName, rq.fullName AS requestedByName
@@ -290,30 +288,28 @@ export function createProjectRepository() {
     );
   }
 
-  async function findApprovalRequestById(id: string) {
+  async function findApprovalRequestById(id: number | string) {
     return getDb().get(`SELECT * FROM ApprovalRequest WHERE id = ?`, [id]);
   }
 
   async function insertApprovalRequest(input: {
-    id: string;
-    projectId: string;
-    quotationId?: string | null;
+    projectId: number | string;
+    quotationId?: number | string | null;
     requestType: string;
     title: string;
     department?: string | null;
-    requestedBy?: string | null;
+    requestedBy?: number | string | null;
     approverRole?: string | null;
-    approverUserId?: string | null;
+    approverUserId?: number | string | null;
     status: string;
     dueDate?: string | null;
     note?: string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ApprovalRequest (
-        id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.quotationId || null,
         input.requestType,
@@ -330,12 +326,12 @@ export function createProjectRepository() {
   }
 
   async function updateApprovalRequestById(input: {
-    id: string;
+    id: number | string;
     requestType: string;
     title: string;
     department?: string | null;
     approverRole?: string | null;
-    approverUserId?: string | null;
+    approverUserId?: number | string | null;
     status: string;
     dueDate?: string | null;
     note?: string | null;
@@ -364,11 +360,11 @@ export function createProjectRepository() {
   }
 
   async function decideApprovalRequestById(input: {
-    id: string;
+    id: number | string;
     status: string;
     note?: string | null;
     decidedAt: string;
-    decidedBy?: string | null;
+    decidedBy?: number | string | null;
   }) {
     await getDb().run(
       `UPDATE ApprovalRequest
@@ -403,11 +399,11 @@ export function createProjectRepository() {
     );
   }
 
-  async function deleteApprovalRequestById(id: string) {
+  async function deleteApprovalRequestById(id: number | string) {
     await getDb().run('DELETE FROM ApprovalRequest WHERE id = ?', [id]);
   }
 
-  async function listProjectDocuments(projectId: string) {
+  async function listProjectDocuments(projectId: number | string) {
     return getDb().all(
       `
         SELECT pd.*,
@@ -429,7 +425,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listProjectBlockers(projectId: string) {
+  async function listProjectBlockers(projectId: number | string) {
     return getDb().all(
       `
         SELECT pb.*, cu.fullName AS createdByName, ru.fullName AS resolvedByName
@@ -443,7 +439,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function findProjectDocumentById(id: string) {
+  async function findProjectDocumentById(id: number | string) {
     return getDb().get(
       `SELECT pd.*,
               (
@@ -462,7 +458,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function findProjectDocumentByIdForProject(id: string, projectId: string) {
+  async function findProjectDocumentByIdForProject(id: number | string, projectId: number | string) {
     return getDb().get(
       `SELECT pd.*,
               (
@@ -482,9 +478,8 @@ export function createProjectRepository() {
   }
 
   async function insertProjectDocument(input: {
-    id: string;
-    projectId: string;
-    quotationId?: string | null;
+    projectId: number | string;
+    quotationId?: number | string | null;
     documentCode?: string | null;
     documentName?: string | null;
     category?: string | null;
@@ -494,12 +489,11 @@ export function createProjectRepository() {
     note?: string | null;
     receivedAt?: string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectDocument (
-        id, projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note, receivedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note, receivedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.quotationId || null,
         input.documentCode || null,
@@ -515,8 +509,8 @@ export function createProjectRepository() {
   }
 
   async function updateProjectDocumentById(input: {
-    id: string;
-    quotationId?: string | null;
+    id: number | string;
+    quotationId?: number | string | null;
     documentCode?: string | null;
     documentName?: string | null;
     category?: string | null;
@@ -547,13 +541,13 @@ export function createProjectRepository() {
   }
 
   async function updateProjectDocumentReviewStateById(input: {
-    id: string;
+    id: number | string;
     reviewStatus: string;
-    reviewerUserId?: string | null;
+    reviewerUserId?: number | string | null;
     reviewedAt?: string | null;
     reviewNote?: string | null;
     storageKey?: string | null;
-    threadId?: string | null;
+    threadId?: number | string | null;
   }) {
     await getDb().run(
       `UPDATE ProjectDocument
@@ -571,17 +565,16 @@ export function createProjectRepository() {
     );
   }
 
-  async function deleteProjectDocumentById(id: string) {
+  async function deleteProjectDocumentById(id: number | string) {
     await getDb().run('DELETE FROM ProjectDocument WHERE id = ?', [id]);
   }
 
-  async function findProjectBlockerById(id: string) {
+  async function findProjectBlockerById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectBlocker WHERE id = ?`, [id]);
   }
 
   async function insertProjectBlocker(input: {
-    id: string;
-    projectId: string;
+    projectId: number | string;
     source?: string | null;
     category?: string | null;
     ownerRole?: string | null;
@@ -591,15 +584,14 @@ export function createProjectRepository() {
     detail?: string | null;
     action?: string | null;
     linkedEntityType?: string | null;
-    linkedEntityId?: string | null;
-    createdBy?: string | null;
+    linkedEntityId?: number | string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectBlocker (
-        id, projectId, source, category, ownerRole, status, tone, title, detail, action, linkedEntityType, linkedEntityId, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, source, category, ownerRole, status, tone, title, detail, action, linkedEntityType, linkedEntityId, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.source || 'manual',
         input.category || 'workflow',
@@ -617,7 +609,7 @@ export function createProjectRepository() {
   }
 
   async function updateProjectBlockerById(input: {
-    id: string;
+    id: number | string;
     source?: string | null;
     category?: string | null;
     ownerRole?: string | null;
@@ -627,9 +619,9 @@ export function createProjectRepository() {
     detail?: string | null;
     action?: string | null;
     linkedEntityType?: string | null;
-    linkedEntityId?: string | null;
+    linkedEntityId?: number | string | null;
     resolvedAt?: string | null;
-    resolvedBy?: string | null;
+    resolvedBy?: number | string | null;
   }) {
     await getDb().run(
       `UPDATE ProjectBlocker
@@ -654,7 +646,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listProjectSalesOrders(projectId: string) {
+  async function listProjectSalesOrders(projectId: number | string) {
     return getDb().all(
       `
         SELECT so.*, q.quoteNumber AS quotationNumber, q.status AS quotationStatus, a.companyName AS accountName
@@ -668,7 +660,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listProjectQbuRounds(projectId: string) {
+  async function listProjectQbuRounds(projectId: number | string) {
     return getDb().all(
       `
         SELECT pq.*,
@@ -685,7 +677,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function findMainContract(projectId: string) {
+  async function findMainContract(projectId: number | string) {
     return getDb().get(
       `
         SELECT *
@@ -698,18 +690,17 @@ export function createProjectRepository() {
     );
   }
 
-  async function findProjectContractById(id: string) {
+  async function findProjectContractById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectContract WHERE id = ?`, [id]);
   }
 
-  async function findProjectContractByIdForProject(id: string, projectId: string) {
+  async function findProjectContractByIdForProject(id: number | string, projectId: number | string) {
     return getDb().get(`SELECT * FROM ProjectContract WHERE id = ? AND projectId = ?`, [id, projectId]);
   }
 
   async function insertProjectContract(input: {
-    id: string;
-    projectId: string;
-    quotationId?: string | null;
+    projectId: number | string;
+    quotationId?: number | string | null;
     contractNumber?: string | null;
     title?: string | null;
     signedDate?: string | null;
@@ -719,14 +710,13 @@ export function createProjectRepository() {
     totalValue: number;
     summary?: string | null;
     lineItems: string;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectContract (
-        id, projectId, quotationId, contractNumber, title, signedDate, effectiveDate, status, currency, totalValue, summary, lineItems, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, quotationId, contractNumber, title, signedDate, effectiveDate, status, currency, totalValue, summary, lineItems, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.quotationId || null,
         input.contractNumber || null,
@@ -744,8 +734,8 @@ export function createProjectRepository() {
   }
 
   async function updateProjectContractById(input: {
-    id: string;
-    quotationId?: string | null;
+    id: number | string;
+    quotationId?: number | string | null;
     contractNumber?: string | null;
     title?: string | null;
     signedDate?: string | null;
@@ -777,21 +767,21 @@ export function createProjectRepository() {
     );
   }
 
-  async function updateProjectStageById(projectId: string, projectStage: string) {
+  async function updateProjectStageById(projectId: number | string, projectStage: string) {
     await getDb().run(
       `UPDATE Project SET projectStage = ?, updatedAt = datetime('now') WHERE id = ?`,
       [projectStage, projectId]
     );
   }
 
-  async function updateQuotationStatusById(quotationId: string, status: string) {
+  async function updateQuotationStatusById(quotationId: number | string, status: string) {
     await getDb().run(
       `UPDATE Quotation SET status = ?, updatedAt = datetime('now') WHERE id = ?`,
       [status, quotationId]
     );
   }
 
-  async function listContractAppendices(projectId: string) {
+  async function listContractAppendices(projectId: number | string) {
     return getDb().all(
       `
         SELECT *
@@ -808,9 +798,8 @@ export function createProjectRepository() {
   }
 
   async function insertProjectContractAppendix(input: {
-    id: string;
-    projectId: string;
-    contractId: string;
+    projectId: number | string;
+    contractId: number | string;
     appendixNumber?: string | null;
     title?: string | null;
     signedDate?: string | null;
@@ -819,14 +808,13 @@ export function createProjectRepository() {
     totalDeltaValue: number;
     summary?: string | null;
     lineItems: string;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectContractAppendix (
-        id, projectId, contractId, appendixNumber, title, signedDate, effectiveDate, status, totalDeltaValue, summary, lineItems, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, contractId, appendixNumber, title, signedDate, effectiveDate, status, totalDeltaValue, summary, lineItems, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.contractId,
         input.appendixNumber || null,
@@ -843,7 +831,7 @@ export function createProjectRepository() {
   }
 
   async function updateProjectContractAppendixById(input: {
-    id: string;
+    id: number | string;
     appendixNumber?: string | null;
     title?: string | null;
     signedDate?: string | null;
@@ -871,7 +859,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listExecutionBaselines(projectId: string) {
+  async function listExecutionBaselines(projectId: number | string) {
     return getDb().all(
       `
         SELECT *
@@ -883,7 +871,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listProcurementLines(projectId: string) {
+  async function listProcurementLines(projectId: number | string) {
     return getDb().all(
       `
         SELECT ppl.*, a.companyName AS supplierName
@@ -896,11 +884,11 @@ export function createProjectRepository() {
     );
   }
 
-  async function findProcurementLineById(id: string) {
+  async function findProcurementLineById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectProcurementLine WHERE id = ?`, [id]);
   }
 
-  async function findProcurementLineByIdForProject(id: string, projectId: string) {
+  async function findProcurementLineByIdForProject(id: number | string, projectId: number | string) {
     return getDb().get(
       `SELECT * FROM ProjectProcurementLine WHERE id = ? AND projectId = ?`,
       [id, projectId]
@@ -908,8 +896,8 @@ export function createProjectRepository() {
   }
 
   async function updateProcurementLineById(input: {
-    id: string;
-    supplierId?: string | null;
+    id: number | string;
+    supplierId?: number | string | null;
     poNumber?: string | null;
     orderedQty: number;
     etaDate?: string | null;
@@ -934,7 +922,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function findInboundTotalsByProcurementLineId(procurementLineId: string) {
+  async function findInboundTotalsByProcurementLineId(procurementLineId: number | string) {
     return getDb().get(
       `SELECT
          COALESCE(SUM(receivedQty), 0) AS totalQty,
@@ -945,7 +933,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function findDeliveryTotalsByProcurementLineId(procurementLineId: string) {
+  async function findDeliveryTotalsByProcurementLineId(procurementLineId: number | string) {
     return getDb().get(
       `SELECT
          COALESCE(SUM(deliveredQty), 0) AS totalQty,
@@ -957,7 +945,7 @@ export function createProjectRepository() {
   }
 
   async function updateProcurementLineRollup(input: {
-    procurementLineId: string;
+    procurementLineId: number | string;
     receivedQty: number;
     deliveredQty: number;
     shortageQty: number;
@@ -985,8 +973,8 @@ export function createProjectRepository() {
   }
 
   async function updateProcurementLineFromBaseline(input: {
-    id: string;
-    baselineId: string;
+    id: number | string;
+    baselineId: number | string;
     itemCode?: string | null;
     itemName?: string | null;
     description?: string | null;
@@ -1018,9 +1006,8 @@ export function createProjectRepository() {
   }
 
   async function insertProcurementLine(input: {
-    id: string;
-    projectId: string;
-    baselineId: string;
+    projectId: number | string;
+    baselineId: number | string;
     sourceLineKey: string;
     itemCode?: string | null;
     itemName?: string | null;
@@ -1031,14 +1018,13 @@ export function createProjectRepository() {
     etaDate?: string | null;
     committedDeliveryDate?: string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectProcurementLine (
-        id, projectId, baselineId, sourceLineKey, isActive, itemCode, itemName, description, unit,
+        projectId, baselineId, sourceLineKey, isActive, itemCode, itemName, description, unit,
         contractQty, orderedQty, receivedQty, deliveredQty, shortageQty, shortageStatus,
         etaDate, committedDeliveryDate, status, note
-      ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 0, 0, 0, ?, 'pending', ?, ?, 'planned', NULL)`,
+      ) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 0, 0, 0, ?, 'pending', ?, ?, 'planned', NULL)`,
       [
-        input.id,
         input.projectId,
         input.baselineId,
         input.sourceLineKey,
@@ -1055,7 +1041,7 @@ export function createProjectRepository() {
   }
 
   async function retireProcurementLine(input: {
-    id: string;
+    id: number | string;
     supersededAt: string;
     supersededByBaselineId: string;
   }) {
@@ -1067,7 +1053,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listInboundLines(projectId: string) {
+  async function listInboundLines(projectId: number | string) {
     return getDb().all(
       `
         SELECT pil.*, ppl.itemCode, ppl.itemName, ppl.description AS procurementDescription,
@@ -1081,15 +1067,14 @@ export function createProjectRepository() {
     );
   }
 
-  async function findInboundLineById(id: string) {
+  async function findInboundLineById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectInboundLine WHERE id = ?`, [id]);
   }
 
   async function insertInboundLine(input: {
-    id: string;
-    projectId: string;
-    procurementLineId: string;
-    baselineId?: string | null;
+    projectId: number | string;
+    procurementLineId: number | string;
+    baselineId?: number | string | null;
     sourceLineKey?: string | null;
     receivedQty: number;
     etaDate?: string | null;
@@ -1097,14 +1082,13 @@ export function createProjectRepository() {
     status: string;
     receiptRef?: string | null;
     note?: string | null;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectInboundLine (
-        id, projectId, procurementLineId, baselineId, sourceLineKey, receivedQty, etaDate, actualReceivedDate, status, receiptRef, note, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, procurementLineId, baselineId, sourceLineKey, receivedQty, etaDate, actualReceivedDate, status, receiptRef, note, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.procurementLineId,
         input.baselineId || null,
@@ -1121,9 +1105,9 @@ export function createProjectRepository() {
   }
 
   async function updateInboundLineById(input: {
-    id: string;
-    procurementLineId: string;
-    baselineId?: string | null;
+    id: number | string;
+    procurementLineId: number | string;
+    baselineId?: number | string | null;
     sourceLineKey?: string | null;
     receivedQty: number;
     etaDate?: string | null;
@@ -1152,7 +1136,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listDeliveryLines(projectId: string) {
+  async function listDeliveryLines(projectId: number | string) {
     return getDb().all(
       `
         SELECT pdl.*, ppl.itemCode, ppl.itemName, ppl.description AS procurementDescription,
@@ -1166,15 +1150,14 @@ export function createProjectRepository() {
     );
   }
 
-  async function findDeliveryLineById(id: string) {
+  async function findDeliveryLineById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectDeliveryLine WHERE id = ?`, [id]);
   }
 
   async function insertDeliveryLine(input: {
-    id: string;
-    projectId: string;
-    procurementLineId: string;
-    baselineId?: string | null;
+    projectId: number | string;
+    procurementLineId: number | string;
+    baselineId?: number | string | null;
     sourceLineKey?: string | null;
     deliveredQty: number;
     committedDate?: string | null;
@@ -1182,14 +1165,13 @@ export function createProjectRepository() {
     status: string;
     deliveryRef?: string | null;
     note?: string | null;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectDeliveryLine (
-        id, projectId, procurementLineId, baselineId, sourceLineKey, deliveredQty, committedDate, actualDeliveryDate, status, deliveryRef, note, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, procurementLineId, baselineId, sourceLineKey, deliveredQty, committedDate, actualDeliveryDate, status, deliveryRef, note, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.procurementLineId,
         input.baselineId || null,
@@ -1206,9 +1188,9 @@ export function createProjectRepository() {
   }
 
   async function updateDeliveryLineById(input: {
-    id: string;
-    procurementLineId: string;
-    baselineId?: string | null;
+    id: number | string;
+    procurementLineId: number | string;
+    baselineId?: number | string | null;
     sourceLineKey?: string | null;
     deliveredQty: number;
     committedDate?: string | null;
@@ -1237,7 +1219,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listMilestones(projectId: string) {
+  async function listMilestones(projectId: number | string) {
     return getDb().all(
       `
         SELECT *
@@ -1249,27 +1231,25 @@ export function createProjectRepository() {
     );
   }
 
-  async function findMilestoneById(id: string) {
+  async function findMilestoneById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectMilestone WHERE id = ?`, [id]);
   }
 
   async function insertMilestone(input: {
-    id: string;
-    projectId: string;
+    projectId: number | string;
     milestoneType?: string | null;
     title: string;
     plannedDate?: string | null;
     actualDate?: string | null;
     status: string;
     note?: string | null;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectMilestone (
-        id, projectId, milestoneType, title, plannedDate, actualDate, status, note, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, milestoneType, title, plannedDate, actualDate, status, note, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.milestoneType || null,
         input.title,
@@ -1283,7 +1263,7 @@ export function createProjectRepository() {
   }
 
   async function updateMilestoneById(input: {
-    id: string;
+    id: number | string;
     milestoneType?: string | null;
     title: string;
     plannedDate?: string | null;
@@ -1307,7 +1287,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function listTimelineEvents(projectId: string) {
+  async function listTimelineEvents(projectId: number | string) {
     return getDb().all(
       `
         SELECT *
@@ -1320,23 +1300,21 @@ export function createProjectRepository() {
   }
 
   async function insertTimelineEvent(event: {
-    id: string;
-    projectId: string;
+    projectId: number | string;
     eventType: string;
     title: string;
     description?: string | null;
     eventDate?: string | null;
     entityType?: string | null;
-    entityId?: string | null;
+    entityId?: number | string | null;
     payload?: string | null;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectTimelineEvent (
-        id, projectId, eventType, title, description, eventDate, entityType, entityId, payload, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, eventType, title, description, eventDate, entityType, entityId, payload, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        event.id,
         event.projectId,
         event.eventType,
         event.title,
@@ -1350,15 +1328,15 @@ export function createProjectRepository() {
     );
   }
 
-  async function findTimelineEventById(id: string) {
+  async function findTimelineEventById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectTimelineEvent WHERE id = ?`, [id]);
   }
 
-  async function findExecutionBaselineById(id: string) {
+  async function findExecutionBaselineById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectExecutionBaseline WHERE id = ?`, [id]);
   }
 
-  async function findMaxBaselineNo(projectId: string) {
+  async function findMaxBaselineNo(projectId: number | string) {
     return getDb().get(
       `SELECT COALESCE(MAX(baselineNo), 0) AS maxBaselineNo
        FROM ProjectExecutionBaseline
@@ -1367,7 +1345,7 @@ export function createProjectRepository() {
     );
   }
 
-  async function clearCurrentExecutionBaseline(projectId: string) {
+  async function clearCurrentExecutionBaseline(projectId: number | string) {
     await getDb().run(
       `UPDATE ProjectExecutionBaseline SET isCurrent = 0, updatedAt = datetime('now') WHERE projectId = ?`,
       [projectId]
@@ -1375,24 +1353,22 @@ export function createProjectRepository() {
   }
 
   async function insertExecutionBaseline(input: {
-    id: string;
-    projectId: string;
+    projectId: number | string;
     sourceType: 'main_contract' | 'appendix';
-    sourceId: string;
+    sourceId: number | string;
     baselineNo: number;
     title: string;
     effectiveDate?: string | null;
     currency?: string | null;
     totalValue: number;
     lineItems: string;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectExecutionBaseline (
-        id, projectId, sourceType, sourceId, baselineNo, title, effectiveDate, currency, totalValue, lineItems, isCurrent, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        projectId, sourceType, sourceId, baselineNo, title, effectiveDate, currency, totalValue, lineItems, isCurrent, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
       [
-        input.id,
         input.projectId,
         input.sourceType,
         input.sourceId,

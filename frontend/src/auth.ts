@@ -18,7 +18,7 @@ import {
 } from './core/session';
 
 export interface CurrentUser {
-  id: string;
+  id: number;
   username: string;
   fullName: string;
   email: string;

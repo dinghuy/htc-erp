@@ -242,28 +242,28 @@ export function Tasks({
   const [taskViewIsDefault, setTaskViewIsDefault] = useState(false);
   const [taskViewWarning, setTaskViewWarning] = useState('');
   const [savingTaskView, setSavingTaskView] = useState(false);
-  const [deletingTaskViewId, setDeletingTaskViewId] = useState('');
+  const [deletingTaskViewId, setDeletingTaskViewId] = useState<number | ''>('');
   const [defaultPresetApplied, setDefaultPresetApplied] = useState(false);
 
   const [drawer, setDrawer] = useState<TaskDrawerState>(() => createClosedDrawerState(currentUser, ALL_PROJECT));
   const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
-  const [draggingTaskId, setDraggingTaskId] = useState('');
+  const [draggingTaskId, setDraggingTaskId] = useState<number | ''>('');
   const [hoveredStatus, setHoveredStatus] = useState<UiTaskStatus | ''>('');
-  const [updatingTaskId, setUpdatingTaskId] = useState('');
+  const [updatingTaskId, setUpdatingTaskId] = useState<number | ''>('');
   const [taskWorkHubSummary, setTaskWorkHubSummary] = useState<any | null>(null);
   const [taskThreadMessages, setTaskThreadMessages] = useState<any[]>([]);
   const [taskThreadDraft, setTaskThreadDraft] = useState('');
   const [taskChecklistItems, setTaskChecklistItems] = useState<any[]>([]);
   const [taskChecklistDraft, setTaskChecklistDraft] = useState('');
-  const [taskChecklistEditingId, setTaskChecklistEditingId] = useState('');
+  const [taskChecklistEditingId, setTaskChecklistEditingId] = useState<number | ''>('');
   const [taskChecklistEditingTitle, setTaskChecklistEditingTitle] = useState('');
   const [taskSubtasks, setTaskSubtasks] = useState<TaskRecord[]>([]);
   const [taskSubtaskDraft, setTaskSubtaskDraft] = useState('');
-  const [taskSubtaskEditingId, setTaskSubtaskEditingId] = useState('');
+  const [taskSubtaskEditingId, setTaskSubtaskEditingId] = useState<number | ''>('');
   const [taskSubtaskEditingTitle, setTaskSubtaskEditingTitle] = useState('');
   const [pendingOpenTaskThread, setPendingOpenTaskThread] = useState(false);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkPriority, setBulkPriority] = useState('');
   const [bulkAssigneeId, setBulkAssigneeId] = useState('');
@@ -449,8 +449,8 @@ export function Tasks({
   const filteredTasks = useMemo(() => {
     return sortTasksByUrgency(
       tasks.filter((task) => {
-        if (selectedProjectId !== ALL_PROJECT && task.projectId !== selectedProjectId) return false;
-        if (selectedAssigneeId && task.assigneeId !== selectedAssigneeId) return false;
+        if (selectedProjectId !== ALL_PROJECT && String(task.projectId || '') !== selectedProjectId) return false;
+        if (selectedAssigneeId && String(task.assigneeId || '') !== selectedAssigneeId) return false;
         if (selectedPriority && normalizePriority(task.priority) !== selectedPriority) return false;
         if (selectedStatus && normalizeTaskStatus(task.status) !== selectedStatus) return false;
         if (onlyOverdue && !isOverdue(task)) return false;
@@ -459,7 +459,7 @@ export function Tasks({
     );
   }, [tasks, selectedProjectId, selectedAssigneeId, selectedPriority, selectedStatus, onlyOverdue, search]);
 
-  const toggleSelectedTask = (taskId: string, checked: boolean) => {
+  const toggleSelectedTask = (taskId: number, checked: boolean) => {
     setSelectedTaskIds((prev) => checked ? Array.from(new Set([...prev, taskId])) : prev.filter((id) => id !== taskId));
   };
 
@@ -564,7 +564,7 @@ export function Tasks({
     }
   };
 
-  const deleteTaskViewPreset = async (presetId: string) => {
+  const deleteTaskViewPreset = async (presetId: number) => {
     setDeletingTaskViewId(presetId);
     try {
       await requestJsonWithAuth<any>(token, `${API}/v1/tasks/views/${presetId}`, { method: 'DELETE' }, 'Không thể xóa task view');
@@ -615,7 +615,7 @@ export function Tasks({
         }),
       }, 'Không thể cập nhật hàng loạt task');
       const updatedItems = (Array.isArray(result?.items) ? result.items : []) as TaskRecord[];
-      const updatedById = new Map<string, TaskRecord>(updatedItems.map((item) => [item.id, item]));
+      const updatedById = new Map<number, TaskRecord>(updatedItems.map((item) => [item.id, item]));
       setTasks((prev) => prev.map((task) => updatedById.get(task.id) ?? task));
       setSelectedTaskIds([]);
       setBulkStatus('');
@@ -629,7 +629,7 @@ export function Tasks({
     }
   };
 
-  const moveProjectTask = async (taskId: string, direction: 'up' | 'down') => {
+  const moveProjectTask = async (taskId: number, direction: 'up' | 'down') => {
     if (selectedProjectId === ALL_PROJECT || groupBy !== 'none') return;
     const topLevelTasks = filteredTasks.filter((task) => !task.parentTaskId);
     const currentIndex = topLevelTasks.findIndex((task) => task.id === taskId);
@@ -645,7 +645,7 @@ export function Tasks({
         body: JSON.stringify({ orderedTaskIds: reordered.map((task) => task.id) }),
       }, 'Không thể đổi thứ tự task');
       const updatedItems = (Array.isArray(result?.items) ? result.items : []) as TaskRecord[];
-      const updatedById = new Map<string, TaskRecord>(updatedItems.map((item) => [item.id, item]));
+      const updatedById = new Map<number, TaskRecord>(updatedItems.map((item) => [item.id, item]));
       setTasks((prev) => prev.map((task) => updatedById.get(task.id) ?? task));
     } catch (error: any) {
       showNotify(error?.message || 'Không thể đổi thứ tự task', 'error');
@@ -713,7 +713,7 @@ export function Tasks({
     });
   };
 
-  const updateTaskStatus = async (taskId: string, nextStatus: UiTaskStatus) => {
+  const updateTaskStatus = async (taskId: number, nextStatus: UiTaskStatus) => {
     if (!taskAccess.canUpdateTaskStatus) {
       showNotify('Role hiện tại chỉ xem task, không thể đổi trạng thái execution', 'error');
       return;
@@ -816,7 +816,7 @@ export function Tasks({
     }
   };
 
-  const refreshTaskChecklist = async (taskId: string) => {
+  const refreshTaskChecklist = async (taskId: number) => {
     const payload = await requestJsonWithAuth<any>(token, `${API}/v1/tasks/${taskId}/checklist`, {}, 'Không thể tải checklist');
     setTaskChecklistItems(Array.isArray(payload?.items) ? payload.items : []);
   };
@@ -850,7 +850,7 @@ export function Tasks({
     }
   };
 
-  const deleteTaskChecklistItem = async (itemId: string) => {
+  const deleteTaskChecklistItem = async (itemId: number) => {
     const taskId = drawer.editingTask?.id;
     if (!taskId || !itemId) return;
     try {
@@ -881,7 +881,7 @@ export function Tasks({
     }
   };
 
-  const refreshTaskSubtasks = async (taskId: string) => {
+  const refreshTaskSubtasks = async (taskId: number) => {
     const payload = await requestJsonWithAuth<any>(token, `${API}/v1/tasks/${taskId}/subtasks`, {}, 'Không thể tải subtasks');
     setTaskSubtasks(Array.isArray(payload?.items) ? payload.items : []);
   };
@@ -929,7 +929,7 @@ export function Tasks({
     }
   };
 
-  const moveTaskSubtask = async (taskId: string, direction: 'up' | 'down') => {
+  const moveTaskSubtask = async (taskId: number, direction: 'up' | 'down') => {
     const parentTaskId = drawer.editingTask?.id;
     if (!parentTaskId) return;
     const currentIndex = taskSubtasks.findIndex((task) => task.id === taskId);
@@ -952,7 +952,7 @@ export function Tasks({
     }
   };
 
-  const deleteTaskSubtask = async (taskId: string) => {
+  const deleteTaskSubtask = async (taskId: number) => {
     const parentTaskId = drawer.editingTask?.id;
     if (!parentTaskId || !taskId) return;
     try {
@@ -1071,11 +1071,11 @@ export function Tasks({
           <div style={{ display: 'flex', gap: tokens.spacing.sm, flexWrap: 'wrap' }}>
             {taskQuickViews.map((view) => {
               const active = matchesTaskViewPreset(currentTaskViewSnapshot, {
-                id: view.id,
+                id: Number(view.id),
                 name: view.label,
                 query: view.snapshot.search,
-                projectId: view.snapshot.selectedProjectId === ALL_PROJECT ? null : view.snapshot.selectedProjectId,
-                assigneeId: view.snapshot.selectedAssigneeId || null,
+                projectId: view.snapshot.selectedProjectId === ALL_PROJECT ? null : Number(view.snapshot.selectedProjectId),
+                assigneeId: view.snapshot.selectedAssigneeId ? Number(view.snapshot.selectedAssigneeId) : null,
                 priority: view.snapshot.selectedPriority || null,
                 status: view.snapshot.selectedStatus || null,
                 onlyOverdue: view.snapshot.onlyOverdue,

@@ -1,19 +1,19 @@
 type ApprovalQueueItem = {
-  id?: string;
-  approvalRequestId?: string;
+  id?: number | string;
+  approvalRequestId?: number | string;
   lane?: string | null;
   status?: string | null;
   title?: string | null;
   requestType?: string | null;
-  projectId?: string | null;
-  taskId?: string | null;
+  projectId?: number | string | null;
+  taskId?: number | string | null;
   projectCode?: string | null;
   projectName?: string | null;
   requestedByName?: string | null;
-  requestedBy?: string | null;
+  requestedBy?: number | string | null;
   department?: string | null;
   approverRole?: string | null;
-  approverUserId?: string | null;
+  approverUserId?: number | string | null;
   dueAt?: string | null;
   note?: string | null;
   actionAvailability?: {
@@ -88,7 +88,7 @@ export function mapApprovalQueuePayload(payload: ApprovalQueuePayload, fallbackV
   );
 
   const approvals = items.map((item) => ({
-    id: item.approvalRequestId || item.id || '',
+    id: Number(item.approvalRequestId || item.id || 0),
     title: item.title || item.requestType || 'Approval request',
     requestType: item.requestType || 'approval',
     status: item.status || 'pending',
@@ -97,10 +97,10 @@ export function mapApprovalQueuePayload(payload: ApprovalQueuePayload, fallbackV
     projectCode: item.projectCode ?? null,
     projectName: item.projectName ?? null,
     requestedByName: item.requestedByName ?? null,
-    requestedBy: item.requestedBy ?? null,
+    requestedBy: item.requestedBy ? Number(item.requestedBy) : null,
     department: item.department ?? null,
     approverRole: item.approverRole ?? null,
-    approverUserId: item.approverUserId ?? null,
+    approverUserId: item.approverUserId ? Number(item.approverUserId) : null,
     actionAvailability: {
       lane: item.actionAvailability?.lane || item.lane || null,
       canDecide: Boolean(item.actionAvailability?.canDecide),

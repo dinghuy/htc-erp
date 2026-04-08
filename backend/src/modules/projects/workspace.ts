@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import type { AuthenticatedUser, ApprovalGateType } from '../../shared/contracts/domain';
 import { canUserApproveRequest, resolveApprovalLane } from '../../shared/auth/permissions';
 import { normalizeRoleCodes } from '../../shared/auth/roles';
@@ -121,8 +120,8 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
         canDecide,
         canEdit: ['pending', 'cancelled'].includes(String(approval?.status || '').toLowerCase()),
         canDelete: ['pending', 'cancelled'].includes(String(approval?.status || '').toLowerCase()),
-        isRequester: Boolean(currentUser?.id) && String(approval?.requestedBy || '') === currentUser?.id,
-        isAssignedApprover: !approval?.approverUserId || String(approval.approverUserId) === currentUser?.id,
+        isRequester: Boolean(currentUser?.id) && String(approval?.requestedBy || '') === String(currentUser?.id || ''),
+        isAssignedApprover: !approval?.approverUserId || String(approval.approverUserId) === String(currentUser?.id || ''),
         availableDecisions: canDecide ? ['approved', 'rejected', 'changes_requested'] : [],
       },
     };
@@ -634,20 +633,18 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
   async function createProjectTimelineEvent(
     db: any,
     event: {
-      projectId: string;
+      projectId: number | string;
       eventType: string;
       title: string;
       description?: string | null;
       eventDate?: string | null;
       entityType?: string | null;
-      entityId?: string | null;
+      entityId?: number | string | null;
       payload?: any;
-      createdBy?: string | null;
+      createdBy?: number | string | null;
     }
   ) {
-    const id = uuidv4();
-    await projectRepository.insertTimelineEvent({
-      id,
+    const result = await projectRepository.insertTimelineEvent({
       projectId: event.projectId,
       eventType: event.eventType,
       title: event.title,
@@ -658,10 +655,10 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
       payload: event.payload == null ? null : JSON.stringify(event.payload),
       createdBy: event.createdBy || null,
     });
-    return projectRepository.findTimelineEventById(id);
+    return projectRepository.findTimelineEventById(result.lastID);
   }
 
-  async function recalculateProjectProcurementRollup(db: any, procurementLineId: string) {
+  async function recalculateProjectProcurementRollup(db: any, procurementLineId: number | string) {
     const line = await projectRepository.findProcurementLineById(procurementLineId);
     if (!line) return null;
 
@@ -703,7 +700,7 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
     return mapProjectProcurementLineRow(await projectRepository.findProcurementLineById(procurementLineId));
   }
 
-  async function syncProjectProcurementLinesFromBaseline(db: any, projectId: string, baselineId: string) {
+  async function syncProjectProcurementLinesFromBaseline(db: any, projectId: number | string, baselineId: number | string) {
     const baseline = mapProjectBaselineRow(await projectRepository.findExecutionBaselineById(baselineId));
     if (!baseline) return [];
 
@@ -738,10 +735,8 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
         continue;
       }
 
-      const id = uuidv4();
       const contractQty = projectHubNumber(lineItem.contractQty, 0);
-      await projectRepository.insertProcurementLine({
-        id,
+      const result = await projectRepository.insertProcurementLine({
         projectId,
         baselineId: baseline.id,
         sourceLineKey: lineItem.sourceLineKey,
@@ -754,7 +749,7 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
         etaDate: lineItem.etaDate || null,
         committedDeliveryDate: lineItem.committedDeliveryDate || null,
       });
-      await recalculateProjectProcurementRollup(db, id);
+      await recalculateProjectProcurementRollup(db, result.lastID);
     }
 
     const supersededAt = new Date().toISOString();
@@ -787,25 +782,23 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
   async function createExecutionBaselineFromSource(
     db: any,
     params: {
-      projectId: string;
+      projectId: number | string;
       sourceType: 'main_contract' | 'appendix';
-      sourceId: string;
+      sourceId: number | string;
       title: string;
       effectiveDate?: string | null;
       currency?: string | null;
       totalValue?: number | null;
       lineItems?: any[];
-      createdBy?: string | null;
+      createdBy?: number | string | null;
     }
   ) {
     const lineItems = normalizeContractLineItems(params.lineItems || []);
     const baselineNoRow = await projectRepository.findMaxBaselineNo(params.projectId);
     const baselineNo = projectHubNumber(baselineNoRow?.maxBaselineNo, 0) + 1;
-    const id = uuidv4();
 
     await projectRepository.clearCurrentExecutionBaseline(params.projectId);
-    await projectRepository.insertExecutionBaseline({
-      id,
+    const result = await projectRepository.insertExecutionBaseline({
       projectId: params.projectId,
       sourceType: params.sourceType,
       sourceId: params.sourceId,
@@ -818,11 +811,12 @@ export function createProjectWorkspaceServices(deps: CreateProjectWorkspaceServi
       createdBy: params.createdBy || null,
     });
 
+    const id = result.lastID;
     await syncProjectProcurementLinesFromBaseline(db, params.projectId, id);
     return mapProjectBaselineRow(await projectRepository.findExecutionBaselineById(id));
   }
 
-  async function getProjectWorkspaceById(db: any, projectId: string, currentUser?: Pick<AuthenticatedUser, 'id' | 'roleCodes' | 'systemRole'> | null) {
+  async function getProjectWorkspaceById(db: any, projectId: number | string, currentUser?: Pick<AuthenticatedUser, 'id' | 'roleCodes' | 'systemRole'> | null) {
     const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return null;
 

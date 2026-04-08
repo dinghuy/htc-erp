@@ -8,11 +8,11 @@ import {
 export function buildTaskWorkflowNavigation(task: TaskRecord): WorkflowNavigationTarget | null {
   const workspaceTab = String(task.actionAvailability?.workspaceTab || '').trim();
   if (task.actionAvailability?.canOpenProject && task.projectId) {
-    return buildProjectWorkspaceNavigation(task.projectId, workspaceTab || null);
+    return buildProjectWorkspaceNavigation(String(task.projectId), workspaceTab || null);
   }
 
   if (task.actionAvailability?.canOpenQuotation && task.quotationId) {
-    return buildQuotationWorkflowNavigation(task.quotationId);
+    return buildQuotationWorkflowNavigation(String(task.quotationId));
   }
 
   return null;

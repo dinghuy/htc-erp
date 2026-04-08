@@ -12,9 +12,9 @@ export type SurfaceKey = 'kanban' | 'list';
 export type DrawerMode = 'create' | 'edit';
 
 export type TaskRecord = {
-  id: string;
-  projectId?: string | null;
-  parentTaskId?: string | null;
+  id: number;
+  projectId?: number | null;
+  parentTaskId?: number | null;
   parentTaskName?: string | null;
   sortOrder?: number | null;
   subtaskCount?: number | null;
@@ -25,7 +25,7 @@ export type TaskRecord = {
   projectName?: string | null;
   name: string;
   description?: string | null;
-  assigneeId?: string | null;
+  assigneeId?: number | null;
   assigneeName?: string | null;
   status?: string | null;
   priority?: string | null;
@@ -33,12 +33,12 @@ export type TaskRecord = {
   dueDate?: string | null;
   completionPct?: number | null;
   notes?: string | null;
-  accountId?: string | null;
+  accountId?: number | null;
   accountName?: string | null;
-  leadId?: string | null;
+  leadId?: number | null;
   leadCompanyName?: string | null;
   leadContactName?: string | null;
-  quotationId?: string | null;
+  quotationId?: number | null;
   quotationNumber?: string | null;
   quotationSubject?: string | null;
   target?: string | null;
@@ -224,8 +224,8 @@ export function buildTaskForm(task: TaskRecord | null, currentUser?: any, select
   return {
     name: task?.name || '',
     description: task?.description || '',
-    projectId: String(task?.projectId || (selectedProjectId && selectedProjectId !== ALL_PROJECT ? selectedProjectId : '')),
-    assigneeId: String(task?.assigneeId || currentUser?.id || ''),
+    projectId: task?.projectId ? String(task.projectId) : (selectedProjectId && selectedProjectId !== ALL_PROJECT ? String(selectedProjectId) : ''),
+    assigneeId: task?.assigneeId ? String(task.assigneeId) : (currentUser?.id ? String(currentUser.id) : ''),
     uiStatus: task ? normalizeTaskStatus(task.status) : 'not_started',
     priority: task ? normalizePriority(task.priority) : 'medium',
     startDate: task ? taskStartDate(task) : todayKey(),
@@ -235,9 +235,9 @@ export function buildTaskForm(task: TaskRecord | null, currentUser?: any, select
     blockedReason: task?.blockedReason || '',
     taskType: task?.taskType || taskTypeValueOptions()[0]?.value || 'follow_up',
     department: task?.department || departmentValueOptions()[0] || 'Sales',
-    accountId: String(task?.accountId || ''),
-    leadId: String(task?.leadId || ''),
-    quotationId: String(task?.quotationId || ''),
+    accountId: task?.accountId ? String(task.accountId) : '',
+    leadId: task?.leadId ? String(task.leadId) : '',
+    quotationId: task?.quotationId ? String(task.quotationId) : '',
     target: task?.target || '',
     resultLinks: task?.resultLinks || '',
     output: task?.output || '',
@@ -249,8 +249,8 @@ export function buildTaskPayload(form: TaskFormState) {
   return {
     name: form.name.trim(),
     description: form.description.trim() || null,
-    projectId: form.projectId || null,
-    assigneeId: form.assigneeId || null,
+    projectId: form.projectId ? Number(form.projectId) : null,
+    assigneeId: form.assigneeId ? Number(form.assigneeId) : null,
     status: backendStatusFromUi(form.uiStatus),
     priority: form.priority,
     startDate: form.startDate || null,
@@ -260,9 +260,9 @@ export function buildTaskPayload(form: TaskFormState) {
     blockedReason: form.blockedReason.trim() || null,
     taskType: form.taskType || null,
     department: form.department || null,
-    accountId: form.accountId || null,
-    leadId: form.leadId || null,
-    quotationId: form.quotationId || null,
+    accountId: form.accountId ? Number(form.accountId) : null,
+    leadId: form.leadId ? Number(form.leadId) : null,
+    quotationId: form.quotationId ? Number(form.quotationId) : null,
     target: form.target.trim() || null,
     resultLinks: form.resultLinks.trim() || null,
     output: form.output.trim() || null,

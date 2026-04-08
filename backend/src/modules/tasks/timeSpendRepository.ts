@@ -1,10 +1,9 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../../sqlite-db';
 
 export type TimeSpendReportRow = {
-  id: string;
-  taskId: string;
-  userId: string;
+  id: number;
+  taskId: number | string;
+  userId: number | string;
   reportDate: string;
   hours: number;
   description?: string | null;
@@ -14,7 +13,7 @@ export type TimeSpendReportRow = {
 
 export function createTimeSpendRepository() {
   return {
-    findByTaskId(taskId: string): Promise<Array<TimeSpendReportRow & { projectId?: string | null }>> {
+    findByTaskId(taskId: number | string): Promise<Array<TimeSpendReportRow & { projectId?: number | string | null }>> {
       return getDb().all(
         `SELECT tsr.*, t.projectId
          FROM TimeSpendReport tsr
@@ -25,7 +24,7 @@ export function createTimeSpendRepository() {
       ) as Promise<Array<TimeSpendReportRow & { projectId?: string | null }>>;
     },
 
-    findByUserId(userId: string, from?: string, to?: string) {
+    findByUserId(userId: number | string, from?: string, to?: string) {
       const conditions = ['userId = ?'];
       const params: unknown[] = [userId];
       if (from) { conditions.push('reportDate >= ?'); params.push(from); }
@@ -36,21 +35,21 @@ export function createTimeSpendRepository() {
       );
     },
 
-    findById(id: string) {
+    findById(id: number | string) {
       return getDb().get<TimeSpendReportRow>('SELECT * FROM TimeSpendReport WHERE id = ?', [id]);
     },
 
-    async create(input: { taskId: string; userId: string; reportDate: string; hours: number; description?: string | null }) {
-      const id = uuidv4();
-      await getDb().run(
-        `INSERT INTO TimeSpendReport (id, taskId, userId, reportDate, hours, description, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-        [id, input.taskId, input.userId, input.reportDate, input.hours, input.description ?? null]
+    async create(input: { taskId: number | string; userId: number | string; reportDate: string; hours: number; description?: string | null }) {
+      const result = await getDb().run(
+        `INSERT INTO TimeSpendReport (taskId, userId, reportDate, hours, description, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        [input.taskId, input.userId, input.reportDate, input.hours, input.description ?? null]
       );
+      const id = result.lastID;
       return this.findById(id);
     },
 
-    async updateById(id: string, input: Partial<Pick<TimeSpendReportRow, 'reportDate' | 'hours' | 'description'>>) {
+    async updateById(id: number | string, input: Partial<Pick<TimeSpendReportRow, 'reportDate' | 'hours' | 'description'>>) {
       const existing = await this.findById(id);
       if (!existing) return null;
       await getDb().run(
@@ -66,15 +65,15 @@ export function createTimeSpendRepository() {
       return this.findById(id);
     },
 
-    deleteById(id: string) {
+    deleteById(id: number | string) {
       return getDb().run('DELETE FROM TimeSpendReport WHERE id = ?', [id]);
     },
 
-    deleteByTaskId(taskId: string) {
+    deleteByTaskId(taskId: number | string) {
       return getDb().run('DELETE FROM TimeSpendReport WHERE taskId = ?', [taskId]);
     },
 
-    sumHoursByTaskId(taskId: string): Promise<{ totalHours: number } | undefined> {
+    sumHoursByTaskId(taskId: number | string): Promise<{ totalHours: number } | undefined> {
       return getDb().get<{ totalHours: number }>(
         'SELECT COALESCE(SUM(hours), 0) as totalHours FROM TimeSpendReport WHERE taskId = ?',
         [taskId]

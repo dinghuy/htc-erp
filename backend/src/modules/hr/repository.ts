@@ -1,26 +1,26 @@
 import { getDb } from '../../../sqlite-db';
 
 export type DepartmentRow = {
-  id: string;
+  id?: number | string;
   name: string;
   description?: string | null;
-  parentId?: string | null;
-  teamLeadId?: string | null;
+  parentId?: number | string | null;
+  teamLeadId?: number | string | null;
   sortOrder?: number;
   createdAt?: string;
   updatedAt?: string;
 };
 
 export type HrRequestRow = {
-  id: string;
-  staffId: string;
-  departmentId?: string | null;
+  id?: number | string;
+  staffId: number | string;
+  departmentId?: number | string | null;
   requestType: string;
   description?: string | null;
   startDate: string;
   endDate: string;
   status?: string;
-  decidedBy?: string | null;
+  decidedBy?: number | string | null;
   decidedAt?: string | null;
   note?: string | null;
   createdAt?: string;
@@ -28,11 +28,11 @@ export type HrRequestRow = {
 };
 
 export type PublicHolidayRow = {
-  id: string;
+  id?: number | string;
   title: string;
   description?: string | null;
   holidayDate: string;
-  departmentId?: string | null;
+  departmentId?: number | string | null;
   createdAt?: string;
 };
 
@@ -45,16 +45,15 @@ export function createHrRepository() {
       );
     },
 
-    findDepartmentById(id: string) {
+    findDepartmentById(id: number | string) {
       return getDb().get<DepartmentRow>('SELECT * FROM Department WHERE id = ?', [id]);
     },
 
     async createDepartment(input: DepartmentRow) {
-      await getDb().run(
-        `INSERT INTO Department (id, name, description, parentId, teamLeadId, sortOrder, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      const result = await getDb().run(
+        `INSERT INTO Department (name, description, parentId, teamLeadId, sortOrder, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
         [
-          input.id,
           input.name,
           input.description ?? null,
           input.parentId ?? null,
@@ -62,10 +61,10 @@ export function createHrRepository() {
           input.sortOrder ?? 0,
         ]
       );
-      return this.findDepartmentById(input.id);
+      return this.findDepartmentById(result.lastID);
     },
 
-    async updateDepartmentById(id: string, input: Omit<DepartmentRow, 'id' | 'createdAt'>) {
+    async updateDepartmentById(id: number | string, input: Omit<DepartmentRow, 'id' | 'createdAt'>) {
       await getDb().run(
         `UPDATE Department SET name = ?, description = ?, parentId = ?, teamLeadId = ?, sortOrder = ?, updatedAt = datetime('now')
          WHERE id = ?`,
@@ -81,12 +80,12 @@ export function createHrRepository() {
       return this.findDepartmentById(id);
     },
 
-    deleteDepartmentById(id: string) {
+    deleteDepartmentById(id: number | string) {
       return getDb().run('DELETE FROM Department WHERE id = ?', [id]);
     },
 
     // ── HrRequest ───────────────────────────────────────────────────────────
-    findAllHrRequests(filters?: { staffId?: string; departmentId?: string; status?: string }) {
+    findAllHrRequests(filters?: { staffId?: number | string; departmentId?: number | string; status?: string }) {
       const conditions: string[] = [];
       const params: unknown[] = [];
       if (filters?.staffId) {
@@ -108,16 +107,15 @@ export function createHrRepository() {
       );
     },
 
-    findHrRequestById(id: string) {
+    findHrRequestById(id: number | string) {
       return getDb().get<HrRequestRow>('SELECT * FROM HrRequest WHERE id = ?', [id]);
     },
 
     async createHrRequest(input: HrRequestRow) {
-      await getDb().run(
-        `INSERT INTO HrRequest (id, staffId, departmentId, requestType, description, startDate, endDate, status, decidedBy, decidedAt, note, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      const result = await getDb().run(
+        `INSERT INTO HrRequest (staffId, departmentId, requestType, description, startDate, endDate, status, decidedBy, decidedAt, note, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
         [
-          input.id,
           input.staffId,
           input.departmentId ?? null,
           input.requestType,
@@ -130,10 +128,10 @@ export function createHrRepository() {
           input.note ?? null,
         ]
       );
-      return this.findHrRequestById(input.id);
+      return this.findHrRequestById(result.lastID);
     },
 
-    async updateHrRequestById(id: string, input: Partial<Omit<HrRequestRow, 'id' | 'createdAt'>>) {
+    async updateHrRequestById(id: number | string, input: Partial<Omit<HrRequestRow, 'id' | 'createdAt'>>) {
       const existing = await this.findHrRequestById(id);
       if (!existing) return null;
       await getDb().run(
@@ -157,12 +155,12 @@ export function createHrRepository() {
       return this.findHrRequestById(id);
     },
 
-    deleteHrRequestById(id: string) {
+    deleteHrRequestById(id: number | string) {
       return getDb().run('DELETE FROM HrRequest WHERE id = ?', [id]);
     },
 
-    // ── PublicHoliday ───────────────────────────────────────────────────────
-    findAllPublicHolidays(departmentId?: string) {
+    // ── Public Holiday ───────────────────────────────────────────────────────
+    findAllPublicHolidays(departmentId?: number | string) {
       return departmentId
         ? getDb().all<PublicHolidayRow>(
             'SELECT * FROM PublicHoliday WHERE departmentId = ? OR departmentId IS NULL ORDER BY holidayDate ASC',
@@ -171,26 +169,25 @@ export function createHrRepository() {
         : getDb().all<PublicHolidayRow>('SELECT * FROM PublicHoliday ORDER BY holidayDate ASC');
     },
 
-    findPublicHolidayById(id: string) {
+    findPublicHolidayById(id: number | string) {
       return getDb().get<PublicHolidayRow>('SELECT * FROM PublicHoliday WHERE id = ?', [id]);
     },
 
     async createPublicHoliday(input: PublicHolidayRow) {
-      await getDb().run(
-        `INSERT INTO PublicHoliday (id, title, description, holidayDate, departmentId, createdAt)
-         VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+      const result = await getDb().run(
+        `INSERT INTO PublicHoliday (title, description, holidayDate, departmentId, createdAt)
+         VALUES (?, ?, ?, ?, datetime('now'))`,
         [
-          input.id,
           input.title,
           input.description ?? null,
           input.holidayDate,
           input.departmentId ?? null,
         ]
       );
-      return this.findPublicHolidayById(input.id);
+      return this.findPublicHolidayById(result.lastID);
     },
 
-    deletePublicHolidayById(id: string) {
+    deletePublicHolidayById(id: number | string) {
       return getDb().run('DELETE FROM PublicHoliday WHERE id = ?', [id]);
     },
   };

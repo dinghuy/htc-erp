@@ -81,9 +81,13 @@ function expandLoopbackCorsOrigins(origin: string) {
   return [origin];
 }
 
+const configuredOrigins = process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:4173';
+const externalIpOrigins = process.env.IP_NETWORK ? `http://${process.env.IP_NETWORK}:5173,http://${process.env.IP_NETWORK}:4173` : '';
+const combinedOrigins = [configuredOrigins, externalIpOrigins].filter(Boolean).join(',');
+
 const allowedOrigins = Array.from(
   new Set(
-    (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:4173')
+    combinedOrigins
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)

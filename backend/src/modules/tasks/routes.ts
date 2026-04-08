@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { createTaskRepository } from './repository';
 import { todoRepository, VALID_TODO_PRIORITIES, type ToDoPriority } from './todoRepository';
 
@@ -111,8 +110,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
     const name = stringValue(req.body?.name);
     if (!name) return res.status(400).json({ error: 'name is required' });
 
-    const id = uuidv4();
-    await taskRepository.createTaskViewPreset(id, userId, {
+    const result = await taskRepository.createTaskViewPreset(userId, {
       name,
       query: optionalString(req.body?.query),
       projectId: optionalString(req.body?.projectId),
@@ -125,6 +123,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       isDefault: Boolean(req.body?.isDefault),
     });
 
+    const id = result.lastID;
     const created = await taskRepository.findTaskViewPresetByIdForUser(id, userId);
     res.status(201).json(normalizeTaskViewPresetRow(created));
   });
@@ -257,11 +256,10 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
     const parentTaskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
     const parentTask = await taskRepository.getTaskWithLinksById(parentTaskId);
     if (!parentTask) return res.status(404).json({ error: 'Parent task not found' });
-    const id = uuidv4();
     const name = stringValue(req.body?.name);
     if (!name) return res.status(400).json({ error: 'name is required' });
 
-    await taskRepository.createTask(id, {
+    const result = await taskRepository.createTask({
       projectId: req.body?.projectId ?? parentTask.projectId ?? null,
       parentTaskId,
       name,
@@ -284,7 +282,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       department: req.body?.department ?? parentTask.department ?? null,
       blockedReason: req.body?.blockedReason,
     });
-
+    const id = result.lastID;
     res.status(201).json(await taskRepository.getTaskWithLinksById(id));
   }));
 
@@ -351,7 +349,6 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
   }));
 
   app.post('/api/tasks', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const id = uuidv4();
     const {
       projectId,
       parentTaskId,
@@ -378,7 +375,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
 
     if (!name) return res.status(400).json({ error: 'name is required' });
 
-    await taskRepository.createTask(id, {
+    const result = await taskRepository.createTask({
       projectId,
       parentTaskId,
       name,
@@ -401,7 +398,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       department,
       blockedReason,
     });
-
+    const id = result.lastID;
     res.status(201).json(await taskRepository.getTaskWithLinksById(id));
   }));
 
@@ -444,7 +441,6 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       return res.json(await taskRepository.getTaskWithLinksById(existing.id));
     }
 
-    const id = typeof req.body?.id === 'string' && req.body.id.trim() ? req.body.id.trim() : uuidv4();
     const status = typeof req.body?.status === 'string' && req.body.status.trim() ? req.body.status.trim() : 'pending';
     const priority = typeof req.body?.priority === 'string' && req.body.priority.trim() ? req.body.priority.trim() : 'medium';
     const startDate = typeof req.body?.startDate === 'string' && req.body.startDate.trim()
@@ -458,7 +454,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       ? req.body.accountId.trim()
       : (quotation.accountId || null);
 
-    await taskRepository.createTask(id, {
+    const result = await taskRepository.createTask({
       projectId,
       name: taskName,
       description: dedupeDescription,
@@ -480,7 +476,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       department,
       blockedReason: typeof req.body?.blockedReason === 'string' ? req.body.blockedReason : null,
     });
-
+    const id = result.lastID;
     res.status(201).json(await taskRepository.getTaskWithLinksById(id));
   }));
 

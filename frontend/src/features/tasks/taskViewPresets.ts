@@ -1,11 +1,11 @@
 import { ALL_PROJECT, type SurfaceKey } from './taskDomain';
 
 export type TaskViewPresetRecord = {
-  id: string;
+  id: number;
   name: string;
   query?: string | null;
-  projectId?: string | null;
-  assigneeId?: string | null;
+  projectId?: number | null;
+  assigneeId?: number | null;
   priority?: string | null;
   status?: string | null;
   onlyOverdue?: boolean | null;
@@ -31,11 +31,11 @@ function normalizeText(value: unknown) {
 
 export function normalizeTaskViewPreset(raw: any): TaskViewPresetRecord {
   return {
-    id: String(raw?.id || ''),
+    id: Number(raw?.id || 0),
     name: normalizeText(raw?.name),
     query: normalizeText(raw?.query) || null,
-    projectId: normalizeText(raw?.projectId) || null,
-    assigneeId: normalizeText(raw?.assigneeId) || null,
+    projectId: raw?.projectId ? Number(raw.projectId) : null,
+    assigneeId: raw?.assigneeId ? Number(raw.assigneeId) : null,
     priority: normalizeText(raw?.priority) || null,
     status: normalizeText(raw?.status) || null,
     onlyOverdue: Boolean(raw?.onlyOverdue),
@@ -55,8 +55,8 @@ export function collectTaskViewPresets(payload: any): TaskViewPresetRecord[] {
 export function snapshotFromTaskViewPreset(preset: TaskViewPresetRecord): TaskViewSnapshot {
   return {
     search: preset.query || '',
-    selectedProjectId: preset.projectId || ALL_PROJECT,
-    selectedAssigneeId: preset.assigneeId || '',
+    selectedProjectId: preset.projectId ? String(preset.projectId) : ALL_PROJECT,
+    selectedAssigneeId: preset.assigneeId ? String(preset.assigneeId) : '',
     selectedPriority: preset.priority || '',
     selectedStatus: preset.status || '',
     onlyOverdue: Boolean(preset.onlyOverdue),
@@ -69,8 +69,8 @@ export function buildTaskViewPresetPayload(name: string, snapshot: TaskViewSnaps
   return {
     name: normalizeText(name),
     query: normalizeText(snapshot.search) || null,
-    projectId: snapshot.selectedProjectId !== ALL_PROJECT ? snapshot.selectedProjectId : null,
-    assigneeId: snapshot.selectedAssigneeId || null,
+    projectId: snapshot.selectedProjectId !== ALL_PROJECT ? Number(snapshot.selectedProjectId) : null,
+    assigneeId: snapshot.selectedAssigneeId ? Number(snapshot.selectedAssigneeId) : null,
     priority: snapshot.selectedPriority || null,
     status: snapshot.selectedStatus || null,
     onlyOverdue: Boolean(snapshot.onlyOverdue),

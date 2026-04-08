@@ -14,7 +14,7 @@ export type TaskQuickView = {
   snapshot: TaskViewSnapshot;
 };
 
-export function buildTaskQuickViews(tasks: TaskRecord[], currentUserId?: string | null): TaskQuickView[] {
+export function buildTaskQuickViews(tasks: TaskRecord[], currentUserId?: number | string | null): TaskQuickView[] {
   const views: TaskQuickView[] = [
     {
       id: 'blocked',
@@ -82,11 +82,11 @@ export function buildTaskQuickViews(tasks: TaskRecord[], currentUserId?: string 
     views.unshift({
       id: 'assigned-to-me',
       label: 'Assigned to me',
-      count: tasks.filter((task) => task.assigneeId === currentUserId).length,
+      count: tasks.filter((task) => currentUserId && Number(task.assigneeId) === Number(currentUserId)).length,
       snapshot: {
         search: '',
         selectedProjectId: '__all__',
-        selectedAssigneeId: currentUserId,
+        selectedAssigneeId: String(currentUserId || ''),
         selectedPriority: '',
         selectedStatus: '',
         onlyOverdue: false,

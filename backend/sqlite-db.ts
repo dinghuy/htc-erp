@@ -1,6 +1,5 @@
 import path from 'path';
 import { type Database } from 'sqlite';
-import { v4 as uuidv4 } from 'uuid';
 import { ensureDefaultAdmin } from './src/persistence/sqlite/defaultAdmin';
 import { bootstrapSqliteSchema } from './src/persistence/sqlite/bootstrap';
 import { finalizeSqliteSchema } from './src/persistence/sqlite/finalize';
@@ -20,7 +19,7 @@ export async function initDb() {
   await bootstrapSqliteSchema(db);
   await finalizeSqliteSchema(db);
   await ensureDefaultAdmin(db, {
-    createId: uuidv4,
+    createId: () => 0,
     username: process.env.BOOTSTRAP_DEFAULT_ADMIN_USERNAME,
     password: process.env.BOOTSTRAP_DEFAULT_ADMIN_PASSWORD,
   });

@@ -16,7 +16,7 @@ import { ui } from './ui/styles';
 import { buildApprovalsActions } from './work/phaseDrivenActions';
 
 type ApprovalRecord = {
-  id: string;
+  id: number;
   title: string;
   requestType: string;
   status: string;
@@ -25,10 +25,10 @@ type ApprovalRecord = {
   projectCode?: string | null;
   projectName?: string | null;
   requestedByName?: string | null;
-  requestedBy?: string | null;
+  requestedBy?: number | null;
   department?: string | null;
   approverRole?: string | null;
-  approverUserId?: string | null;
+  approverUserId?: number | null;
   actionAvailability?: {
     lane?: string | null;
     canDecide?: boolean;
@@ -116,14 +116,14 @@ export function Approvals({
   const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [busyId, setBusyId] = useState('');
+  const [busyId, setBusyId] = useState<number | ''>('');
   const [laneFilter, setLaneFilter] = useState<string>('');
-  const [approvalThreadIndex, setApprovalThreadIndex] = useState<Record<string, { threadId: string | null; messageCount: number }>>({});
+  const [approvalThreadIndex, setApprovalThreadIndex] = useState<Record<number, { threadId: string | null; messageCount: number }>>({});
   const [approvalThread, setApprovalThread] = useState<any | null>(null);
   const [approvalThreadMessages, setApprovalThreadMessages] = useState<any[]>([]);
   const [approvalThreadDraft, setApprovalThreadDraft] = useState('');
   const [sendingThread, setSendingThread] = useState(false);
-  const [pendingOpenApprovalId, setPendingOpenApprovalId] = useState<string | null>(null);
+  const [pendingOpenApprovalId, setPendingOpenApprovalId] = useState<number | null>(null);
 
   const copyByMode: Record<string, { title: string; description: string }> = {
     sales: {
@@ -208,7 +208,7 @@ export function Approvals({
       setLaneFilter(navContext.filters.approvalLane);
     }
     if (navContext?.filters?.approvalId && navContext?.filters?.openThread) {
-      setPendingOpenApprovalId(navContext.filters.approvalId);
+      setPendingOpenApprovalId(Number(navContext.filters.approvalId));
     }
     void load();
   }, [currentUser.token]);
@@ -231,7 +231,7 @@ export function Approvals({
     setPendingOpenApprovalId(null);
   }, [pendingOpenApprovalId, loading, approvals]);
 
-  const decide = async (approvalId: string, decision: 'approved' | 'rejected' | 'changes_requested') => {
+  const decide = async (approvalId: number, decision: 'approved' | 'rejected' | 'changes_requested') => {
     setBusyId(approvalId);
     try {
       await requestJsonWithAuth(
@@ -393,7 +393,7 @@ export function Approvals({
         {loading ? <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Đang tải approvals...</div> : filteredApprovals.length ? (
           <div data-testid={QA_TEST_IDS.approvals.listSection} style={{ display: 'grid', gap: '10px' }}>{filteredApprovals.map((approval) => {
             const lane = approval.actionAvailability?.lane || resolveApprovalLane(approval);
-            const isOwner = !approval.approverUserId || approval.approverUserId === currentUser.id;
+            const isOwner = !approval.approverUserId || Number(approval.approverUserId) === Number(currentUser.id);
             const canPreviewDecide = Boolean(
               currentUser.isRolePreviewActive
               && currentUser.baseRoleCodes?.includes('admin')

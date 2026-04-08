@@ -190,16 +190,16 @@ export function KanbanBoard({
   onOpenWorkflow,
 }: {
   tasks: TaskRecord[];
-  draggingTaskId: string;
+  draggingTaskId: number | '';
   hoveredStatus: UiTaskStatus | '';
-  updatingTaskId: string;
+  updatingTaskId: number | '';
   canDrag: boolean;
-  selectedTaskIds?: string[];
-  onDragStart: (taskId: string) => void;
+  selectedTaskIds?: number[];
+  onDragStart: (taskId: number) => void;
   onHoverStatus: (status: UiTaskStatus | '') => void;
   onDropStatus: (status: UiTaskStatus) => void;
   onOpenTask: (task: TaskRecord) => void;
-  onToggleTaskSelection?: (taskId: string, checked: boolean) => void;
+  onToggleTaskSelection?: (taskId: number, checked: boolean) => void;
   onOpenWorkflow: (task: TaskRecord) => void;
 }) {
   const columns = (Object.keys(UI_STATUS_META) as UiTaskStatus[]).map((status) => ({
@@ -377,11 +377,11 @@ export function TaskList({
   tasks: TaskRecord[];
   groupBy?: TaskGroupBy;
   isMobile?: boolean;
-  selectedTaskIds?: string[];
-  onToggleTask?: (taskId: string, checked: boolean) => void;
+  selectedTaskIds?: number[];
+  onToggleTask?: (taskId: number, checked: boolean) => void;
   onToggleAllTasks?: (checked: boolean) => void;
   canReorderProjectTasks?: boolean;
-  onMoveProjectTask?: (taskId: string, direction: 'up' | 'down') => void;
+  onMoveProjectTask?: (taskId: number, direction: 'up' | 'down') => void;
   onOpenTask: (task: TaskRecord) => void;
   onOpenWorkflow: (task: TaskRecord) => void;
 }) {
@@ -648,24 +648,24 @@ export function TaskDrawer({
   workHubSummary?: TaskWorkHubSummary | null;
   checklistItems?: any[];
   checklistDraft?: string;
-  checklistEditingId?: string;
+  checklistEditingId?: number | '';
   checklistEditingTitle?: string;
   onChecklistDraftChange?: (value: string) => void;
   onAddChecklistItem?: () => void;
   onToggleChecklistItem?: (item: any, done: boolean) => void;
-  onDeleteChecklistItem?: (itemId: string) => void;
+  onDeleteChecklistItem?: (itemId: number) => void;
   onStartChecklistEdit?: (item: any) => void;
   onChecklistEditingTitleChange?: (value: string) => void;
   onSaveChecklistItem?: () => void;
   onCancelChecklistEdit?: () => void;
   subtasks?: TaskRecord[];
   subtaskDraft?: string;
-  subtaskEditingId?: string;
+  subtaskEditingId?: number | '';
   subtaskEditingTitle?: string;
   onSubtaskDraftChange?: (value: string) => void;
   onAddSubtask?: () => void;
-  onMoveSubtask?: (taskId: string, direction: 'up' | 'down') => void;
-  onDeleteSubtask?: (taskId: string) => void;
+  onMoveSubtask?: (taskId: number, direction: 'up' | 'down') => void;
+  onDeleteSubtask?: (taskId: number) => void;
   onStartSubtaskEdit?: (task: TaskRecord) => void;
   onSubtaskEditingTitleChange?: (value: string) => void;
   onSaveSubtask?: () => void;

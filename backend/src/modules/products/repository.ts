@@ -3,7 +3,7 @@ import { getDb } from '../../../sqlite-db';
 export type ProductAssetKind = 'image' | 'video' | 'document';
 
 export type ProductPersistenceRecord = {
-  id: string;
+  id?: number | string;
   sku: unknown;
   name: unknown;
   category: unknown;
@@ -39,11 +39,11 @@ export function createProductRepository() {
         : db.all('SELECT * FROM Product ORDER BY name');
     },
 
-    findProductById(id: string) {
+    findProductById(id: number | string) {
       return getDb().get('SELECT * FROM Product WHERE id = ?', [id]);
     },
 
-    findProductQbuStateById(id: string) {
+    findProductQbuStateById(id: number | string) {
       return getDb().get(
         'SELECT qbuData, qbuUpdatedAt, qbuRateSource, qbuRateDate, qbuRateValue FROM Product WHERE id = ?',
         [id],
@@ -67,10 +67,9 @@ export function createProductRepository() {
     insertProduct(record: ProductPersistenceRecord) {
       return getDb().run(
         `INSERT INTO Product (
-          id, sku, name, category, unit, basePrice, currency, specifications, technicalSpecs, media, productImages, productVideos, productDocuments, qbuData, qbuUpdatedAt, qbuRateSource, qbuRateDate, qbuRateValue, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sku, name, category, unit, basePrice, currency, specifications, technicalSpecs, media, productImages, productVideos, productDocuments, qbuData, qbuUpdatedAt, qbuRateSource, qbuRateDate, qbuRateValue, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          record.id,
           record.sku,
           record.name,
           record.category,
@@ -93,7 +92,7 @@ export function createProductRepository() {
       );
     },
 
-    updateProductById(id: string, record: Omit<ProductPersistenceRecord, 'id'>) {
+    updateProductById(id: number | string, record: Omit<ProductPersistenceRecord, 'id'>) {
       return getDb().run(
         `UPDATE Product
          SET sku=?, name=?, category=?, unit=?, basePrice=?, currency=?, specifications=?, technicalSpecs=?, media=?, productImages=?, productVideos=?, productDocuments=?, qbuData=?, qbuUpdatedAt=?, qbuRateSource=?, qbuRateDate=?, qbuRateValue=?, status=?
@@ -122,12 +121,12 @@ export function createProductRepository() {
       );
     },
 
-    updateProductAssetsByKind(productId: string, kind: ProductAssetKind, assetsJson: string) {
+    updateProductAssetsByKind(productId: number | string, kind: ProductAssetKind, assetsJson: string) {
       const field = getAssetField(kind);
       return getDb().run(`UPDATE Product SET ${field} = ? WHERE id = ?`, [assetsJson, productId]);
     },
 
-    deleteProductById(id: string) {
+    deleteProductById(id: number | string) {
       return getDb().run('DELETE FROM Product WHERE id = ?', [id]);
     },
   };

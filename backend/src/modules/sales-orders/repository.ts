@@ -18,7 +18,7 @@ export function createSalesOrderRepository() {
     );
   }
 
-  async function listReleaseApprovalsByProjectIds(projectIds: string[]) {
+  async function listReleaseApprovalsByProjectIds(projectIds: (number | string)[]) {
     if (!projectIds.length) return [];
     const placeholders = projectIds.map(() => '?').join(', ');
     return getDb().all(
@@ -35,7 +35,7 @@ export function createSalesOrderRepository() {
     );
   }
 
-  async function findDetailedById(id: string) {
+  async function findDetailedById(id: number | string) {
     return getDb().get(
       `SELECT so.*,
               a.companyName AS accountName,
@@ -51,15 +51,15 @@ export function createSalesOrderRepository() {
     );
   }
 
-  async function findById(id: string) {
+  async function findById(id: number | string) {
     return getDb().get(`SELECT * FROM SalesOrder WHERE id = ?`, [id]);
   }
 
-  async function findQuotationSummaryById(id: string) {
+  async function findQuotationSummaryById(id: number | string) {
     return getDb().get(`SELECT id, projectId FROM Quotation WHERE id = ?`, [id]);
   }
 
-  async function findReleaseApprovalContextBySalesOrderId(id: string) {
+  async function findReleaseApprovalContextBySalesOrderId(id: number | string) {
     return getDb().get(
       `SELECT so.id,
               so.status,
@@ -74,7 +74,7 @@ export function createSalesOrderRepository() {
     );
   }
 
-  async function findPendingReleaseApproval(projectId: string | null, quotationId: string | null, title: string) {
+  async function findPendingReleaseApproval(projectId: number | string | null, quotationId: number | string | null, title: string) {
     return getDb().get(
       `SELECT * FROM ApprovalRequest
        WHERE requestType = 'sales_order_release'
@@ -100,20 +100,18 @@ export function createSalesOrderRepository() {
   }
 
   async function createReleaseApproval(input: {
-    id: string;
-    projectId: string | null;
-    quotationId: string | null;
-    requestedBy: string | null;
-    approverUserId: string | null;
+    projectId: number | string | null;
+    quotationId: number | string | null;
+    requestedBy: number | string | null;
+    approverUserId: number | string | null;
     title: string;
     note: string | null;
   }) {
-    await getDb().run(
+    const result = await getDb().run(
       `INSERT INTO ApprovalRequest (
-        id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, note
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.quotationId,
         'sales_order_release',
@@ -126,14 +124,14 @@ export function createSalesOrderRepository() {
         input.note,
       ],
     );
-    return findApprovalRequestById(input.id);
+    return findApprovalRequestById(result.lastID);
   }
 
-  async function findApprovalRequestById(id: string) {
+  async function findApprovalRequestById(id: number | string) {
     return getDb().get(`SELECT * FROM ApprovalRequest WHERE id = ?`, [id]);
   }
 
-  async function findUpdateContextBySalesOrderId(id: string) {
+  async function findUpdateContextBySalesOrderId(id: number | string) {
     return getDb().get(
       `SELECT so.id, so.status, q.projectId AS projectId, q.status AS quotationStatus
        FROM SalesOrder so
@@ -143,7 +141,7 @@ export function createSalesOrderRepository() {
     );
   }
 
-  async function updateStatusAndNotes(id: string, status: string, notes: string | null) {
+  async function updateStatusAndNotes(id: number | string, status: string, notes: string | null) {
     await getDb().run(
       `UPDATE SalesOrder
        SET status = ?, notes = COALESCE(?, notes), updatedAt = datetime('now')
@@ -153,7 +151,7 @@ export function createSalesOrderRepository() {
     return findById(id);
   }
 
-  async function promoteProjectStageAfterRelease(projectId: string) {
+  async function promoteProjectStageAfterRelease(projectId: number | string) {
     return getDb().run(
       `UPDATE Project
        SET projectStage = CASE WHEN projectStage IN ('delivery_active', 'delivery_completed', 'closed') THEN projectStage ELSE 'order_released' END,

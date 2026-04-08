@@ -1,7 +1,7 @@
 import { getDb } from '../../../sqlite-db';
 
 export type SalespersonRow = {
-  id: string;
+  id?: number | string;
   name: string;
   email?: string | null;
   phone?: string | null;
@@ -13,21 +13,20 @@ export function createSalespersonRepository() {
       return getDb().all('SELECT * FROM SalesPerson ORDER BY name') as Promise<SalespersonRow[]>;
     },
 
-    findById(id: string) {
+    findById(id: number | string) {
       return getDb().get<SalespersonRow>('SELECT * FROM SalesPerson WHERE id = ?', [id]);
     },
 
     async create(input: SalespersonRow) {
-      await getDb().run('INSERT INTO SalesPerson (id, name, email, phone) VALUES (?, ?, ?, ?)', [
-        input.id,
+      const result = await getDb().run('INSERT INTO SalesPerson (name, email, phone) VALUES (?, ?, ?)', [
         input.name,
         input.email,
         input.phone,
       ]);
-      return this.findById(input.id);
+      return this.findById(result.lastID);
     },
 
-    deleteById(id: string) {
+    deleteById(id: number | string) {
       return getDb().run('DELETE FROM SalesPerson WHERE id = ?', [id]);
     },
   };

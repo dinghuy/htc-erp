@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../../sqlite-db';
 import { canCreateSalesOrderFromQuotation } from '../../shared/workflow/revenueFlow';
 
@@ -31,8 +30,8 @@ type CreateProjectOrchestrationServicesDeps = {
   TASK_TEMPLATE_LIBRARY: Record<string, TaskTemplate[]>;
   APPROVAL_TEMPLATE_LIBRARY: Record<string, ApprovalTemplate[]>;
   DOCUMENT_TEMPLATE_LIBRARY: Record<string, DocumentTemplate[]>;
-  resolveAssigneeId: (db: any, preferredAssigneeId: unknown, salesperson: unknown, fallbackUserId: string | null) => Promise<string | null>;
-  getTaskWithLinksById: (db: any, id: string) => Promise<any>;
+  resolveAssigneeId: (db: any, preferredAssigneeId: unknown, salesperson: unknown, fallbackUserId: number | string | null) => Promise<number | string | null>;
+  getTaskWithLinksById: (db: any, id: number | string) => Promise<any>;
   normalizeProjectStage: (value: unknown, fallback?: string) => string;
 };
 
@@ -54,17 +53,15 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
     return db || getDb();
   }
 
-  async function autoCreateProjectForQuotation(db: any, payload: any, actorUserId: string | null) {
+  async function autoCreateProjectForQuotation(db: any, payload: any, actorUserId: number | string | null) {
     const database = resolveDb(db);
-    const id = uuidv4();
     const nameSource = String(payload.subject || payload.quoteNumber || 'Untitled project').trim() || 'Untitled project';
     const projectStage = normalizeProjectStage(payload.projectStage, 'quoting');
     const managerId = await resolveAssigneeId(database, payload.managerId, payload.salesperson, actorUserId);
-    await database.run(
-      `INSERT INTO Project (id, code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    const result = await database.run(
+      `INSERT INTO Project (code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        id,
         payload.projectCode || payload.quoteNumber || null,
         nameSource,
         payload.projectDescription || payload.subject || null,
@@ -76,16 +73,16 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
         payload.projectStatus || 'pending',
       ]
     );
-    return id;
+    return result.lastID;
   }
 
   async function createProjectTasksFromTemplate(
     db: any,
     params: {
-      projectId: string;
+      projectId: number | string;
       templateKey: string;
       quotation: any | null;
-      actorUserId: string | null;
+      actorUserId: number | string | null;
       requestedAssigneeId?: unknown;
     }
   ) {
@@ -107,14 +104,12 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
         params.quotation?.salesperson,
         params.actorUserId
       );
-      const id = uuidv4();
-      await database.run(
+      const result = await database.run(
         `INSERT INTO Task (
-          id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
+          projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
           notes, accountId, leadId, quotationId, target, resultLinks, output, reportDate, taskType, department, blockedReason
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          id,
           params.projectId,
           template.name,
           template.description,
@@ -137,6 +132,7 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
           null,
         ]
       );
+      const id = result.lastID;
       const row = await getTaskWithLinksById(database, id);
       if (row) createdTasks.push(row);
     }
@@ -146,10 +142,10 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
   async function createApprovalRequestsFromTemplate(
     db: any,
     params: {
-      projectId: string;
+      projectId: number | string;
       templateKey: string;
       quotation: any | null;
-      actorUserId: string | null;
+      actorUserId: number | string | null;
     }
   ) {
     const database = resolveDb(db);
@@ -170,13 +166,11 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
         `SELECT id, fullName FROM User WHERE LOWER(systemRole) = ? ORDER BY createdAt ASC LIMIT 1`,
         [String(template.approverRole).toLowerCase()]
       );
-      const id = uuidv4();
-      await database.run(
+      const result = await database.run(
         `INSERT INTO ApprovalRequest (
-          id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          id,
           params.projectId,
           params.quotation?.id || null,
           template.requestType,
@@ -190,6 +184,7 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
           `AUTO:${dedupeKey}`,
         ]
       );
+      const id = result.lastID;
       const row = await database.get(`SELECT * FROM ApprovalRequest WHERE id = ?`, [id]);
       if (row) created.push(row);
     }
@@ -199,7 +194,7 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
   async function createProjectDocumentsFromTemplate(
     db: any,
     params: {
-      projectId: string;
+      projectId: number | string;
       templateKey: string;
       quotation: any | null;
     }
@@ -217,13 +212,11 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
         created.push(existing);
         continue;
       }
-      const id = uuidv4();
-      await database.run(
+      const result = await database.run(
         `INSERT INTO ProjectDocument (
-          id, projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          id,
           params.projectId,
           params.quotation?.id || null,
           template.documentCode,
@@ -235,13 +228,14 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
           null,
         ]
       );
+      const id = result.lastID;
       const row = await database.get(`SELECT * FROM ProjectDocument WHERE id = ?`, [id]);
       if (row) created.push(row);
     }
     return created;
   }
 
-  async function createSalesOrderFromQuotation(db: any, quotationId: string) {
+  async function createSalesOrderFromQuotation(db: any, quotationId: number | string) {
     const database = resolveDb(db);
     const quotation = await database.get(`SELECT * FROM Quotation WHERE id = ?`, [quotationId]);
     if (!quotation) {
@@ -262,15 +256,12 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
       return { created: false, salesOrder };
     }
 
-    const id = uuidv4();
-    const orderNumber = `SO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${id.slice(0, 6).toUpperCase()}`;
-    await database.run(
+    const result = await database.run(
       `INSERT INTO SalesOrder (
-        id, orderNumber, quotationId, accountId, status, currency, items, subtotal, taxTotal, grandTotal, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        orderNumber, quotationId, accountId, status, currency, items, subtotal, taxTotal, grandTotal, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        id,
-        orderNumber,
+        `SO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
         quotationId,
         quotation.accountId || null,
         'draft',
@@ -282,11 +273,14 @@ export function createProjectOrchestrationServices(deps: CreateProjectOrchestrat
         `Created from quotation ${quotation.quoteNumber || quotationId}`,
       ]
     );
+    const id = result.lastID;
+    const orderNumberWithId = `SO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(id).padStart(6, '0')}`;
+    await database.run(`UPDATE SalesOrder SET orderNumber = ? WHERE id = ?`, [orderNumberWithId, id]);
     const salesOrder = await database.get(`SELECT * FROM SalesOrder WHERE id = ?`, [id]);
     return { created: true, salesOrder };
   }
 
-  async function resolveProjectHandoffQuotation(db: any, projectId: string, preferredQuotationId?: string | null) {
+  async function resolveProjectHandoffQuotation(db: any, projectId: number | string, preferredQuotationId?: number | string | null) {
     const database = resolveDb(db);
     if (preferredQuotationId) {
       const requested = await database.get(`SELECT * FROM Quotation WHERE id = ? AND projectId = ?`, [preferredQuotationId, projectId]);

@@ -23,28 +23,28 @@ export function settingsPreviewPresetTestId(presetKey: string) {
   return `settings-role-preview-preset-${slugify(presetKey)}`;
 }
 
-export function projectCardTestId(projectId: string) {
-  return `project-card-${slugify(projectId)}`;
+export function projectCardTestId(projectId: number | string) {
+  return `project-card-${slugify(String(projectId))}`;
 }
 
-export function projectWorkspaceButtonTestId(projectId: string) {
-  return `project-open-workspace-${slugify(projectId)}`;
+export function projectWorkspaceButtonTestId(projectId: number | string) {
+  return `project-open-workspace-${slugify(String(projectId))}`;
 }
 
-export function projectDetailsButtonTestId(projectId: string) {
-  return `project-open-details-${slugify(projectId)}`;
+export function projectDetailsButtonTestId(projectId: number | string) {
+  return `project-open-details-${slugify(String(projectId))}`;
 }
 
 export function approvalLaneButtonTestId(lane: string) {
   return `approval-lane-${slugify(lane)}`;
 }
 
-export function approvalCardTestId(approvalId: string) {
-  return `approval-card-${slugify(approvalId)}`;
+export function approvalCardTestId(approvalId: number | string) {
+  return `approval-card-${slugify(String(approvalId))}`;
 }
 
-export function approvalActionButtonTestId(approvalId: string, action: 'approve' | 'reject' | 'changes_requested') {
-  return `approval-${action}-${slugify(approvalId)}`;
+export function approvalActionButtonTestId(approvalId: number | string, action: 'approve' | 'reject' | 'changes_requested') {
+  return `approval-${action}-${slugify(String(approvalId))}`;
 }
 
 export function workspaceTabTestId(tabKey: ProjectWorkspaceTabKey) {

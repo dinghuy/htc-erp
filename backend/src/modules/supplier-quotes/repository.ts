@@ -2,14 +2,14 @@ import { getDb } from '../../../sqlite-db';
 
 export type SupplierQuoteFilters = {
   category?: string;
-  projectId?: string;
-  linkedQuotationId?: string;
+  projectId?: number | string;
+  linkedQuotationId?: number | string;
 };
 
 export type SupplierQuoteWriteInput = {
-  supplierId: unknown;
-  projectId: string | null;
-  linkedQuotationId: string | null;
+  supplierId: number | string;
+  projectId: number | string | null;
+  linkedQuotationId: number | string | null;
   category: unknown;
   quoteDate: unknown;
   validUntil: unknown;
@@ -51,11 +51,11 @@ export function createSupplierQuoteRepository() {
       );
     },
 
-    findById(id: string) {
+    findById(id: number | string) {
       return getDb().get('SELECT * FROM SupplierQuote WHERE id = ?', [id]);
     },
 
-    async updateById(id: string, input: SupplierQuoteWriteInput) {
+    async updateById(id: number | string, input: SupplierQuoteWriteInput) {
       await getDb().run(
         `UPDATE SupplierQuote SET supplierId=?, projectId=?, linkedQuotationId=?, category=?, quoteDate=?, validUntil=?, items=?, attachments=?, changeReason=?, status=? WHERE id=?`,
         [
@@ -76,7 +76,7 @@ export function createSupplierQuoteRepository() {
       return this.findById(id);
     },
 
-    deleteById(id: string) {
+    deleteById(id: number | string) {
       return getDb().run('DELETE FROM SupplierQuote WHERE id = ?', [id]);
     },
   };

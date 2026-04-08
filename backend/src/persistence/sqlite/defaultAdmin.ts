@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 
 type DefaultAdminDeps = {
-  createId: () => string;
+  createId: () => number;
   username?: string;
   password?: string;
 };
@@ -22,11 +22,10 @@ export async function ensureDefaultAdmin(db: { get: (sql: string, params?: any[]
   const hash = await bcrypt.hash(password, 10);
   await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status, username, passwordHash,
+      fullName, gender, email, phone, role, department, status, username, passwordHash,
       systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      deps.createId(),
       'Administrator',
       'male',
       'admin@huynhthy.com',

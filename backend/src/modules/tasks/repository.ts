@@ -14,12 +14,12 @@ type CreateTaskRepositoryDeps = {
 };
 
 type TaskListFilters = {
-  projectId?: string;
-  parentTaskId?: string;
-  assigneeId?: string;
-  accountId?: string;
-  leadId?: string;
-  quotationId?: string;
+  projectId?: number | string;
+  parentTaskId?: number | string;
+  assigneeId?: number | string;
+  accountId?: number | string;
+  leadId?: number | string;
+  quotationId?: number | string;
   status?: string;
   taskType?: string;
   department?: string;
@@ -56,17 +56,17 @@ type TaskWriteInput = {
 };
 
 type TaskDependencyWriteInput = {
-  relatedTaskId: string;
+  relatedTaskId: number | string;
   kind: string;
   note?: string | null;
-  createdBy?: string | null;
+  createdBy?: number | string | null;
 };
 
 type TaskViewPresetWriteInput = {
   name: string;
   query?: string | null;
-  projectId?: string | null;
-  assigneeId?: string | null;
+  projectId?: number | string | null;
+  assigneeId?: number | string | null;
   priority?: string | null;
   status?: string | null;
   onlyOverdue: boolean;
@@ -289,7 +289,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function getTaskById(id: string) {
+  async function getTaskById(id: number | string) {
     const db = getDbInstance();
     return db.get(
       `
@@ -300,7 +300,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function getTaskWithLinksById(id: string) {
+  async function getTaskWithLinksById(id: number | string) {
     const db = getDbInstance();
     return db.get(
       `
@@ -333,7 +333,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function getQuotationWithAccountName(quotationId: string) {
+  async function getQuotationWithAccountName(quotationId: number | string) {
     const db = getDbInstance();
     return db.get(
       `SELECT q.*, a.companyName AS accountName
@@ -345,11 +345,11 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
   }
 
   async function findExistingTaskForQuotation(
-    quotationId: string,
-    requestedTaskId: string,
+    quotationId: number | string,
+    requestedTaskId: number | string | null,
     taskName: string,
-    projectId: string | null,
-    assigneeId: string | null
+    projectId: number | string | null,
+    assigneeId: number | string | null
   ) {
     const db = getDbInstance();
     return db.get(
@@ -362,16 +362,15 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function createTask(id: string, input: TaskWriteInput) {
+  async function createTask(input: TaskWriteInput) {
     const db = getDbInstance();
-    await db.run(
+    return db.run(
       `INSERT INTO Task (
-        id, projectId, parentTaskId, sortOrder, name, description, assigneeId, status, priority, startDate, dueDate,
+        projectId, parentTaskId, sortOrder, name, description, assigneeId, status, priority, startDate, dueDate,
         completionPct, notes, accountId, leadId, quotationId, target, resultLinks, output,
         reportDate, taskType, department, blockedReason
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        id,
         toNullableValue(input.projectId),
         toNullableValue(input.parentTaskId),
         input.sortOrder ?? Date.now(),
@@ -398,12 +397,12 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function taskExists(id: string) {
+  async function taskExists(id: number | string) {
     const db = getDbInstance();
     return db.get('SELECT id FROM Task WHERE id = ?', [id]);
   }
 
-  async function updateTask(id: string, input: TaskWriteInput) {
+  async function updateTask(id: number | string, input: TaskWriteInput) {
     const db = getDbInstance();
     await db.run(
       `UPDATE Task
@@ -440,12 +439,12 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function deleteTask(id: string) {
+  async function deleteTask(id: number | string) {
     const db = getDbInstance();
     await db.run('DELETE FROM Task WHERE id = ?', [id]);
   }
 
-  async function listTasksByIds(taskIds: string[]) {
+  async function listTasksByIds(taskIds: Array<number | string>) {
     const db = getDbInstance();
     if (taskIds.length === 0) return [];
     const placeholders = taskIds.map(() => '?').join(', ');
@@ -459,10 +458,10 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function bulkUpdateTasks(taskIds: string[], changes: {
+  async function bulkUpdateTasks(taskIds: Array<number | string>, changes: {
     status?: string | null;
     priority?: string | null;
-    assigneeId?: string | null;
+    assigneeId?: number | string | null;
   }) {
     const db = getDbInstance();
     if (taskIds.length === 0) return [];
@@ -485,7 +484,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     return listTasksByIds(taskIds);
   }
 
-  async function reorderSiblingTasks(parentTaskId: string, orderedTaskIds: string[]) {
+  async function reorderSiblingTasks(parentTaskId: number | string, orderedTaskIds: Array<number | string>) {
     const db = getDbInstance();
     let sortValue = orderedTaskIds.length;
     for (const taskId of orderedTaskIds) {
@@ -498,7 +497,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     return listTasks({ parentTaskId });
   }
 
-  async function reorderProjectTasks(projectId: string, orderedTaskIds: string[]) {
+  async function reorderProjectTasks(projectId: number | string, orderedTaskIds: Array<number | string>) {
     const db = getDbInstance();
     let sortValue = orderedTaskIds.length;
     for (const taskId of orderedTaskIds) {
@@ -511,7 +510,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     return listTasks({ projectId });
   }
 
-  async function listTaskViewPresets(userId: string) {
+  async function listTaskViewPresets(userId: number | string) {
     const db = getDbInstance();
     return db.all(
       `
@@ -524,7 +523,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function findTaskViewPresetByIdForUser(id: string, userId: string) {
+  async function findTaskViewPresetByIdForUser(id: number | string, userId: number | string) {
     const db = getDbInstance();
     return db.get(
       `
@@ -536,7 +535,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function clearDefaultTaskViewPreset(userId: string) {
+  async function clearDefaultTaskViewPreset(userId: number | string) {
     const db = getDbInstance();
     await db.run(
       `UPDATE TaskViewPreset SET isDefault = 0, updatedAt = datetime('now') WHERE userId = ? AND isDefault = 1`,
@@ -544,17 +543,16 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function createTaskViewPreset(id: string, userId: string, input: TaskViewPresetWriteInput) {
+  async function createTaskViewPreset(userId: number | string, input: TaskViewPresetWriteInput) {
     const db = getDbInstance();
     if (input.isDefault) {
       await clearDefaultTaskViewPreset(userId);
     }
-    await db.run(
+    return db.run(
       `INSERT INTO TaskViewPreset (
-        id, userId, name, query, projectId, assigneeId, priority, status, onlyOverdue, groupBy, surface, isDefault, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        userId, name, query, projectId, assigneeId, priority, status, onlyOverdue, groupBy, surface, isDefault, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        id,
         userId,
         input.name,
         input.query ?? null,
@@ -570,7 +568,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function updateTaskViewPreset(id: string, userId: string, input: TaskViewPresetWriteInput) {
+  async function updateTaskViewPreset(id: number | string, userId: number | string, input: TaskViewPresetWriteInput) {
     const db = getDbInstance();
     if (input.isDefault) {
       await clearDefaultTaskViewPreset(userId);
@@ -597,12 +595,12 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function deleteTaskViewPreset(id: string, userId: string) {
+  async function deleteTaskViewPreset(id: number | string, userId: number | string) {
     const db = getDbInstance();
     await db.run(`DELETE FROM TaskViewPreset WHERE id = ? AND userId = ?`, [id, userId]);
   }
 
-  async function listTaskDependencies(taskId: string) {
+  async function listTaskDependencies(taskId: number | string) {
     const db = getDbInstance();
     return db.all(
       `
@@ -620,13 +618,14 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function createTaskDependency(taskId: string, id: string, input: TaskDependencyWriteInput) {
+  async function createTaskDependency(taskId: number | string, input: TaskDependencyWriteInput) {
     const db = getDbInstance();
-    await db.run(
-      `INSERT INTO TaskDependency (id, taskId, relatedTaskId, kind, note, createdBy, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [id, taskId, input.relatedTaskId, input.kind, input.note ?? null, input.createdBy ?? null]
+    const result = await db.run(
+      `INSERT INTO TaskDependency (taskId, relatedTaskId, kind, note, createdBy, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [taskId, input.relatedTaskId, input.kind, input.note ?? null, input.createdBy ?? null]
     );
+    const id = result.lastID;
     return db.get(
       `
         SELECT td.*,
@@ -642,7 +641,7 @@ export function createTaskRepository(deps: CreateTaskRepositoryDeps = {}) {
     );
   }
 
-  async function deleteTaskDependency(taskId: string, dependencyId: string) {
+  async function deleteTaskDependency(taskId: number | string, dependencyId: number | string) {
     const db = getDbInstance();
     await db.run('DELETE FROM TaskDependency WHERE id = ? AND taskId = ?', [dependencyId, taskId]);
   }

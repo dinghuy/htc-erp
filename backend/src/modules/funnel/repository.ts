@@ -1,7 +1,7 @@
 import { getDb } from '../../../sqlite-db';
 
 export type FunnelRow = {
-  id: string;
+  id?: number | string;
   name: string;
   description?: string | null;
   isDefault?: number;
@@ -18,26 +18,25 @@ export function createFunnelRepository() {
       );
     },
 
-    findById(id: string) {
+    findById(id: number | string) {
       return getDb().get<FunnelRow>('SELECT * FROM Funnel WHERE id = ?', [id]);
     },
 
     async create(input: FunnelRow) {
-      await getDb().run(
-        `INSERT INTO Funnel (id, name, description, isDefault, sortOrder, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      const result = await getDb().run(
+        `INSERT INTO Funnel (name, description, isDefault, sortOrder, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
         [
-          input.id,
           input.name,
           input.description ?? null,
           input.isDefault ?? 0,
           input.sortOrder ?? 0,
         ]
       );
-      return this.findById(input.id);
+      return this.findById(result.lastID);
     },
 
-    async updateById(id: string, input: Omit<FunnelRow, 'id' | 'createdAt'>) {
+    async updateById(id: number | string, input: Omit<FunnelRow, 'id' | 'createdAt'>) {
       await getDb().run(
         `UPDATE Funnel SET name = ?, description = ?, isDefault = ?, sortOrder = ?, updatedAt = datetime('now')
          WHERE id = ?`,
@@ -52,7 +51,7 @@ export function createFunnelRepository() {
       return this.findById(id);
     },
 
-    deleteById(id: string) {
+    deleteById(id: number | string) {
       return getDb().run('DELETE FROM Funnel WHERE id = ?', [id]);
     },
   };

@@ -149,13 +149,13 @@ export type WorkflowTransitionResult =
   | { ok: false; failure: WorkflowGuardFailure };
 
 export type ApprovalRequestLike = {
-  id?: string;
+  id?: number | string;
   requestType?: string | null;
   department?: string | null;
   approverRole?: string | null;
-  approverUserId?: string | null;
+  approverUserId?: number | string | null;
   status?: string | null;
-  requestedBy?: string | null;
+  requestedBy?: number | string | null;
 };
 
 const BUSINESS_ROLE_LABELS: Partial<Record<SystemRole, string>> = {
@@ -390,16 +390,16 @@ export function resolveApprovalLane(approval: ApprovalRequestLike): ApprovalLane
   return 'commercial';
 }
 
-export function canApproveRequest(roleCodes: unknown, approval: ApprovalRequestLike, legacyRole?: unknown, currentUserId?: string | null) {
+export function canApproveRequest(roleCodes: unknown, approval: ApprovalRequestLike, legacyRole?: unknown, currentUserId?: number | string | null) {
   const normalizedRoles = normalizeRoleCodes(roleCodes, legacyRole);
   if (String(approval.status || '').trim().toLowerCase() !== 'pending') {
     return false;
   }
-  if (currentUserId && String(approval.requestedBy || '').trim() === currentUserId) {
+  if (currentUserId && String(approval.requestedBy || '').trim() === String(currentUserId).trim()) {
     return false;
   }
   const assignedUserId = String(approval.approverUserId || '').trim();
-  if (assignedUserId && currentUserId && assignedUserId !== currentUserId) {
+  if (assignedUserId && currentUserId && assignedUserId !== String(currentUserId).trim()) {
     return false;
   }
   const lane = resolveApprovalLane(approval);

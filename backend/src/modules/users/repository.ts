@@ -8,7 +8,7 @@ const USER_ROUTE_SELECT = `
 `;
 
 export type UserRouteRecord = {
-  id: string;
+  id: number;
   fullName: string;
   gender?: string | null;
   email?: string | null;
@@ -35,7 +35,7 @@ type CreateUsersRepositoryDeps = {
 };
 
 type CreateUserRecordInput = {
-  id: string;
+  id?: number | string;
   fullName: unknown;
   gender: string | null;
   email: unknown;
@@ -79,7 +79,7 @@ type UpdateUserRecordInput = {
 };
 
 type CreateImportedUserInput = {
-  id: string;
+  id?: number | string;
   fullName: string;
   gender: string | null;
   email: string;
@@ -90,7 +90,7 @@ type CreateImportedUserInput = {
 };
 
 type UserRoleNormalizationRecord = {
-  id: string;
+  id: number;
   systemRole: string;
   roleCodes: string | null;
 };
@@ -102,27 +102,26 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
     return getDbInstance().all(`${USER_ROUTE_SELECT} ORDER BY fullName`) as Promise<UserRouteRecord[]>;
   }
 
-  function findUserById(id: string) {
+  function findUserById(id: number | string) {
     return getDbInstance().get(`${USER_ROUTE_SELECT} WHERE id = ?`, [id]) as Promise<UserRouteRecord | undefined>;
   }
 
-  function findUserPasswordHashById(id: string) {
+  function findUserPasswordHashById(id: number | string) {
     return getDbInstance().get('SELECT passwordHash FROM User WHERE id = ?', [id]) as Promise<{ passwordHash?: string | null } | undefined>;
   }
 
-  function findUserIdentityById(id: string) {
-    return getDbInstance().get('SELECT id FROM User WHERE id = ?', [id]) as Promise<{ id: string } | undefined>;
+  function findUserIdentityById(id: number | string) {
+    return getDbInstance().get('SELECT id FROM User WHERE id = ?', [id]) as Promise<{ id: number } | undefined>;
   }
 
   function createUser(input: CreateUserRecordInput) {
     return getDbInstance().run(
       `INSERT INTO User (
-        id, fullName, gender, email, phone, role, department, status, username, passwordHash,
+        fullName, gender, email, phone, role, department, status, username, passwordHash,
         systemRole, roleCodes, employeeCode, dateOfBirth, avatar, address, startDate,
         accountStatus, mustChangePassword, language
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.fullName,
         input.gender,
         input.email,
@@ -146,7 +145,7 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
     );
   }
 
-  function updateUser(id: string, input: UpdateUserRecordInput) {
+  function updateUser(id: number | string, input: UpdateUserRecordInput) {
     return getDbInstance().run(
       `UPDATE User SET fullName=?, gender=?, email=?, phone=?, role=?, department=?, status=?, username=?, passwordHash=?, systemRole=?, roleCodes=?,
         employeeCode=?, dateOfBirth=?, address=?, startDate=?, accountStatus=?, mustChangePassword=?, language=COALESCE(?, language) WHERE id=?`,
@@ -174,23 +173,22 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
     );
   }
 
-  function deleteUser(id: string) {
+  function deleteUser(id: number | string) {
     return getDbInstance().run('DELETE FROM User WHERE id = ?', [id]);
   }
 
-  function updateUserAvatar(id: string, avatar: string) {
+  function updateUserAvatar(id: number | string, avatar: string) {
     return getDbInstance().run('UPDATE User SET avatar = ? WHERE id = ?', [avatar, id]);
   }
 
-  function updateUserAccountStatus(id: string, accountStatus: string) {
+  function updateUserAccountStatus(id: number | string, accountStatus: string) {
     return getDbInstance().run('UPDATE User SET accountStatus = ? WHERE id = ?', [accountStatus, id]);
   }
 
   function createImportedUser(input: CreateImportedUserInput) {
     return getDbInstance().run(
-      `INSERT INTO User (id, fullName, gender, email, phone, role, department, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO User (fullName, gender, email, phone, role, department, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.fullName,
         input.gender,
         input.email,
@@ -208,7 +206,7 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
     ) as Promise<UserRoleNormalizationRecord[]>;
   }
 
-  function updateUserRoleAssignments(id: string, roleCodesJson: string, systemRole: string) {
+  function updateUserRoleAssignments(id: number | string, roleCodesJson: string, systemRole: string) {
     return getDbInstance().run('UPDATE User SET roleCodes = ?, systemRole = ? WHERE id = ?', [
       roleCodesJson,
       systemRole,

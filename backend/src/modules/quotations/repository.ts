@@ -1,20 +1,20 @@
 import { getDb } from '../../../sqlite-db';
 
 export type QuotationRecord = {
-  id: string;
+  id?: number | string;
   quoteNumber: string;
   quoteDate: string;
   subject: string | null;
-  accountId: string | null;
-  contactId: string | null;
-  projectId: string | null;
+  accountId: number | string | null;
+  contactId: number | string | null;
+  projectId: number | string | null;
   salesperson: string | null;
   salespersonPhone: string | null;
   currency: string;
-  opportunityId: string | null;
+  opportunityId: number | string | null;
+  parentQuotationId: number | string | null;
   revisionNo: number;
   revisionLabel: string;
-  parentQuotationId: string | null;
   changeReason: string | null;
   isWinningVersion: number;
   items: string;
@@ -38,7 +38,7 @@ export function createQuotationRepository() {
     );
   }
 
-  async function findDetailedById(id: string) {
+  async function findDetailedById(id: number | string) {
     return getDb().get(
       `SELECT q.*, a.companyName as accountName, p.name AS projectName, p.projectStage
        FROM Quotation q
@@ -49,16 +49,15 @@ export function createQuotationRepository() {
     );
   }
 
-  async function findById(id: string) {
+  async function findById(id: number | string) {
     return getDb().get('SELECT * FROM Quotation WHERE id = ?', [id]);
   }
 
   async function insert(record: QuotationRecord) {
-    await getDb().run(
-      `INSERT INTO Quotation (id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson, salespersonPhone, currency, opportunityId, revisionNo, revisionLabel, parentQuotationId, changeReason, isWinningVersion, items, financialParams, terms, subtotal, taxTotal, grandTotal, status, validUntil)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    return getDb().run(
+      `INSERT INTO Quotation (quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson, salespersonPhone, currency, opportunityId, revisionNo, revisionLabel, parentQuotationId, changeReason, isWinningVersion, items, financialParams, terms, subtotal, taxTotal, grandTotal, status, validUntil)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        record.id,
         record.quoteNumber,
         record.quoteDate,
         record.subject,
@@ -86,7 +85,7 @@ export function createQuotationRepository() {
     );
   }
 
-  async function updateById(id: string, record: Omit<QuotationRecord, 'id' | 'quoteNumber' | 'opportunityId'>) {
+  async function updateById(id: number | string, record: Omit<QuotationRecord, 'id' | 'quoteNumber' | 'opportunityId'>) {
     await getDb().run(
       `UPDATE Quotation SET quoteDate=?, subject=?, accountId=?, contactId=?, projectId=?, salesperson=?, salespersonPhone=?, currency=?, revisionNo=?, revisionLabel=?, parentQuotationId=?, changeReason=?, isWinningVersion=?, items=?, financialParams=?, terms=?, subtotal=?, taxTotal=?, grandTotal=?, status=?, validUntil=? WHERE id=?`,
       [
@@ -116,11 +115,11 @@ export function createQuotationRepository() {
     );
   }
 
-  async function deleteById(id: string) {
+  async function deleteById(id: number | string) {
     await getDb().run('DELETE FROM Quotation WHERE id = ?', [id]);
   }
 
-  async function findPdfPayloadById(id: string) {
+  async function findPdfPayloadById(id: number | string) {
     return getDb().get(
       `SELECT q.*, a.companyName, a.address, a.taxCode FROM Quotation q
        LEFT JOIN Account a ON q.accountId = a.id

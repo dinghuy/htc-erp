@@ -29,9 +29,9 @@ export function groupTasks(tasks: TaskRecord[], groupBy: TaskGroupBy): TaskGroup
   }
 
   if (groupBy === 'hierarchy') {
-    const byParent = new Map<string, TaskRecord[]>();
+    const byParent = new Map<number, TaskRecord[]>();
     const roots: TaskRecord[] = [];
-    const taskMap = new Map(tasks.map((task) => [task.id, task]));
+    const taskMap = new Map<number, TaskRecord>(tasks.map((task) => [task.id, task]));
 
     for (const task of tasks) {
       if (task.parentTaskId && taskMap.has(task.parentTaskId)) {

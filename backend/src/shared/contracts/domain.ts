@@ -161,22 +161,22 @@ export type WorkflowTransitionResult =
 
 export type AuditEventPayload = {
   entityType: 'Quotation' | 'SalesOrder' | 'Project' | 'ProjectDeliveryLine' | 'ApprovalRequest';
-  entityId: string;
+  entityId: number;
   action: string;
   fromStatus?: string | null;
   toStatus?: string | null;
   gateType?: ApprovalGateType | null;
-  actorUserId?: string | null;
+  actorUserId?: number | null;
   note?: string | null;
 };
 
 export type AuditFields = {
-  id: string;
+  id: number;
   createdAt?: string;
   updatedAt?: string;
-  createdBy?: string | null;
-  updatedBy?: string | null;
-  actorUserId?: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  actorUserId?: number | null;
   actorRoles?: string | null;
   actingCapability?: string | null;
   action?: string | null;
@@ -208,28 +208,28 @@ export type TaskContextRef = {
 };
 
 export type ProjectActivityItem = AuditFields & {
-  projectId: string;
+  projectId: number;
   entityType: string;
-  entityId: string;
+  entityId: number;
   activityType: string;
   title: string;
   body?: string | null;
   link?: string | null;
-  taskId?: string | null;
-  approvalRequestId?: string | null;
+  taskId?: number | null;
+  approvalRequestId?: number | null;
 };
 
 export type TaskDependency = AuditFields & {
-  taskId: string;
-  relatedTaskId: string;
+  taskId: number;
+  relatedTaskId: number;
   kind: TaskDependencyKind;
   note?: string | null;
 };
 
 export type WorklogEntry = AuditFields & {
-  projectId: string;
-  taskId?: string | null;
-  authorUserId?: string | null;
+  projectId: number;
+  taskId?: number | null;
+  authorUserId?: number | null;
   startedAt?: string | null;
   endedAt?: string | null;
   durationMinutes?: number | null;
@@ -237,19 +237,19 @@ export type WorklogEntry = AuditFields & {
 };
 
 export type ApprovalQueueItem = AuditFields & {
-  approvalRequestId: string;
+  approvalRequestId: number;
   lane: ApprovalLane;
   status: ApprovalStatus;
   requestType?: string | null;
-  projectId?: string | null;
-  taskId?: string | null;
+  projectId?: number | null;
+  taskId?: number | null;
   dueAt?: string | null;
-  assigneeUserId?: string | null;
+  assigneeUserId?: number | null;
 };
 
 export type EntityThread = AuditFields & {
   entityType: string;
-  entityId: string;
+  entityId: number;
   title?: string | null;
   status: ThreadStatus;
   messageCount?: number;
@@ -257,31 +257,31 @@ export type EntityThread = AuditFields & {
 };
 
 export type ThreadMessage = AuditFields & {
-  threadId: string;
-  authorUserId?: string | null;
+  threadId: number;
+  authorUserId?: number | null;
   content: string;
   contentType?: 'text/plain' | 'text/markdown';
 };
 
 export type ProjectDocument = AuditFields & {
-  projectId: string;
+  projectId: number;
   title: string;
   status: DocumentReviewStatus;
   storageKey?: string | null;
-  threadId?: string | null;
+  threadId?: number | null;
 };
 
 export type DocumentReviewState = {
   status: DocumentReviewStatus;
-  reviewerUserId?: string | null;
+  reviewerUserId?: number | null;
   reviewedAt?: string | null;
   note?: string | null;
 };
 
 export type ProjectWorkspaceSummary = AuditFields & {
-  projectId: string;
-  quotationId?: string | null;
-  accountId?: string | null;
+  projectId: number;
+  quotationId?: number | null;
+  accountId?: number | null;
   projectStage?: ProjectStage | string | null;
   activeTab?: ProjectWorkspaceTabKey | null;
   taskSummary?: {
@@ -303,7 +303,7 @@ export type ProjectWorkspaceSummary = AuditFields & {
 };
 
 export type AuthenticatedUser = {
-  id: string;
+  id: number;
   username: string;
   fullName: string;
   systemRole: SystemRole;

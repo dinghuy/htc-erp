@@ -36,8 +36,8 @@ describe('taskDomain', () => {
     const payload = buildTaskPayload({
       name: '  Follow up customer  ',
       description: '  details  ',
-      projectId: 'p-1',
-      assigneeId: 'u-1',
+      projectId: '1',
+      assigneeId: '1',
       uiStatus: 'complete',
       priority: 'high',
       startDate: '2026-03-26',
@@ -47,9 +47,9 @@ describe('taskDomain', () => {
       blockedReason: '',
       taskType: 'follow_up',
       department: 'Sales',
-      accountId: 'a-1',
-      leadId: 'l-1',
-      quotationId: 'q-1',
+      accountId: '1',
+      leadId: '1',
+      quotationId: '1',
       target: '  close deal  ',
       resultLinks: '  http://x  ',
       output: '  done  ',
@@ -60,6 +60,11 @@ describe('taskDomain', () => {
       expect.objectContaining({
         name: 'Follow up customer',
         status: 'completed',
+        projectId: 1,
+        assigneeId: 1,
+        accountId: 1,
+        leadId: 1,
+        quotationId: 1,
         completionPct: 100,
         blockedReason: null,
         target: 'close deal',
@@ -68,16 +73,16 @@ describe('taskDomain', () => {
   });
 
   it('builds create form default using selected project scope', () => {
-    const form = buildTaskForm(null, { id: 'u-99' }, 'project-88');
-    expect(form.projectId).toBe('project-88');
-    expect(form.assigneeId).toBe('u-99');
+    const form = buildTaskForm(null, { id: 1 }, '1');
+    expect(form.projectId).toBe('1');
+    expect(form.assigneeId).toBe('1');
     expect(form.uiStatus).toBe('not_started');
     expect(form.priority).toBe('medium');
   });
 
   it('matches task search across multiple fields', () => {
-    const task = {
-      id: 't-1',
+    const task: any = {
+      id: 1,
       name: 'Prepare quotation package',
       description: 'Customer asks for revised scope',
       projectName: 'Project Delta',
