@@ -3,20 +3,6 @@ node_modules/
 frontend/node_modules/
 backend/node_modules/
 
-# Environment and secrets
-.env
-.env.*
-!.env.example
-backend/.env
-frontend/.env
-
-# Runtime data
-*.db
-*.db-shm
-*.db-wal
-*.sqlite
-*.sqlite3
-
 # Logs
 *.log
 *.err.log
