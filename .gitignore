@@ -45,6 +45,9 @@ worktrees/
 .venv/
 __pycache__/
 *.pyc
+*.bak
+*.backup
+*.orig
 .superpowers/
 tmp-*.js
 graphify-out/
@@ -71,8 +74,5 @@ Thumbs.db
 
 # Local tooling and non-public repo surfaces
 .claude/
-.codex/
-.github/
 archive/
 codex-mcp-template/
-scripts/
