@@ -32,6 +32,36 @@ type UserWritePayload = {
   language?: unknown;
 };
 
+const VIET_MAP: Record<string, string> = {
+  'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a',
+  'ă': 'a', 'ắ': 'a', 'ặ': 'a', 'ằ': 'a', 'ẳ': 'a', 'ẵ': 'a',
+  'ấ': 'a', 'ậ': 'a', 'ầ': 'a', 'ẩ': 'a', 'ẫ': 'a',
+  'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+  'ề': 'e', 'ế': 'e', 'ệ': 'e', 'ể': 'e', 'ễ': 'e',
+  'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', 'ị': 'i', 'ỉ': 'i', 'ĩ': 'i',
+  'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
+  'ơ': 'o', 'ớ': 'o', 'ợ': 'o', 'ờ': 'o', 'ở': 'o', 'ỡ': 'o',
+  'ồ': 'o', 'ố': 'o', 'ộ': 'o', 'ổ': 'o', 'ỗ': 'o',
+  'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+  'ư': 'u', 'ứ': 'u', 'ự': 'u', 'ừ': 'u', 'ử': 'u', 'ữ': 'u',
+  'ỳ': 'y', 'ý': 'y', 'ỵ': 'y', 'ỷ': 'y', 'ỹ': 'y',
+  'đ': 'd',
+};
+
+/** "Nguyễn Văn An" → "nguyen.an" (họ.tên) */
+function toUsernameHoTen(fullName: string): string {
+  const slug = fullName
+    .toLowerCase()
+    .split('')
+    .map(c => VIET_MAP[c] ?? c)
+    .join('')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/);
+  if (slug.length === 1) return slug[0];
+  return `${slug[0]}.${slug[slug.length - 1]}`;
+}
+
 function normalizeCreateLanguage(value: unknown): string {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
   return normalized === 'vi' || normalized === 'en' ? normalized : 'vi';
@@ -170,23 +200,36 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
       }
 
       try {
+        const rawUsername = (row.values.username || row.values['Username'] || '').trim();
+        const generatedUsername = rawUsername || toUsernameHoTen(fullName.trim());
+        const rawPassword = (row.values.password || row.values['Mật khẩu'] || '').trim();
+        const passwordHash = rawPassword ? await hashPassword(rawPassword) : null;
+        const rawSystemRole = (row.values.systemRole || row.values['systemRole'] || row.values['Phân quyền'] || 'viewer').trim();
+
         await repository.createImportedUser({
           id: createId(),
-          fullName,
+          fullName: fullName.trim(),
           gender: normalizeGender(row.values.gender || row.values['Danh xưng']),
           email: row.values.email || '',
           phone: row.values.phone || '',
           role: row.values.role || row.values['Chức vụ'] || '',
           department: row.values.department || row.values['Phòng ban'] || '',
           status: row.values.status || row.values['Trạng thái'] || 'Active',
+          username: generatedUsername,
+          passwordHash,
+          systemRole: rawSystemRole,
+          employeeCode: (row.values.employeeCode || row.values['Mã NV'] || '').trim() || null,
+          accountStatus: 'active',
+          mustChangePassword: 1,
         });
 
+        const usernameNote = rawUsername ? '' : ` (username tự động: ${generatedUsername})`;
         report.created += 1;
         report.rows.push({
           rowNumber: row.rowNumber,
           key: fullName.trim(),
           action: 'created',
-          messages: ['Đã tạo user mới'],
+          messages: [`Đã tạo user mới${usernameNote}`],
         });
       } catch (error: any) {
         report.errors += 1;

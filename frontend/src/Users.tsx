@@ -213,6 +213,33 @@ function RoleCodeSelector({
   );
 }
 
+function toUsername(fullName: string): string {
+  const map: Record<string, string> = {
+    'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
+    'ă': 'a', 'ắ': 'a', 'ặ': 'a', 'ằ': 'a', 'ẳ': 'a', 'ẵ': 'a',
+    'ấ': 'a', 'ậ': 'a', 'ầ': 'a', 'ẩ': 'a', 'ẫ': 'a',
+    'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+    'ề': 'e', 'ế': 'e', 'ệ': 'e', 'ể': 'e', 'ễ': 'e',
+    'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', 'ị': 'i', 'ỉ': 'i', 'ĩ': 'i',
+    'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
+    'ơ': 'o', 'ớ': 'o', 'ợ': 'o', 'ờ': 'o', 'ở': 'o', 'ỡ': 'o',
+    'ồ': 'o', 'ố': 'o', 'ộ': 'o', 'ổ': 'o', 'ỗ': 'o',
+    'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+    'ư': 'u', 'ứ': 'u', 'ự': 'u', 'ừ': 'u', 'ử': 'u', 'ữ': 'u',
+    'ỳ': 'y', 'ý': 'y', 'ỵ': 'y', 'ỷ': 'y', 'ỹ': 'y',
+    'đ': 'd',
+  };
+  return fullName
+    .toLowerCase()
+    .split('')
+    .map(c => map[c] ?? c)
+    .join('')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .join('.');
+}
+
 function AddUserModal({ onClose, onSaved, token }: any) {
   const [form, setForm] = useState({
     fullName: '',
@@ -234,10 +261,27 @@ function AddUserModal({ onClose, onSaved, token }: any) {
     mustChangePassword: true,
   });
   const [saving, setSaving] = useState(false);
+  const [usernameEdited, setUsernameEdited] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Auto-generate username from full name unless user has manually edited it
+  useEffect(() => {
+    if (!usernameEdited && form.fullName.trim()) {
+      setForm(f => ({ ...f, username: toUsername(form.fullName) }));
+    }
+  }, [form.fullName, usernameEdited]);
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.fullName.trim()) e.fullName = 'Bắt buộc nhập họ và tên';
+    if (form.password && form.password.length < 6) e.password = 'Tối thiểu 6 ký tự';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const submit = async () => {
-    if (!form.fullName.trim()) return showNotify('Thiếu họ và tên', 'error');
-    if (form.password && form.password.length < 6) return showNotify('Mật khẩu tối thiểu 6 ký tự', 'error');
+    if (!validate()) return;
     setSaving(true);
     try {
       const normalizedRoleCodes = normalizeRoleCodes([...form.roleCodes, form.systemRole], form.systemRole);
@@ -246,6 +290,7 @@ function AddUserModal({ onClose, onSaved, token }: any) {
         method: 'POST',
         body: JSON.stringify({
           ...form,
+          fullName: form.fullName.trim(),
           systemRole: persistedSystemRole,
           roleCodes: normalizedRoleCodes,
         }),
@@ -263,7 +308,14 @@ function AddUserModal({ onClose, onSaved, token }: any) {
     }
   };
 
-  const F = (field: string, val: any) => setForm(f => ({ ...f, [field]: val }));
+  const F = (field: string, val: any) => {
+    setForm(f => ({ ...f, [field]: val }));
+    if (errors[field]) setErrors(e => ({ ...e, [field]: '' }));
+  };
+
+  const inputErr = (field: string) => errors[field]
+    ? { ...S.input, borderColor: tokens.colors.error }
+    : S.input;
 
   return (
     <ModalWrapper title="Thêm nhân viên mới" onClose={onClose}>
@@ -271,6 +323,18 @@ function AddUserModal({ onClose, onSaved, token }: any) {
 
         {/* Personal info */}
         <SectionDivider label="Thông tin cá nhân" />
+        <div style={{ gridColumn: 'span 2' }}>
+          <label style={S.label}>Họ và tên đầy đủ *</label>
+          <input
+            type="text"
+            placeholder="Nhập tên nhân viên"
+            value={form.fullName}
+            onChange={(e: any) => F('fullName', e.target.value)}
+            style={inputErr('fullName')}
+            autoFocus
+          />
+          {errors.fullName && <p style={{ margin: '4px 0 0', fontSize: '12px', color: tokens.colors.error }}>{errors.fullName}</p>}
+        </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Giới tính</label>
           <select value={form.gender} onChange={(e: any) => F('gender', e.target.value)} style={S.input}>
@@ -278,35 +342,31 @@ function AddUserModal({ onClose, onSaved, token }: any) {
           </select>
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Họ và tên đầy đủ *</label>
-          <input type="text" placeholder="Nhập tên nhân viên" value={form.fullName} onInput={(e: any) => F('fullName', e.target.value)} style={S.input} />
-        </div>
-        <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Ma NV (HTG-001)</label>
-          <input type="text" placeholder="VD: HTG-001" value={form.employeeCode} onInput={(e: any) => F('employeeCode', e.target.value)} style={S.input} />
+          <label style={S.label}>Mã NV (HTG-001)</label>
+          <input type="text" placeholder="VD: HTG-001" value={form.employeeCode} onChange={(e: any) => F('employeeCode', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Ngày sinh</label>
-          <input type="date" value={form.dateOfBirth} onInput={(e: any) => F('dateOfBirth', e.target.value)} style={S.input} />
-        </div>
-        <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Địa chỉ email công ty</label>
-          <input type="email" placeholder="email@huynhthy.com" value={form.email} onInput={(e: any) => F('email', e.target.value)} style={S.input} />
+          <input type="date" value={form.dateOfBirth} onChange={(e: any) => F('dateOfBirth', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Số điện thoại di động</label>
-          <input type="text" placeholder="0901 234 567" value={form.phone} onInput={(e: any) => F('phone', e.target.value)} style={S.input} />
+          <input type="text" placeholder="0901 234 567" value={form.phone} onChange={(e: any) => F('phone', e.target.value)} style={S.input} />
+        </div>
+        <div style={{ gridColumn: 'span 1' }}>
+          <label style={S.label}>Địa chỉ email công ty</label>
+          <input type="email" placeholder="email@huynhthy.com" value={form.email} onChange={(e: any) => F('email', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 2' }}>
           <label style={S.label}>Địa chỉ</label>
-          <input type="text" placeholder="Số nhà, đường, quận/huyện, tỉnh/thành phố" value={form.address} onInput={(e: any) => F('address', e.target.value)} style={S.input} />
+          <input type="text" placeholder="Số nhà, đường, quận/huyện, tỉnh/thành phố" value={form.address} onChange={(e: any) => F('address', e.target.value)} style={S.input} />
         </div>
 
         {/* Work info */}
         <SectionDivider label="Thông tin công việc" />
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Chức vụ đang đảm nhiệm</label>
-          <input type="text" placeholder="VD: Sales Executive" value={form.role} onInput={(e: any) => F('role', e.target.value)} style={S.input} />
+          <input type="text" placeholder="VD: Sales Executive" value={form.role} onChange={(e: any) => F('role', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Phòng ban trực thuộc</label>
@@ -317,7 +377,7 @@ function AddUserModal({ onClose, onSaved, token }: any) {
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Ngày vào công ty</label>
-          <input type="date" value={form.startDate} onInput={(e: any) => F('startDate', e.target.value)} style={S.input} />
+          <input type="date" value={form.startDate} onChange={(e: any) => F('startDate', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Trạng thái nhân sự</label>
@@ -331,11 +391,39 @@ function AddUserModal({ onClose, onSaved, token }: any) {
         <SectionDivider label="Tài khoản đăng nhập hệ thống" />
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Tên đăng nhập (username)</label>
-          <input type="text" placeholder="VD: tran.van.a" value={form.username} onInput={(e: any) => F('username', e.target.value)} style={S.input} />
+          <input
+            type="text"
+            placeholder="VD: tran.van.a"
+            value={form.username}
+            onChange={(e: any) => {
+              setUsernameEdited(true);
+              F('username', e.target.value);
+            }}
+            style={S.input}
+          />
+          {!usernameEdited && form.fullName.trim() && (
+            <p style={{ margin: '4px 0 0', fontSize: '11px', color: tokens.colors.textMuted }}>Tự động từ họ tên — có thể sửa</p>
+          )}
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Mật khẩu ban đầu</label>
-          <input type="password" placeholder="Tối thiểu 6 ký tự" value={form.password} onInput={(e: any) => F('password', e.target.value)} style={S.input} />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Tối thiểu 6 ký tự"
+              value={form.password}
+              onChange={(e: any) => F('password', e.target.value)}
+              style={{ ...inputErr('password'), paddingRight: '40px' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: tokens.colors.textMuted, padding: '4px', fontSize: '13px' }}
+            >
+              {showPassword ? 'Ẩn' : 'Hiện'}
+            </button>
+          </div>
+          {errors.password && <p style={{ margin: '4px 0 0', fontSize: '12px', color: tokens.colors.error }}>{errors.password}</p>}
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Phân quyền hệ thống</label>
@@ -363,7 +451,7 @@ function AddUserModal({ onClose, onSaved, token }: any) {
             onChange={(e: any) => F('mustChangePassword', e.target.checked)}
             style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: tokens.colors.primary }}
           />
-          <label for="mustChangePassword" style={{ ...S.label, marginBottom: 0, cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: tokens.colors.textSecondary }}>
+          <label htmlFor="mustChangePassword" style={{ ...S.label, marginBottom: 0, cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: tokens.colors.textSecondary }}>
             Bắt buộc đổi mật khẩu lần đầu
           </label>
         </div>
