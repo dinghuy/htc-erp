@@ -155,8 +155,18 @@ function ModalWrapper({ title, children, onClose }: any) {
 
 function SectionDivider({ label }: { label: string }) {
   return (
-    <div style={{ gridColumn: 'span 2', borderTop: `1px solid ${tokens.colors.border}`, paddingTop: '16px', marginTop: '4px' }}>
-      <p style={{ margin: '0 0 4px', fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
+    <div style={{ gridColumn: 'span 2', marginTop: '10px' }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '8px 12px',
+        background: tokens.colors.background,
+        borderRadius: tokens.radius.sm,
+        borderLeft: `3px solid ${tokens.colors.primary}`,
+      }}>
+        <p style={{ margin: 0, fontSize: '11px', fontWeight: 800, color: tokens.colors.textSecondary, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</p>
+      </div>
     </div>
   );
 }
@@ -319,6 +329,28 @@ function AddUserModal({ onClose, onSaved, token }: any) {
 
   return (
     <ModalWrapper title="Thêm nhân viên mới" onClose={onClose}>
+      {/* Intro tip */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '12px',
+        background: tokens.colors.infoAccentBg || tokens.colors.background,
+        border: `1px solid ${tokens.colors.border}`,
+        borderRadius: tokens.radius.md,
+        padding: '12px 16px',
+        marginBottom: '24px',
+        fontSize: '13px',
+        color: tokens.colors.textSecondary,
+        lineHeight: 1.6,
+      }}>
+        <span style={{ fontSize: '16px', flexShrink: 0 }}>💡</span>
+        <span>
+          Điền thông tin bên dưới để tạo tài khoản mới.
+          Trường có <strong style={{ color: tokens.colors.error }}>*</strong> bắt buộc nhập.
+          Username tự sinh theo định dạng <strong>ho.ten</strong> nếu để trống.
+          Muốn tạo nhiều người cùng lúc? Dùng <strong>Nhập file Excel</strong>.
+        </span>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '20px' }}>
 
         {/* Personal info */}
@@ -457,11 +489,34 @@ function AddUserModal({ onClose, onSaved, token }: any) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginTop: '32px', justifyContent: 'flex-end', borderTop: `1px solid ${tokens.colors.border}`, paddingTop: '24px' }}>
-        <button onClick={onClose} style={S.btnOutline}>Bỏ qua</button>
-        <button onClick={submit} disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.7 : 1 }}>
-          {saving ? 'Đang lưu...' : 'Lưu nhân viên'}
-        </button>
+      <div style={{
+        display: 'flex',
+        gap: '10px',
+        marginTop: '32px',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderTop: `1px solid ${tokens.colors.border}`,
+        paddingTop: '20px',
+      }}>
+        <span style={{ fontSize: '12px', color: tokens.colors.textMuted }}>
+          Tất cả thay đổi chưa lưu sẽ bị mất khi đóng
+        </span>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={onClose} style={{ ...S.btnOutline, padding: '10px 20px' }}>Huỷ</button>
+          <button
+            onClick={submit}
+            disabled={saving}
+            style={{
+              ...S.btnPrimary,
+              padding: '10px 24px',
+              opacity: saving ? 0.7 : 1,
+              fontWeight: 700,
+              fontSize: '14px',
+            }}
+          >
+            {saving ? '⏳ Đang lưu...' : '✓ Tạo nhân viên'}
+          </button>
+        </div>
       </div>
     </ModalWrapper>
   );
@@ -809,10 +864,10 @@ function SummaryChip({
   tone: 'info' | 'warning' | 'danger';
 }) {
   const palette = tone === 'warning'
-    ? { background: '#FFF4DE', color: '#B7791F' }
+    ? { background: '#FFF4DE', color: '#B7791F', border: '1px solid #F6E05E' }
     : tone === 'danger'
-      ? { background: tokens.colors.badgeBgError, color: tokens.colors.error }
-      : { background: '#E8F5FF', color: '#2B6CB0' };
+      ? { background: tokens.colors.badgeBgError, color: tokens.colors.error, border: `1px solid ${tokens.colors.errorBorder}` }
+      : { background: '#EBF8FF', color: '#2B6CB0', border: '1px solid #BEE3F8' };
 
   return (
     <span
@@ -820,13 +875,15 @@ function SummaryChip({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '8px 12px',
-        borderRadius: '999px',
+        padding: '6px 14px',
+        borderRadius: '10px',
         background: palette.background,
         color: palette.color,
+        border: palette.border,
         fontSize: '12px',
         fontWeight: 700,
         whiteSpace: 'nowrap',
+        letterSpacing: '0.01em',
       }}
     >
       {label}
@@ -834,17 +891,29 @@ function SummaryChip({
   );
 }
 
-function TableRolePill({ label }: { label: string }) {
+const ROLE_PILL_PALETTE: Record<string, { background: string; color: string; border: string }> = {
+  admin:          { background: '#EDE9FE', color: '#5B21B6', border: '1px solid #C4B5FD' },
+  director:       { background: '#EDE9FE', color: '#5B21B6', border: '1px solid #C4B5FD' },
+  project_manager:{ background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #93C5FD' },
+  sales:          { background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' },
+  procurement:    { background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' },
+  accounting:     { background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' },
+  legal:          { background: '#F0FDF4', color: '#166534', border: '1px solid #86EFAC' },
+  viewer:         { background: '#F8FBFE',  color: '#52657E', border: `1px solid #D0DCE8` },
+};
+
+function TableRolePill({ label, role }: { label: string; role?: string }) {
+  const palette = (role && ROLE_PILL_PALETTE[role]) || ROLE_PILL_PALETTE.viewer;
   return (
     <span
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        padding: '6px 12px',
-        borderRadius: '999px',
-        background: '#F8FBFE',
-        border: `1px solid ${tokens.colors.border}`,
-        color: '#43617F',
+        padding: '5px 10px',
+        borderRadius: '8px',
+        background: palette.background,
+        border: palette.border,
+        color: palette.color,
         fontSize: '12px',
         fontWeight: 700,
         whiteSpace: 'nowrap',
@@ -1194,23 +1263,39 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
               <div
                 style={{
                   display: 'flex',
-                  gap: '12px',
+                  gap: '10px',
                   justifyContent: isMobile ? 'stretch' : 'flex-end',
                   flexWrap: 'wrap',
+                  alignItems: 'flex-start',
                 }}
               >
-                <FormatActionButton label="Xuất file" buttonStyle={{ ...S.btnOutline, padding: '12px 18px', borderRadius: '14px' }} menuAlign="right" onSelect={exportData} />
-                <button style={{ ...S.btnPrimary, padding: '12px 18px', borderRadius: '14px', justifyContent: 'center' }} onClick={() => setShowAdd(true)}>
-                  + Thêm
+                {/* Import / Export group */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{ ...S.btnOutline, padding: '10px 14px', borderRadius: '12px', fontSize: '13px', gap: '6px' }}
+                    >
+                      ↑ Nhập file
+                    </button>
+                    <FormatActionButton label="↓ Xuất" buttonStyle={{ ...S.btnOutline, padding: '10px 14px', borderRadius: '12px', fontSize: '13px' }} menuAlign="right" onSelect={exportData} />
+                  </div>
+                  <FormatActionButton
+                    label="Tải template Excel/CSV"
+                    buttonStyle={{ ...ui.btn.ghost, padding: '3px 6px', fontSize: '11px', color: tokens.colors.textMuted }}
+                    onSelect={downloadTemplate}
+                  />
+                </div>
+                {/* Primary CTA */}
+                <button
+                  style={{ ...S.btnPrimary, padding: '12px 20px', borderRadius: '14px', justifyContent: 'center', fontWeight: 700 }}
+                  onClick={() => setShowAdd(true)}
+                >
+                  + Thêm nhân viên
                 </button>
               </div>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <FormatActionButton label={t('common.import_template')} buttonStyle={{ ...ui.btn.ghost, padding: '6px 10px', fontSize: '13px' }} onSelect={downloadTemplate} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} style={{ ...ui.btn.ghost, padding: '6px 10px', fontSize: '13px' }}>
-              {t('common.import_file')}
-            </button>
           </div>
         </div>
       );
@@ -1287,7 +1372,7 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
                 </div>
               </td>
               <td style={S.td}>{item.department || '-'}</td>
-              <td style={{ ...S.td, minWidth: '160px' }}><TableRolePill label={item.primaryRoleLabel} /></td>
+              <td style={{ ...S.td, minWidth: '160px' }}><TableRolePill label={item.primaryRoleLabel} role={item.primaryRole} /></td>
               <td style={{ ...S.td, minWidth: '220px', color: '#52657E' }}>{getUserAccessSummary(item)}</td>
               <td style={S.td}><TableStatusPill user={item} /></td>
               <td style={{ ...S.td, whiteSpace: 'nowrap', color: !item.lastLoginAt ? tokens.colors.warningStrong : '#7187A2' }}>{formatDate(item.lastLoginAt)}</td>
@@ -1317,7 +1402,7 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
           </div>
           <div style={{ display: 'grid', gap: '10px' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              <TableRolePill label={item.primaryRoleLabel} />
+              <TableRolePill label={item.primaryRoleLabel} role={item.primaryRole} />
               <TableStatusPill user={item} />
             </div>
             <div style={{ fontSize: '13px', color: '#52657E' }}><strong>Phòng ban:</strong> {item.department || '-'}</div>
