@@ -8,6 +8,11 @@ const tasksSource = readFileSync(
   'utf8',
 );
 
+const tasksShellSource = readFileSync(
+  resolve(process.cwd(), 'src/features/tasks/TasksWorkspaceShell.tsx'),
+  'utf8',
+);
+
 describe('tasks workflow contract', () => {
   it('delegates workflow routing to the shared task workflow helper and still navigates through shared nav context', () => {
     expect(tasksSource).toContain('const openWorkflowFromTask = (task: TaskRecord) => {');
@@ -21,11 +26,11 @@ describe('tasks workflow contract', () => {
   });
 
   it('passes workflow open handlers through both kanban and list task surfaces', () => {
-    expect(tasksSource).toContain('onOpenWorkflow={openWorkflowFromTask}');
-    expect(tasksSource).toContain('<TaskList');
-    expect(tasksSource).toContain('tasks={filteredTasks}');
-    expect(tasksSource).toContain('isMobile={isMobile}');
-    expect(tasksSource).toContain('onOpenTask={openDrawer}');
-    expect(tasksSource).toContain('onOpenWorkflow={openWorkflowFromTask}');
+    expect(tasksShellSource).toContain('onOpenWorkflow={openWorkflowFromTask}');
+    expect(tasksShellSource).toContain('<TaskList');
+    expect(tasksShellSource).toContain('tasks={filteredTasks}');
+    expect(tasksShellSource).toContain('isMobile={isMobile}');
+    expect(tasksShellSource).toContain('onOpenTask={openDrawer}');
+    expect(tasksShellSource).toContain('onOpenWorkflow={openWorkflowFromTask}');
   });
 });
