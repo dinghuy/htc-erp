@@ -4,7 +4,7 @@ type CreateActivityServicesDeps = {
 };
 
 type ActivityAuditMetadata = {
-  actorUserId?: string | null;
+  actorUserId?: number | string | null;
   actorRoles?: string | null;
   actingCapability?: string | null;
   action?: string | null;
@@ -12,7 +12,7 @@ type ActivityAuditMetadata = {
 };
 
 export function createActivityServices(deps: CreateActivityServicesDeps) {
-  const { getDb, createId } = deps;
+  const { getDb } = deps;
 
   async function listActivities(options: { entityId?: string; limit: number }) {
     const db = getDb();
@@ -65,24 +65,22 @@ export function createActivityServices(deps: CreateActivityServicesDeps) {
     icon?: string | null;
     color?: string | null;
     iconColor?: string | null;
-    entityId?: string | null;
+    entityId?: number | string | null;
     entityType?: string | null;
     link?: string | null;
-    actorUserId?: string | null;
+    actorUserId?: number | string | null;
     actorRoles?: string | null;
     actingCapability?: string | null;
     action?: string | null;
     timestamp?: string | null;
   }) {
     const db = getDb();
-    const id = createId();
-    await db.run(
+    const result = await db.run(
       `INSERT INTO Activity (
-        id, title, description, category, icon, color, iconColor, entityId, entityType, link,
+        title, description, category, icon, color, iconColor, entityId, entityType, link,
         actorUserId, actorRoles, actingCapability, action, timestamp
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        id,
         input.title,
         input.description || null,
         input.category || null,
@@ -99,7 +97,7 @@ export function createActivityServices(deps: CreateActivityServicesDeps) {
         input.timestamp || new Date().toISOString(),
       ]
     );
-    return db.get('SELECT * FROM Activity WHERE id = ?', [id]);
+    return db.get('SELECT * FROM Activity WHERE id = ?', [result.lastID]);
   }
 
   async function logAct(
@@ -109,7 +107,7 @@ export function createActivityServices(deps: CreateActivityServicesDeps) {
     icon: string,
     color: string,
     iconColor: string,
-    entityId?: string,
+    entityId?: number | string,
     entityType?: string,
     link?: string,
     audit?: ActivityAuditMetadata
@@ -118,11 +116,10 @@ export function createActivityServices(deps: CreateActivityServicesDeps) {
       const db = getDb();
       await db.run(
         `INSERT INTO Activity (
-          id, title, description, category, icon, color, iconColor, entityId, entityType, link,
+          title, description, category, icon, color, iconColor, entityId, entityType, link,
           actorUserId, actorRoles, actingCapability, action, timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          createId(),
           title,
           description,
           category,

@@ -66,14 +66,12 @@ async function seedUser({
 }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'male',
       `${username}@example.com`,
@@ -89,7 +87,7 @@ async function seedUser({
       'vi',
     ]
   );
-  return id;
+  return result.lastID;
 }
 
 async function setup() {
@@ -356,14 +354,13 @@ async function main() {
 
     const db = getDb();
     await db.run(
-      `INSERT INTO ErpOutbox (id, dedupeKey, eventType, entityType, entityId, payload, status, attempts, lastError)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ErpOutbox (dedupeKey, eventType, entityType, entityId, payload, status, attempts, lastError)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        uuidv4(),
         'dead-letter-key',
         'quotation.upsert',
         'Quotation',
-        uuidv4(),
+        1,
         JSON.stringify({ quotationId: 'Q-001' }),
         'failed',
         5,

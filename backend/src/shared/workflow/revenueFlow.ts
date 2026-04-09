@@ -19,9 +19,9 @@ type SalesOrderTransitionInput = {
 };
 
 type HandoffActivationInput = {
-  quotationId?: string | null;
+  quotationId?: number | string | null;
   quotationStatus?: string | null | undefined;
-  salesOrderId?: string | null;
+  salesOrderId?: number | string | null;
   salesOrderStatus?: string | null | undefined;
   releaseGateStatus?: string | null | undefined;
   canCreateSalesOrder?: boolean;
@@ -51,6 +51,9 @@ function normalizeValue(value: unknown) {
 }
 
 function normalizeId(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
   return typeof value === 'string' && value.trim() ? value.trim() : '';
 }
 

@@ -174,4 +174,20 @@ describe('role access composition', () => {
     expect(canApproveRequest(['accounting'], financeApproval, undefined, 'another-user')).toBe(false);
     expect(canApproveRequest(['accounting'], { ...financeApproval, status: 'approved' }, undefined, 'user-accounting')).toBe(false);
   });
+
+  it('treats numeric approval ids and user ids the same as string ids', () => {
+    const financeApproval = {
+      id: 2,
+      requestType: 'payment-milestone',
+      department: 'Finance',
+      approverRole: 'accounting',
+      approverUserId: 101,
+      requestedBy: 202,
+      status: 'pending',
+    };
+
+    expect(canApproveRequest(['accounting'], financeApproval, undefined, 101)).toBe(true);
+    expect(canApproveRequest(['accounting'], financeApproval, undefined, 202)).toBe(false);
+    expect(canApproveRequest(['accounting'], financeApproval, undefined, 999)).toBe(false);
+  });
 });

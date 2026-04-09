@@ -5,8 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
-
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-task-bulk-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-task-bulk.db');
 
@@ -38,14 +36,12 @@ async function run(name, fn) {
 async function seedUser({ username, password, systemRole, roleCodes, fullName }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -62,7 +58,7 @@ async function seedUser({ username, password, systemRole, roleCodes, fullName })
       'vi',
     ],
   );
-  return id;
+  return result.lastID;
 }
 
 async function login(username, password) {
@@ -114,28 +110,34 @@ async function main() {
       fullName: 'Task Bulk Assignee',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const taskA = uuidv4();
-    const taskB = uuidv4();
-    const taskC = uuidv4();
-
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
+    const accountResult = await db.run(`INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`, [
       'Bulk Customer',
     ]);
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'BK-001', 'Bulk Project', managerId, accountId, 'delivery_active', 'active'],
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['BK-001', 'Bulk Project', managerId, accountId, 'delivery_active', 'active'],
     );
+    const projectId = projectResult.lastID;
 
-    for (const taskId of [taskA, taskB, taskC]) {
-      await db.run(
-        `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, taskType, department)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [taskId, projectId, `Task ${taskId.slice(0, 4)}`, managerId, 'pending', 'medium', 'delivery_handoff', 'Operations'],
-      );
-    }
+    const taskAResult = await db.run(
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, taskType, department)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'Task A', managerId, 'pending', 'medium', 'delivery_handoff', 'Operations'],
+    );
+    const taskBResult = await db.run(
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, taskType, department)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'Task B', managerId, 'pending', 'medium', 'delivery_handoff', 'Operations'],
+    );
+    const taskCResult = await db.run(
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, taskType, department)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'Task C', managerId, 'pending', 'medium', 'delivery_handoff', 'Operations'],
+    );
+    const taskA = taskAResult.lastID;
+    const taskB = taskBResult.lastID;
+    const taskC = taskCResult.lastID;
 
     const auth = await login('task.bulk.manager', 'Manager@123');
     assert.equal(auth.response.status, 200);

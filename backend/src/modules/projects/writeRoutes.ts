@@ -79,11 +79,9 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
   const projectRepository = createProjectRepository();
 
   app.post('/api/projects', requireAuth, requireRole('admin', 'manager', 'project_manager'), ah(async (req: Request, res: Response) => {
-    const id = uuidv4();
     const { code, name, description, managerId, accountId, startDate, endDate, status = 'pending', projectStage = 'new' } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
-    await projectRepository.insertProject({
-      id,
+    const result = await projectRepository.insertProject({
       code,
       name,
       description,
@@ -94,7 +92,7 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
       endDate,
       status,
     });
-    res.status(201).json(await projectRepository.findProjectSummaryById(id));
+    res.status(201).json(await projectRepository.findProjectSummaryById(result.lastID));
   }));
 
   app.put('/api/projects/:id', requireAuth, requireRole('admin', 'manager', 'project_manager'), ah(async (req: Request, res: Response) => {
@@ -154,7 +152,6 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
 
     await projectRepository.insertProjectDocument(payload);
     await projectRepository.insertTimelineEvent({
-      id: uuidv4(),
       projectId,
       eventType: 'document.created',
       title: `Thêm checklist hồ sơ: ${documentName}`,
@@ -196,7 +193,6 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
 
     await projectRepository.updateProjectDocumentById(payload);
     await projectRepository.insertTimelineEvent({
-      id: uuidv4(),
       projectId: existing.projectId,
       eventType: 'document.updated',
       title: `Cập nhật checklist hồ sơ: ${payload.documentName}`,
@@ -233,7 +229,6 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
       threadId,
     });
     await projectRepository.insertTimelineEvent({
-      id: uuidv4(),
       projectId: existing.projectId,
       eventType: 'document.review_state_updated',
       title: `Cập nhật review state: ${existing.documentName || existing.documentCode || documentId}`,
@@ -281,7 +276,6 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
 
     await projectRepository.insertProjectBlocker(payload);
     await projectRepository.insertTimelineEvent({
-      id: uuidv4(),
       projectId,
       eventType: 'blocker.created',
       title: `Thêm blocker: ${title}`,
@@ -321,7 +315,6 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
 
     await projectRepository.updateProjectBlockerById(payload);
     await projectRepository.insertTimelineEvent({
-      id: uuidv4(),
       projectId: existing.projectId,
       eventType: 'blocker.updated',
       title: `Cập nhật blocker: ${payload.title}`,

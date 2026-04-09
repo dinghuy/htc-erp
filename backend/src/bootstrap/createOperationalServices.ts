@@ -28,11 +28,11 @@ export type PlatformReportingServices = {
 };
 
 export type PlatformWorkspaceServices = {
-  getHomeSummary: (userId: string, globalAccess: boolean) => Promise<any>;
-  listHighlights: (userId: string, globalAccess: boolean, currentUser?: any) => Promise<any[]>;
-  listApprovals: (userId: string, globalAccess: boolean, limit?: number) => Promise<any[]>;
-  getMyWork: (userId: string, globalAccess: boolean) => Promise<{ tasks: any[]; approvals: any[]; projects: any[] }>;
-  getInboxItems: (userId: string, globalAccess: boolean) => Promise<{ documentItems: any[]; notificationItems: any[]; blockedTasks: any[] }>;
+  getHomeSummary: (userId: number | string, globalAccess: boolean) => Promise<any>;
+  listHighlights: (userId: number | string, globalAccess: boolean, currentUser?: any) => Promise<any[]>;
+  listApprovals: (userId: number | string, globalAccess: boolean, limit?: number) => Promise<any[]>;
+  getMyWork: (userId: number | string, globalAccess: boolean) => Promise<{ tasks: any[]; approvals: any[]; projects: any[] }>;
+  getInboxItems: (userId: number | string, globalAccess: boolean) => Promise<{ documentItems: any[]; notificationItems: any[]; blockedTasks: any[] }>;
 };
 
 export function createOperationalServices(deps: CreateOperationalServicesDeps) {
@@ -112,11 +112,11 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
   const logAct = (...args: Parameters<ReturnType<typeof createActivityServices>['logAct']>) =>
     getActivityServices().logAct(...args);
 
-  function resolveAssigneeId(db: any, preferredAssigneeId: unknown, salesperson: unknown, fallbackUserId: string | null) {
+  function resolveAssigneeId(db: any, preferredAssigneeId: unknown, salesperson: unknown, fallbackUserId: number | string | null) {
     return getTaskServices().resolveAssigneeId(db, preferredAssigneeId, salesperson, fallbackUserId);
   }
 
-  function getTaskWithLinksById(db: any, id: string) {
+  function getTaskWithLinksById(db: any, id: number | string) {
     return getTaskServices().getTaskWithLinksById(db, id);
   }
 
@@ -136,9 +136,9 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
 
   function ensureNotification(
     db: any,
-    userId: string | null,
+    userId: number | string | null,
     content: string,
-    meta: { entityType?: string | null; entityId?: string | null; link?: string | null } = {}
+    meta: { entityType?: string | null; entityId?: number | string | null; link?: string | null } = {}
   ) {
     return getNotificationServices().ensureNotification(db, userId, content, meta);
   }
@@ -156,7 +156,7 @@ export function createOperationalServices(deps: CreateOperationalServicesDeps) {
   }
 
   function getCurrentUserId(req: Request) {
-    return String((req as any).user?.id || '');
+    return (req as any).user?.id || null;
   }
 
   const appendDateRangeFilter = (conditions: string[], params: any[], column: string, from: unknown, to: unknown) => {

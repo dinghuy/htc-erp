@@ -5,8 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
-
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-task-subtasks-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-task-subtasks.db');
 
@@ -38,14 +36,12 @@ async function run(name, fn) {
 async function seedUser({ username, password, systemRole, roleCodes, fullName }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -62,7 +58,7 @@ async function seedUser({ username, password, systemRole, roleCodes, fullName })
       'vi',
     ],
   );
-  return id;
+  return result.lastID;
 }
 
 async function login(username, password) {
@@ -107,38 +103,36 @@ async function main() {
       fullName: 'Task Subtask Manager',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const parentTaskId = uuidv4();
-    const existingSubtaskId = uuidv4();
-
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
+    const accountResult = await db.run(`INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`, [
       'Subtask Customer',
     ]);
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'ST-001', 'Subtask Project', userId, accountId, 'delivery_active', 'active'],
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['ST-001', 'Subtask Project', userId, accountId, 'delivery_active', 'active'],
     );
-    await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, taskType, department)
+    const projectId = projectResult.lastID;
+    const parentTaskResult = await db.run(
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, taskType, department)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'Parent task', userId, 'active', 'high', 'delivery_handoff', 'Operations'],
+    );
+    const parentTaskId = parentTaskResult.lastID;
+    const existingSubtaskResult = await db.run(
+      `INSERT INTO Task (projectId, parentTaskId, name, assigneeId, status, priority, taskType, department)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [parentTaskId, projectId, 'Parent task', userId, 'active', 'high', 'delivery_handoff', 'Operations'],
+      [projectId, parentTaskId, 'Existing subtask', userId, 'pending', 'medium', 'follow_up', 'Operations'],
+    );
+    const existingSubtaskId = existingSubtaskResult.lastID;
+    await db.run(
+      `INSERT INTO ToDo (userId, title, description, priority, visibility, doneAt, entityType, entityId, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [userId, 'Checklist open', null, 'medium', 'public', null, 'Task', parentTaskId],
     );
     await db.run(
-      `INSERT INTO Task (id, projectId, parentTaskId, name, assigneeId, status, priority, taskType, department)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [existingSubtaskId, projectId, parentTaskId, 'Existing subtask', userId, 'pending', 'medium', 'follow_up', 'Operations'],
-    );
-    await db.run(
-      `INSERT INTO ToDo (id, userId, title, description, priority, visibility, doneAt, entityType, entityId, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [uuidv4(), userId, 'Checklist open', null, 'medium', 'public', null, 'Task', parentTaskId],
-    );
-    await db.run(
-      `INSERT INTO ToDo (id, userId, title, description, priority, visibility, doneAt, entityType, entityId, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, datetime('now'), datetime('now'))`,
-      [uuidv4(), userId, 'Checklist done', null, 'medium', 'public', 'Task', parentTaskId],
+      `INSERT INTO ToDo (userId, title, description, priority, visibility, doneAt, entityType, entityId, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?, datetime('now'), datetime('now'))`,
+      [userId, 'Checklist done', null, 'medium', 'public', 'Task', parentTaskId],
     );
 
     const auth = await login('task.subtasks.manager', 'Manager@123');

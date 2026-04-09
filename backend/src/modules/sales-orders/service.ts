@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { getDb } from '../../../sqlite-db';
 import { enqueueErpEvent } from '../../../erp-sync';
 import { userHasAnyRole } from '../../shared/auth/roles';
@@ -6,8 +5,8 @@ import { canTransitionSalesOrderStatus, resolveHandoffActivation } from '../../s
 import { createSalesOrderRepository } from './repository';
 
 type SalesOrderServiceDeps = {
-  createSalesOrderFromQuotation: (db: any, quotationId: string) => Promise<{ created: boolean; salesOrder: any }>;
-  getProjectWorkspaceById: (db: any, projectId: string, currentUser?: any) => Promise<any>;
+  createSalesOrderFromQuotation: (db: any, quotationId: number | string) => Promise<{ created: boolean; salesOrder: any }>;
+  getProjectWorkspaceById: (db: any, projectId: number | string, currentUser?: any) => Promise<any>;
   createProjectTimelineEvent: (db: any, event: any) => Promise<any>;
 };
 
@@ -113,11 +112,11 @@ export function createSalesOrderService(deps: SalesOrderServiceDeps) {
     });
   }
 
-  async function getSalesOrderById(id: string) {
+  async function getSalesOrderById(id: number | string) {
     return repository.findDetailedById(id);
   }
 
-  async function createFromQuotation(input: { quotationId: string; currentUser?: any }): Promise<RouteResult> {
+  async function createFromQuotation(input: { quotationId: number | string; currentUser?: any }): Promise<RouteResult> {
     const quotation = await repository.findQuotationSummaryById(input.quotationId);
     if (!quotation) {
       return { status: 404, body: { error: 'Quotation not found' } };
@@ -150,7 +149,7 @@ export function createSalesOrderService(deps: SalesOrderServiceDeps) {
           salesOrderId: result.salesOrder.id,
           source: 'sales_order_create',
         },
-        createdBy: String(input.currentUser?.id || '').trim() || null,
+        createdBy: input.currentUser?.id ?? null,
       });
     }
     return {
@@ -159,7 +158,7 @@ export function createSalesOrderService(deps: SalesOrderServiceDeps) {
     };
   }
 
-  async function requestReleaseApproval(input: { salesOrderId: string; note?: unknown; currentUser?: any }): Promise<RouteResult> {
+  async function requestReleaseApproval(input: { salesOrderId: number | string; note?: unknown; currentUser?: any }): Promise<RouteResult> {
     const salesOrder = await repository.findReleaseApprovalContextBySalesOrderId(input.salesOrderId);
     if (!salesOrder) {
       return { status: 404, body: { error: 'Sales order not found' } };
@@ -201,10 +200,9 @@ export function createSalesOrderService(deps: SalesOrderServiceDeps) {
 
     const directorUser = await repository.findActiveDirectorUser();
     const created = await repository.createReleaseApproval({
-      id: randomUUID(),
       projectId: salesOrder.projectId || null,
       quotationId: salesOrder.quotationId || null,
-      requestedBy: String(input.currentUser?.id || '').trim() || null,
+      requestedBy: input.currentUser?.id ?? null,
       approverUserId: directorUser?.id || null,
       title: approvalTitle,
       note: typeof input.note === 'string' && input.note.trim() ? input.note.trim() : null,
@@ -224,7 +222,7 @@ export function createSalesOrderService(deps: SalesOrderServiceDeps) {
           approvalRequestId: created.id,
           source: 'sales_order_release_approval_request',
         },
-        createdBy: String(input.currentUser?.id || '').trim() || null,
+        createdBy: input.currentUser?.id ?? null,
       });
     }
 

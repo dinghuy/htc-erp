@@ -9,7 +9,7 @@ export function createTaskServices(_deps: CreateTaskServicesDeps = {}) {
     _db: any,
     preferredAssigneeId: unknown,
     salesperson: unknown,
-    fallbackUserId: string | null
+    fallbackUserId: number | string | null
   ) {
     if (typeof preferredAssigneeId === 'string' && preferredAssigneeId.trim()) {
       const direct = await taskRepository.findUserByIdentifier(preferredAssigneeId);
@@ -28,7 +28,7 @@ export function createTaskServices(_deps: CreateTaskServicesDeps = {}) {
     return null;
   }
 
-  async function getTaskWithLinksById(_db: any, id: string) {
+  async function getTaskWithLinksById(_db: any, id: number | string) {
     return taskRepository.getTaskWithLinksById(id);
   }
 

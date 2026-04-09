@@ -5,8 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
-
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-task-views-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-task-views.db');
 
@@ -44,14 +42,12 @@ async function seedUser({
 }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -68,7 +64,7 @@ async function seedUser({
       'vi',
     ],
   );
-  return id;
+  return result.lastID;
 }
 
 async function login(username, password) {

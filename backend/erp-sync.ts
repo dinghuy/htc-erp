@@ -10,7 +10,7 @@ type ErpOutboxStatus = 'pending' | 'processing' | 'sent' | 'failed';
 export type EnqueueErpEventInput = {
   eventType: string;
   entityType?: string | null;
-  entityId?: string | null;
+  entityId?: number | string | null;
   payload: unknown;
 };
 
@@ -56,40 +56,38 @@ export async function enqueueErpEvent(db: any, input: EnqueueErpEventInput) {
   if (!eventType) return { enqueued: false, reason: 'eventType required' as const };
 
   const entityType = input.entityType ? String(input.entityType) : null;
-  const entityId = input.entityId ? String(input.entityId) : null;
+  const entityId = input.entityId === 0 || input.entityId ? String(input.entityId) : null;
   const payload = stableStringify(input.payload);
   const dedupeKey = computeDedupeKey({ ...input, eventType, entityType, entityId });
-
-  const id = crypto.randomUUID();
 
   // Insert once; unique(dedupeKey) ensures idempotency (even across retries and restarts).
   // For ".upsert" events, overwrite payload to keep latest snapshot in the queue.
   const isUpsert = eventType.endsWith('.upsert');
   if (isUpsert) {
     await db.run(
-      `INSERT INTO ErpOutbox (id, dedupeKey, eventType, entityType, entityId, payload, status, attempts, nextRunAt, lastError, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, datetime('now'))
+      `INSERT INTO ErpOutbox (dedupeKey, eventType, entityType, entityId, payload, status, attempts, nextRunAt, lastError, updatedAt)
+       VALUES (?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, datetime('now'))
        ON CONFLICT(dedupeKey) DO UPDATE SET
          payload = excluded.payload,
          status = 'pending',
          nextRunAt = NULL,
          lastError = NULL,
          updatedAt = datetime('now')`,
-      [id, dedupeKey, eventType, entityType, entityId, payload]
+      [dedupeKey, eventType, entityType, entityId, payload]
     );
   } else {
     await db.run(
-      `INSERT OR IGNORE INTO ErpOutbox (id, dedupeKey, eventType, entityType, entityId, payload, status, attempts)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', 0)`,
-      [id, dedupeKey, eventType, entityType, entityId, payload]
+      `INSERT OR IGNORE INTO ErpOutbox (dedupeKey, eventType, entityType, entityId, payload, status, attempts)
+       VALUES (?, ?, ?, ?, ?, 'pending', 0)`,
+      [dedupeKey, eventType, entityType, entityId, payload]
     );
   }
 
   const row = await db.get(`SELECT id FROM ErpOutbox WHERE dedupeKey = ?`, [dedupeKey]);
-  const enqueued = row?.id === id;
+  const enqueued = Boolean(row?.id);
   return {
     enqueued,
-    id: row?.id || id,
+    id: row?.id || null,
     dedupeKey,
     idempotencyKey: dedupeKey,
     payloadVersion: ERP_OUTBOX_PAYLOAD_VERSION,
@@ -122,16 +120,12 @@ async function handleErpEventInternal(db: any, eventType: string, payloadJson: s
     const existing = await db.get(`SELECT id FROM SalesOrder WHERE quotationId = ?`, [quotationId]);
     if (existing?.id) return { ok: true };
 
-    const id = crypto.randomUUID();
-    const orderNumber = `SO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${id.slice(0, 6).toUpperCase()}`;
-
-    await db.run(
+    const insertResult = await db.run(
       `INSERT INTO SalesOrder (
-        id, orderNumber, quotationId, accountId, status, currency, items, subtotal, taxTotal, grandTotal, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        orderNumber, quotationId, accountId, status, currency, items, subtotal, taxTotal, grandTotal, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        id,
-        orderNumber,
+        `SO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
         quotationId,
         quotation.accountId || null,
         'draft',
@@ -143,6 +137,9 @@ async function handleErpEventInternal(db: any, eventType: string, payloadJson: s
         `Auto-created from quotation ${quotation.quoteNumber || quotationId}`,
       ]
     );
+    const id = insertResult.lastID;
+    const orderNumber = `SO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(id).padStart(6, '0')}`;
+    await db.run(`UPDATE SalesOrder SET orderNumber = ? WHERE id = ?`, [orderNumber, id]);
 
     return { ok: true };
   }

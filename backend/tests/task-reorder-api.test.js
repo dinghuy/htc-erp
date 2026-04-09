@@ -5,8 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
-
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-task-reorder-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-task-reorder.db');
 
@@ -38,14 +36,12 @@ async function run(name, fn) {
 async function seedUser({ username, password, systemRole, roleCodes, fullName }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -62,7 +58,7 @@ async function seedUser({ username, password, systemRole, roleCodes, fullName })
       'vi',
     ],
   );
-  return id;
+  return result.lastID;
 }
 
 async function login(username, password) {
@@ -107,39 +103,36 @@ async function main() {
       fullName: 'Task Reorder Manager',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const parentTaskId = uuidv4();
-    const subtaskA = uuidv4();
-    const subtaskB = uuidv4();
-    const subtaskC = uuidv4();
-
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
+    const accountResult = await db.run(`INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`, [
       'Reorder Customer',
     ]);
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'RO-001', 'Reorder Project', userId, accountId, 'delivery_active', 'active'],
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['RO-001', 'Reorder Project', userId, accountId, 'delivery_active', 'active'],
     );
-    await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, taskType, department, sortOrder)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [parentTaskId, projectId, 'Parent task', userId, 'active', 'high', 'delivery_handoff', 'Operations', 100],
+    const projectId = projectResult.lastID;
+    const parentTaskResult = await db.run(
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, taskType, department, sortOrder)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'Parent task', userId, 'active', 'high', 'delivery_handoff', 'Operations', 100],
     );
+    const parentTaskId = parentTaskResult.lastID;
 
     const children = [
-      [subtaskA, 'Subtask A', 30],
-      [subtaskB, 'Subtask B', 20],
-      [subtaskC, 'Subtask C', 10],
+      ['Subtask A', 30],
+      ['Subtask B', 20],
+      ['Subtask C', 10],
     ];
-    for (const [taskId, name, sortOrder] of children) {
-      await db.run(
-        `INSERT INTO Task (id, projectId, parentTaskId, name, assigneeId, status, priority, taskType, department, sortOrder)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [taskId, projectId, parentTaskId, name, userId, 'pending', 'medium', 'follow_up', 'Operations', sortOrder],
-      );
+    const childResults = [];
+    for (const [name, sortOrder] of children) {
+      childResults.push(await db.run(
+        `INSERT INTO Task (projectId, parentTaskId, name, assigneeId, status, priority, taskType, department, sortOrder)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [projectId, parentTaskId, name, userId, 'pending', 'medium', 'follow_up', 'Operations', sortOrder],
+      ));
     }
+    const [subtaskA, subtaskB, subtaskC] = childResults.map((result) => result.lastID);
 
     const auth = await login('task.reorder.manager', 'Manager@123');
     assert.equal(auth.response.status, 200);

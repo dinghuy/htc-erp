@@ -159,24 +159,26 @@ export type WorkflowTransitionResult =
   | { ok: true }
   | { ok: false; failure: WorkflowGuardFailure };
 
+export type EntityId = number;
+
 export type AuditEventPayload = {
   entityType: 'Quotation' | 'SalesOrder' | 'Project' | 'ProjectDeliveryLine' | 'ApprovalRequest';
-  entityId: string;
+  entityId: EntityId;
   action: string;
   fromStatus?: string | null;
   toStatus?: string | null;
   gateType?: ApprovalGateType | null;
-  actorUserId?: string | null;
+  actorUserId?: EntityId | null;
   note?: string | null;
 };
 
 export type AuditFields = {
-  id: string;
+  id: EntityId;
   createdAt?: string;
   updatedAt?: string;
-  createdBy?: string | null;
-  updatedBy?: string | null;
-  actorUserId?: string | null;
+  createdBy?: EntityId | null;
+  updatedBy?: EntityId | null;
+  actorUserId?: EntityId | null;
   actorRoles?: string | null;
   actingCapability?: string | null;
   action?: string | null;
@@ -202,34 +204,34 @@ export type ApiError = {
 
 export type TaskContextRef = {
   entityType: 'Lead' | 'Account' | 'Contact' | 'Quotation' | 'Project' | 'Task' | 'ApprovalRequest' | 'SupportTicket' | 'Milestone';
-  entityId: string;
+  entityId: EntityId;
   label?: string | null;
   href?: string | null;
 };
 
 export type ProjectActivityItem = AuditFields & {
-  projectId: string;
+  projectId: EntityId;
   entityType: string;
-  entityId: string;
+  entityId: EntityId;
   activityType: string;
   title: string;
   body?: string | null;
   link?: string | null;
-  taskId?: string | null;
-  approvalRequestId?: string | null;
+  taskId?: EntityId | null;
+  approvalRequestId?: EntityId | null;
 };
 
 export type TaskDependency = AuditFields & {
-  taskId: string;
-  relatedTaskId: string;
+  taskId: EntityId;
+  relatedTaskId: EntityId;
   kind: TaskDependencyKind;
   note?: string | null;
 };
 
 export type WorklogEntry = AuditFields & {
-  projectId: string;
-  taskId?: string | null;
-  authorUserId?: string | null;
+  projectId: EntityId;
+  taskId?: EntityId | null;
+  authorUserId?: EntityId | null;
   startedAt?: string | null;
   endedAt?: string | null;
   durationMinutes?: number | null;
@@ -237,19 +239,19 @@ export type WorklogEntry = AuditFields & {
 };
 
 export type ApprovalQueueItem = AuditFields & {
-  approvalRequestId: string;
+  approvalRequestId: EntityId;
   lane: ApprovalLane;
   status: ApprovalStatus;
   requestType?: string | null;
-  projectId?: string | null;
-  taskId?: string | null;
+  projectId?: EntityId | null;
+  taskId?: EntityId | null;
   dueAt?: string | null;
-  assigneeUserId?: string | null;
+  assigneeUserId?: EntityId | null;
 };
 
 export type EntityThread = AuditFields & {
   entityType: string;
-  entityId: string;
+  entityId: EntityId;
   title?: string | null;
   status: ThreadStatus;
   messageCount?: number;
@@ -257,31 +259,31 @@ export type EntityThread = AuditFields & {
 };
 
 export type ThreadMessage = AuditFields & {
-  threadId: string;
-  authorUserId?: string | null;
+  threadId: EntityId;
+  authorUserId?: EntityId | null;
   content: string;
   contentType?: 'text/plain' | 'text/markdown';
 };
 
 export type ProjectDocument = AuditFields & {
-  projectId: string;
+  projectId: EntityId;
   title: string;
   status: DocumentReviewStatus;
   storageKey?: string | null;
-  threadId?: string | null;
+  threadId?: EntityId | null;
 };
 
 export type DocumentReviewState = {
   status: DocumentReviewStatus;
-  reviewerUserId?: string | null;
+  reviewerUserId?: EntityId | null;
   reviewedAt?: string | null;
   note?: string | null;
 };
 
 export type ProjectWorkspaceSummary = AuditFields & {
-  projectId: string;
-  quotationId?: string | null;
-  accountId?: string | null;
+  projectId: EntityId;
+  quotationId?: EntityId | null;
+  accountId?: EntityId | null;
   projectStage?: ProjectStage | string | null;
   activeTab?: ProjectWorkspaceTabKey | null;
   taskSummary?: {
@@ -303,7 +305,7 @@ export type ProjectWorkspaceSummary = AuditFields & {
 };
 
 export type AuthenticatedUser = {
-  id: string;
+  id: EntityId;
   username: string;
   fullName: string;
   systemRole: SystemRole;

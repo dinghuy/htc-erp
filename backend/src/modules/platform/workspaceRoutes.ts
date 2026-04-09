@@ -10,7 +10,7 @@ type RegisterPlatformWorkspaceRoutesDeps = {
   ah: AsyncRouteFactory;
   requireAuth: any;
   workspaceServices: PlatformWorkspaceServices;
-  getProjectWorkspaceById?: (db: any, projectId: string, currentUser?: any) => Promise<any>;
+  getProjectWorkspaceById?: (db: any, projectId: number | string, currentUser?: any) => Promise<any>;
 };
 
 function getPersonaMode(roleCodes: string[]) {
@@ -377,8 +377,8 @@ function decorateApprovalForCurrentUser(approval: any, currentUser?: any) {
     actionAvailability: {
       lane: resolveApprovalLaneForUser(approval),
       canDecide,
-      isRequester: Boolean(currentUser?.id) && String(approval?.requestedBy || '') === currentUser?.id,
-      isAssignedApprover: !approval?.approverUserId || String(approval.approverUserId) === currentUser?.id,
+      isRequester: Boolean(currentUser?.id) && String(approval?.requestedBy || '') === String(currentUser?.id || ''),
+      isAssignedApprover: !approval?.approverUserId || String(approval.approverUserId) === String(currentUser?.id || ''),
       availableDecisions: canDecide ? ['approved', 'rejected', 'changes_requested'] : [],
     },
   };

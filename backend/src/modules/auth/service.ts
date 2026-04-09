@@ -5,7 +5,7 @@ import { normalizeRoleCodes, resolvePrimaryRole, roleCodesToJson } from '../../s
 import { authRepository, type UserRecord } from './repository';
 
 export type SessionUser = {
-  id: string;
+  id: number;
   username: string;
   fullName: string;
   systemRole: string;

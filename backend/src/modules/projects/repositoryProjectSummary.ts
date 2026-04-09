@@ -1,8 +1,8 @@
 import { getDb } from '../../../sqlite-db';
 
 export type ListProjectsFilters = {
-  accountId?: string;
-  managerId?: string;
+  accountId?: number | string;
+  managerId?: number | string;
   status?: string;
   startDateFrom?: string;
   startDateTo?: string;
@@ -70,22 +70,20 @@ const PROJECT_SUMMARY_JOINS = `
 
 export function createProjectSummaryRepository() {
   async function insertProject(input: {
-    id: string;
     code?: string | null;
     name: string;
     description?: string | null;
-    managerId?: string | null;
-    accountId?: string | null;
+    managerId?: number | string | null;
+    accountId?: number | string | null;
     projectStage: string;
     startDate?: string | null;
     endDate?: string | null;
     status?: string | null;
   }) {
-    await getDb().run(
-      `INSERT INTO Project (id, code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    return getDb().run(
+      `INSERT INTO Project (code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.code || null,
         input.name,
         input.description || null,
@@ -100,12 +98,12 @@ export function createProjectSummaryRepository() {
   }
 
   async function updateProjectById(input: {
-    id: string;
+    id: number | string;
     code?: string | null;
     name: string;
     description?: string | null;
-    managerId?: string | null;
-    accountId?: string | null;
+    managerId?: number | string | null;
+    accountId?: number | string | null;
     projectStage: string;
     startDate?: string | null;
     endDate?: string | null;
@@ -131,11 +129,11 @@ export function createProjectSummaryRepository() {
     );
   }
 
-  async function deleteTasksByProjectId(projectId: string) {
+  async function deleteTasksByProjectId(projectId: number | string) {
     await getDb().run('DELETE FROM Task WHERE projectId = ?', [projectId]);
   }
 
-  async function deleteProjectById(projectId: string) {
+  async function deleteProjectById(projectId: number | string) {
     await getDb().run('DELETE FROM Project WHERE id = ?', [projectId]);
   }
 
@@ -183,7 +181,7 @@ export function createProjectSummaryRepository() {
     );
   }
 
-  async function findProjectSummaryById(projectId: string) {
+  async function findProjectSummaryById(projectId: number | string) {
     return getDb().get(
       `
         SELECT p.*,

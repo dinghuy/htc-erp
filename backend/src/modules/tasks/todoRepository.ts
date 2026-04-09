@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../../sqlite-db';
 
 export const VALID_TODO_PRIORITIES = ['no_priority', 'urgent', 'high', 'medium', 'low'] as const;
@@ -8,8 +7,8 @@ export type ToDoPriority = typeof VALID_TODO_PRIORITIES[number];
 export type ToDoVisibility = typeof VALID_TODO_VISIBILITIES[number];
 
 export type ToDoRow = {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number | string;
   title: string;
   description?: string | null;
   dueDate?: string | null;
@@ -17,14 +16,14 @@ export type ToDoRow = {
   visibility?: ToDoVisibility;
   doneAt?: string | null;
   entityType?: string | null;
-  entityId?: string | null;
+  entityId?: number | string | null;
   createdAt?: string;
   updatedAt?: string;
 };
 
 export type WorkSlotRow = {
-  id: string;
-  todoId: string;
+  id: number;
+  todoId: number | string;
   startDate: string;
   endDate: string;
   createdAt?: string;
@@ -33,7 +32,7 @@ export type WorkSlotRow = {
 export function createTodoRepository() {
   return {
     // ── ToDo ────────────────────────────────────────────────────────────────
-    findByUserId(userId: string, filters?: { done?: boolean; entityType?: string; entityId?: string }) {
+    findByUserId(userId: number | string, filters?: { done?: boolean; entityType?: string; entityId?: number | string }) {
       const conditions = ['userId = ?'];
       const params: unknown[] = [userId];
       if (filters?.done === true) {
@@ -55,18 +54,18 @@ export function createTodoRepository() {
       );
     },
 
-    findById(id: string) {
+    findById(id: number | string) {
       return getDb().get<ToDoRow>('SELECT * FROM ToDo WHERE id = ?', [id]);
     },
 
-    findByEntity(entityType: string, entityId: string) {
+    findByEntity(entityType: string, entityId: number | string) {
       return getDb().all<ToDoRow>(
         `SELECT * FROM ToDo WHERE entityType = ? AND entityId = ? ORDER BY doneAt IS NULL DESC, priority ASC, createdAt ASC`,
         [entityType, entityId]
       );
     },
 
-    async findByIdForEntity(id: string, entityType: string, entityId: string) {
+    async findByIdForEntity(id: number | string, entityType: string, entityId: number | string) {
       return getDb().get<ToDoRow>(
         `SELECT * FROM ToDo WHERE id = ? AND entityType = ? AND entityId = ?`,
         [id, entityType, entityId]
@@ -74,21 +73,19 @@ export function createTodoRepository() {
     },
 
     async create(input: {
-      userId: string;
+      userId: number | string;
       title: string;
       description?: string | null;
       dueDate?: string | null;
       priority?: ToDoPriority;
       visibility?: ToDoVisibility;
       entityType?: string | null;
-      entityId?: string | null;
+      entityId?: number | string | null;
     }) {
-      const id = uuidv4();
-      await getDb().run(
-        `INSERT INTO ToDo (id, userId, title, description, dueDate, priority, visibility, doneAt, entityType, entityId, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, datetime('now'), datetime('now'))`,
+      const result = await getDb().run(
+        `INSERT INTO ToDo (userId, title, description, dueDate, priority, visibility, doneAt, entityType, entityId, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, datetime('now'), datetime('now'))`,
         [
-          id,
           input.userId,
           input.title,
           input.description ?? null,
@@ -99,10 +96,10 @@ export function createTodoRepository() {
           input.entityId ?? null,
         ]
       );
-      return this.findById(id);
+      return this.findById(result.lastID);
     },
 
-    async updateById(id: string, input: Partial<Omit<ToDoRow, 'id' | 'userId' | 'createdAt'>>) {
+    async updateById(id: number | string, input: Partial<Omit<ToDoRow, 'id' | 'userId' | 'createdAt'>>) {
       const existing = await this.findById(id);
       if (!existing) return null;
       await getDb().run(
@@ -123,7 +120,7 @@ export function createTodoRepository() {
       return this.findById(id);
     },
 
-    async markDone(id: string, doneAt?: string) {
+    async markDone(id: number | string, doneAt?: string) {
       const ts = doneAt ?? new Date().toISOString();
       await getDb().run(
         `UPDATE ToDo SET doneAt = ?, updatedAt = datetime('now') WHERE id = ?`,
@@ -132,7 +129,7 @@ export function createTodoRepository() {
       return this.findById(id);
     },
 
-    async markUndone(id: string) {
+    async markUndone(id: number | string) {
       await getDb().run(
         `UPDATE ToDo SET doneAt = NULL, updatedAt = datetime('now') WHERE id = ?`,
         [id]
@@ -140,33 +137,32 @@ export function createTodoRepository() {
       return this.findById(id);
     },
 
-    deleteById(id: string) {
+    deleteById(id: number | string) {
       return getDb().run('DELETE FROM ToDo WHERE id = ?', [id]);
     },
 
     // ── WorkSlot ────────────────────────────────────────────────────────────
-    findWorkSlotsByTodoId(todoId: string) {
+    findWorkSlotsByTodoId(todoId: number | string) {
       return getDb().all<WorkSlotRow>(
         'SELECT * FROM WorkSlot WHERE todoId = ? ORDER BY startDate ASC',
         [todoId]
       );
     },
 
-    findWorkSlotById(id: string) {
+    findWorkSlotById(id: number | string) {
       return getDb().get<WorkSlotRow>('SELECT * FROM WorkSlot WHERE id = ?', [id]);
     },
 
-    async createWorkSlot(input: { todoId: string; startDate: string; endDate: string }) {
-      const id = uuidv4();
-      await getDb().run(
-        `INSERT INTO WorkSlot (id, todoId, startDate, endDate, createdAt)
-         VALUES (?, ?, ?, ?, datetime('now'))`,
-        [id, input.todoId, input.startDate, input.endDate]
+    async createWorkSlot(input: { todoId: number | string; startDate: string; endDate: string }) {
+      const result = await getDb().run(
+        `INSERT INTO WorkSlot (todoId, startDate, endDate, createdAt)
+         VALUES (?, ?, ?, datetime('now'))`,
+        [input.todoId, input.startDate, input.endDate]
       );
-      return this.findWorkSlotById(id);
+      return this.findWorkSlotById(result.lastID);
     },
 
-    async updateWorkSlotById(id: string, input: { startDate?: string; endDate?: string }) {
+    async updateWorkSlotById(id: number | string, input: { startDate?: string; endDate?: string }) {
       const existing = await this.findWorkSlotById(id);
       if (!existing) return null;
       await getDb().run(
@@ -176,11 +172,11 @@ export function createTodoRepository() {
       return this.findWorkSlotById(id);
     },
 
-    deleteWorkSlotById(id: string) {
+    deleteWorkSlotById(id: number | string) {
       return getDb().run('DELETE FROM WorkSlot WHERE id = ?', [id]);
     },
 
-    deleteWorkSlotsByTodoId(todoId: string) {
+    deleteWorkSlotsByTodoId(todoId: number | string) {
       return getDb().run('DELETE FROM WorkSlot WHERE todoId = ?', [todoId]);
     },
   };

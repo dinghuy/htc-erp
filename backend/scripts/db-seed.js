@@ -7,7 +7,8 @@ const { seedDatabase } = require('../src/persistence/sqlite/seed.ts');
 
 (async () => {
   await initDb();
-  await seedDatabase(getDb(), { createId: uuidv4 });
+  let counter = 1;
+  await seedDatabase(getDb(), { createId: () => counter++ });
   console.log('OK');
 })().catch((error) => {
   console.error(error);

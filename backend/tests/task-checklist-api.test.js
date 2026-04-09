@@ -5,8 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
-
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-task-checklist-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-task-checklist.db');
 
@@ -38,14 +36,12 @@ async function run(name, fn) {
 async function seedUser({ username, password, systemRole, roleCodes, fullName }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -62,7 +58,7 @@ async function seedUser({ username, password, systemRole, roleCodes, fullName })
       'vi',
     ],
   );
-  return id;
+  return result.lastID;
 }
 
 async function login(username, password) {
@@ -107,23 +103,21 @@ async function main() {
       fullName: 'Task Checklist Manager',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const taskId = uuidv4();
-
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
+    const accountResult = await db.run(`INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`, [
       'Checklist Customer',
     ]);
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'CL-001', 'Checklist Project', userId, accountId, 'delivery_active', 'active'],
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['CL-001', 'Checklist Project', userId, accountId, 'delivery_active', 'active'],
     );
-    await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, taskType, department)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [taskId, projectId, 'Checklist Task', userId, 'active', 'high', 'delivery_handoff', 'Operations'],
+    const projectId = projectResult.lastID;
+    const taskResult = await db.run(
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, taskType, department)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'Checklist Task', userId, 'active', 'high', 'delivery_handoff', 'Operations'],
     );
+    const taskId = taskResult.lastID;
 
     const auth = await login('task.checklist.manager', 'Manager@123');
     assert.equal(auth.response.status, 200);

@@ -216,8 +216,8 @@ export async function finalizeSqliteSchema(db: Database) {
   const createTypedQuotationChildTables = async () => {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS QuotationLineItem (
-        id TEXT PRIMARY KEY,
-        quotationId TEXT NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quotationId INTEGER NOT NULL,
         sortOrder INTEGER DEFAULT 0,
         sku TEXT,
         name TEXT,
@@ -234,8 +234,8 @@ export async function finalizeSqliteSchema(db: Database) {
 
     await db.exec(`
       CREATE TABLE IF NOT EXISTS QuotationTermItem (
-        id TEXT PRIMARY KEY,
-        quotationId TEXT NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quotationId INTEGER NOT NULL,
         sortOrder INTEGER DEFAULT 0,
         labelViPrint TEXT,
         labelEn TEXT,
@@ -263,8 +263,8 @@ export async function finalizeSqliteSchema(db: Database) {
     );
 
     for (const row of quotationRows) {
-      const quotationId = String(row?.id || '').trim();
-      if (!quotationId) continue;
+      const quotationId = Number(row?.id);
+      if (!Number.isFinite(quotationId)) continue;
 
       const existingLineItemCount = await db.get(
         `SELECT COUNT(*) as c FROM QuotationLineItem WHERE quotationId = ?`,
@@ -275,10 +275,9 @@ export async function finalizeSqliteSchema(db: Database) {
         for (const item of lineItems) {
           await db.run(
             `INSERT INTO QuotationLineItem (
-              id, quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
+              quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
             [
-              item.id || `${quotationId}:line:${item.sortOrder + 1}`,
               quotationId,
               item.sortOrder,
               item.sku,
@@ -326,10 +325,9 @@ export async function finalizeSqliteSchema(db: Database) {
         for (const termItem of commercialTerms.termItems) {
           await db.run(
             `INSERT INTO QuotationTermItem (
-              id, quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
+              quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
             [
-              termItem.id || `${quotationId}:term:${termItem.sortOrder + 1}`,
               quotationId,
               termItem.sortOrder,
               termItem.labelViPrint,
@@ -1086,11 +1084,13 @@ export async function finalizeSqliteSchema(db: Database) {
     ['qbu_variance_threshold_vnd', '20000000']
   );
 
-  // ─── HULY PORT: seed default Funnel ──────────────────────────────────────
-  await db.run(
-    `INSERT OR IGNORE INTO Funnel (id, name, description, isDefault, sortOrder, createdAt, updatedAt)
-     VALUES ('funnel-default-sales-pipeline', 'Sales Pipeline', 'Default sales funnel', 1, 0, datetime('now'), datetime('now'))`
-  );
+  const funnelCount: any = await db.get('SELECT COUNT(*) as c FROM Funnel');
+  if (Number(funnelCount?.c || 0) === 0) {
+    await db.run(
+      `INSERT INTO Funnel (name, description, isDefault, sortOrder)
+       VALUES ('Sales Pipeline', 'Default sales funnel', 1, 0)`
+    );
+  }
 
   await db.run("UPDATE User SET language = 'vi' WHERE language IS NULL OR TRIM(language) = ''");
   await db.run("UPDATE SupportTicket SET status = 'open' WHERE status IS NULL OR TRIM(status) = ''");

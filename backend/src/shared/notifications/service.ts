@@ -11,9 +11,9 @@ export function createNotificationServices(deps: CreateNotificationServicesDeps)
 
   async function ensureNotification(
     db: any,
-    userId: string | null,
+    userId: number | string | null,
     content: string,
-    meta: { entityType?: string | null; entityId?: string | null; link?: string | null } = {}
+    meta: { entityType?: string | null; entityId?: number | string | null; link?: string | null } = {}
   ) {
     if (!userId || !content.trim()) return { created: false, row: null };
 
@@ -21,7 +21,9 @@ export function createNotificationServices(deps: CreateNotificationServicesDeps)
       meta.entityType && allowedEntityTypes.has(String(meta.entityType))
         ? String(meta.entityType)
         : null;
-    const entityId = typeof meta.entityId === 'string' && meta.entityId.trim() ? meta.entityId.trim() : null;
+    const entityId = meta.entityId === 0 || meta.entityId
+      ? String(meta.entityId).trim() || null
+      : null;
     const link = meta.link && allowedLinks.has(String(meta.link)) ? String(meta.link) : null;
 
     const et = entityType ?? '';

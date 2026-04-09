@@ -1,7 +1,7 @@
 import { getDb } from '../../../sqlite-db';
 
 export type UserRecord = {
-  id: string;
+  id: number;
   username: string;
   fullName: string;
   systemRole: string;
@@ -22,33 +22,33 @@ export function createAuthRepository() {
       return getDb().get<UserRecord>('SELECT * FROM User WHERE username = ?', [username]);
     },
 
-    findUserById(id: string) {
+    findUserById(id: number | string) {
       return getDb().get<UserRecord>('SELECT * FROM User WHERE id = ?', [id]);
     },
 
-    touchLastLoginAt(id: string) {
+    touchLastLoginAt(id: number | string) {
       return getDb().run("UPDATE User SET lastLoginAt = datetime('now') WHERE id = ?", [id]);
     },
 
-    findAuthenticatedUserProfileById(id: string) {
+    findAuthenticatedUserProfileById(id: number | string) {
       return getDb().get<UserRecord>(
         'SELECT id, username, fullName, systemRole, roleCodes, email, gender, role, department, language FROM User WHERE id = ?',
         [id],
       );
     },
 
-    updateLanguagePreference(id: string, language: string) {
+    updateLanguagePreference(id: number | string, language: string) {
       return getDb().run('UPDATE User SET language = ? WHERE id = ?', [language, id]);
     },
 
-    findSessionUserById(id: string) {
+    findSessionUserById(id: number | string) {
       return getDb().get<UserRecord>(
         'SELECT id, username, fullName, systemRole, roleCodes, email, gender, role, department, accountStatus, mustChangePassword, language FROM User WHERE id = ?',
         [id],
       );
     },
 
-    updatePasswordAndClearMustChange(id: string, passwordHash: string) {
+    updatePasswordAndClearMustChange(id: number | string, passwordHash: string) {
       return getDb().run('UPDATE User SET passwordHash = ?, mustChangePassword = 0 WHERE id = ?', [passwordHash, id]);
     },
   };

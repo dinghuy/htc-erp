@@ -8,9 +8,9 @@ export type ApprovalRequestLike = {
   requestType?: string | null;
   department?: string | null;
   approverRole?: string | null;
-  approverUserId?: string | null;
+  approverUserId?: number | string | null;
   status?: string | null;
-  requestedBy?: string | null;
+  requestedBy?: number | string | null;
 };
 
 export const APPROVAL_PERMISSION_MAP: Record<ApprovalLane, NormalizedRoleCode[]> = {
@@ -75,11 +75,11 @@ export function canUserApproveRequest(user: Pick<AuthenticatedUser, 'id' | 'syst
     return false;
   }
 
-  if (String(approval.requestedBy || '').trim() === user.id) {
+  if (String(approval.requestedBy || '').trim() === String(user.id)) {
     return false;
   }
 
-  if (assignedUserId && assignedUserId !== user.id) {
+  if (assignedUserId && assignedUserId !== String(user.id)) {
     return false;
   }
 

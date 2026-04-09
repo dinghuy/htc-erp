@@ -239,7 +239,7 @@ export function createProjectWorkflowRepository(projectDocumentThreadRollupsJoin
   async function updateProjectDocumentReviewStateById(input: {
     id: string;
     reviewStatus: string;
-    reviewerUserId?: string | null;
+    reviewerUserId?: number | string | null;
     reviewedAt?: string | null;
     reviewNote?: string | null;
     storageKey?: string | null;
@@ -296,7 +296,7 @@ export function createProjectWorkflowRepository(projectDocumentThreadRollupsJoin
     action?: string | null;
     linkedEntityType?: string | null;
     linkedEntityId?: string | null;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
     await getDb().run(
       `INSERT INTO ProjectBlocker (
@@ -333,7 +333,7 @@ export function createProjectWorkflowRepository(projectDocumentThreadRollupsJoin
     linkedEntityType?: string | null;
     linkedEntityId?: string | null;
     resolvedAt?: string | null;
-    resolvedBy?: string | null;
+    resolvedBy?: number | string | null;
   }) {
     await getDb().run(
       `UPDATE ProjectBlocker

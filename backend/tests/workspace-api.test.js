@@ -5,8 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
-
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-workspace-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-workspace.db');
 
@@ -44,14 +42,12 @@ async function seedUser({
 }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'male',
       `${username}@example.com`,
@@ -68,7 +64,75 @@ async function seedUser({
       'vi',
     ]
   );
-  return id;
+  return result.lastID;
+}
+
+async function insertAccount(companyName) {
+  const db = getDb();
+  const result = await db.run(
+    `INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`,
+    [companyName],
+  );
+  return result.lastID;
+}
+
+async function insertProject({ code, name, managerId, accountId, projectStage, status }) {
+  const db = getDb();
+  const result = await db.run(
+    `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+    [code, name, managerId, accountId, projectStage, status],
+  );
+  return result.lastID;
+}
+
+async function insertQuotation({ quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion }) {
+  const db = getDb();
+  const result = await db.run(
+    `INSERT INTO Quotation (quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion],
+  );
+  return result.lastID;
+}
+
+async function insertTaskRow({ projectId, name, assigneeId, status, priority, dueDate, quotationId, taskType, department, blockedReason }) {
+  const db = getDb();
+  const result = await db.run(
+    `INSERT INTO Task (projectId, name, assigneeId, status, priority, dueDate, quotationId, taskType, department, blockedReason)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [projectId, name, assigneeId, status, priority, dueDate ?? null, quotationId ?? null, taskType, department, blockedReason ?? null],
+  );
+  return result.lastID;
+}
+
+async function insertApprovalRequest({ projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate }) {
+  const db = getDb();
+  const result = await db.run(
+    `INSERT INTO ApprovalRequest (projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [projectId, quotationId ?? null, requestType, title, department, requestedBy ?? null, approverRole ?? null, approverUserId ?? null, status, dueDate],
+  );
+  return result.lastID;
+}
+
+async function insertProjectDocument({ projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage }) {
+  const db = getDb();
+  const result = await db.run(
+    `INSERT INTO ProjectDocument (projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [projectId, quotationId ?? null, documentCode, documentName, category, department, status, requiredAtStage],
+  );
+  return result.lastID;
+}
+
+async function insertSalesOrder({ quotationId, orderNumber, accountId, status }) {
+  const db = getDb();
+  const result = await db.run(
+    `INSERT INTO SalesOrder (quotationId, orderNumber, accountId, status)
+     VALUES (?, ?, ?, ?)`,
+    [quotationId, orderNumber, accountId, status],
+  );
+  return result.lastID;
 }
 
 async function login(username, password) {
@@ -129,41 +193,57 @@ async function main() {
       fullName: 'Hybrid Operator',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const quotationId = uuidv4();
-    const taskId = uuidv4();
-    const approvalId = uuidv4();
-    const documentId = uuidv4();
-
-    await db.run(
-      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
-      [accountId, 'Hybrid Customer']
-    );
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'HYB-001', 'Hybrid Delivery Project', combinedUserId, accountId, 'won', 'active']
-    );
-    await db.run(
-      `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [quotationId, 'Q-001', 'Hybrid Quote', accountId, projectId, 'accepted', 150000000, 1]
-    );
-    await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, dueDate, quotationId, taskType, department)
-       VALUES (?, ?, ?, ?, ?, ?, date('now', '+1 day'), ?, ?, ?)`,
-      [taskId, projectId, 'Follow commercial handoff', combinedUserId, 'active', 'high', quotationId, 'handoff', 'Operations']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+2 day'))`,
-      [approvalId, projectId, quotationId, 'contract-review', 'Legal review contract', 'Legal', combinedUserId, 'legal', combinedUserId, 'pending']
-    );
-    await db.run(
-      `INSERT INTO ProjectDocument (id, projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [documentId, projectId, quotationId, 'HDMB', 'Hop dong mua ban', 'Contract', 'Legal', 'missing', 'legal_review']
-    );
+    const accountId = await insertAccount('Hybrid Customer');
+    const projectId = await insertProject({
+      code: 'HYB-001',
+      name: 'Hybrid Delivery Project',
+      managerId: combinedUserId,
+      accountId,
+      projectStage: 'won',
+      status: 'active',
+    });
+    const quotationId = await insertQuotation({
+      quoteNumber: 'Q-001',
+      subject: 'Hybrid Quote',
+      accountId,
+      projectId,
+      status: 'accepted',
+      grandTotal: 150000000,
+      isWinningVersion: 1,
+    });
+    const taskId = await insertTaskRow({
+      projectId,
+      name: 'Follow commercial handoff',
+      assigneeId: combinedUserId,
+      status: 'active',
+      priority: 'high',
+      dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      quotationId,
+      taskType: 'handoff',
+      department: 'Operations',
+    });
+    const approvalId = await insertApprovalRequest({
+      projectId,
+      quotationId,
+      requestType: 'contract-review',
+      title: 'Legal review contract',
+      department: 'Legal',
+      requestedBy: combinedUserId,
+      approverRole: 'legal',
+      approverUserId: combinedUserId,
+      status: 'pending',
+      dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    });
+    const documentId = await insertProjectDocument({
+      projectId,
+      quotationId,
+      documentCode: 'HDMB',
+      documentName: 'Hop dong mua ban',
+      category: 'Contract',
+      department: 'Legal',
+      status: 'missing',
+      requiredAtStage: 'legal_review',
+    });
 
     const auth = await login('hybrid_operator', 'Hybrid@123');
     assert.equal(auth.response.status, 200);
@@ -257,35 +337,42 @@ async function main() {
       fullName: 'Workspace Sales',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const quotationId = uuidv4();
-    const salesOrderId = uuidv4();
-    const deliveryApprovalId = uuidv4();
-
-    await db.run(
-      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
-      [accountId, 'Workspace Action Customer']
-    );
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'WS-001', 'Workspace Action Project', directorUserId, accountId, 'won', 'active']
-    );
-    await db.run(
-      `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [quotationId, 'WS-Q-001', 'Workspace Action Quote', accountId, projectId, 'won', 99000000, 1]
-    );
-    await db.run(
-      `INSERT INTO SalesOrder (id, quotationId, orderNumber, accountId, status)
-       VALUES (?, ?, ?, ?, ?)`,
-      [salesOrderId, quotationId, 'SO-WS-001', accountId, 'draft']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [deliveryApprovalId, projectId, quotationId, 'delivery_completion', 'Delivery completion approval', 'Operations', directorUserId, 'sales', salesUserId, 'pending']
-    );
+    const accountId = await insertAccount('Workspace Action Customer');
+    const projectId = await insertProject({
+      code: 'WS-001',
+      name: 'Workspace Action Project',
+      managerId: directorUserId,
+      accountId,
+      projectStage: 'won',
+      status: 'active',
+    });
+    const quotationId = await insertQuotation({
+      quoteNumber: 'WS-Q-001',
+      subject: 'Workspace Action Quote',
+      accountId,
+      projectId,
+      status: 'won',
+      grandTotal: 99000000,
+      isWinningVersion: 1,
+    });
+    const salesOrderId = await insertSalesOrder({
+      quotationId,
+      orderNumber: 'SO-WS-001',
+      accountId,
+      status: 'draft',
+    });
+    const deliveryApprovalId = await insertApprovalRequest({
+      projectId,
+      quotationId,
+      requestType: 'delivery_completion',
+      title: 'Delivery completion approval',
+      department: 'Operations',
+      requestedBy: directorUserId,
+      approverRole: 'sales',
+      approverUserId: salesUserId,
+      status: 'pending',
+      dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    });
 
     const directorAuth = await login('workspace_director', 'Director@123');
     assert.equal(directorAuth.response.status, 200);
@@ -325,35 +412,42 @@ async function main() {
       fullName: 'List Director User',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const quotationId = uuidv4();
-    const approvalId = uuidv4();
-    const salesOrderId = uuidv4();
-
-    await db.run(
-      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
-      [accountId, 'List Screen Customer']
-    );
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'LIST-001', 'List Screen Project', salesUserId, accountId, 'won', 'active']
-    );
-    await db.run(
-      `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [quotationId, 'LIST-Q-001', 'List Screen Quote', accountId, projectId, 'won', 88000000, 1]
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [approvalId, projectId, quotationId, 'sales_order_release', 'Release sales order', 'Operations', salesUserId, 'director', 'pending']
-    );
-    await db.run(
-      `INSERT INTO SalesOrder (id, quotationId, orderNumber, accountId, status)
-       VALUES (?, ?, ?, ?, ?)`,
-      [salesOrderId, quotationId, 'SO-LIST-001', accountId, 'draft']
-    );
+    const accountId = await insertAccount('List Screen Customer');
+    const projectId = await insertProject({
+      code: 'LIST-001',
+      name: 'List Screen Project',
+      managerId: salesUserId,
+      accountId,
+      projectStage: 'won',
+      status: 'active',
+    });
+    const quotationId = await insertQuotation({
+      quoteNumber: 'LIST-Q-001',
+      subject: 'List Screen Quote',
+      accountId,
+      projectId,
+      status: 'won',
+      grandTotal: 88000000,
+      isWinningVersion: 1,
+    });
+    const approvalId = await insertApprovalRequest({
+      projectId,
+      quotationId,
+      requestType: 'sales_order_release',
+      title: 'Release sales order',
+      department: 'Operations',
+      requestedBy: salesUserId,
+      approverRole: 'director',
+      approverUserId: null,
+      status: 'pending',
+      dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    });
+    const salesOrderId = await insertSalesOrder({
+      quotationId,
+      orderNumber: 'SO-LIST-001',
+      accountId,
+      status: 'draft',
+    });
 
     const salesAuth = await login('list_sales_user', 'ListSales@123');
     const quotationList = await api('/api/quotations', {
@@ -414,35 +508,22 @@ async function main() {
       fullName: 'Release Ready Director',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const quotationId = uuidv4();
-    const approvalId = uuidv4();
-    const salesOrderId = uuidv4();
-
-    await db.run(
-      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
-      [accountId, 'Release Ready Customer']
-    );
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'RELREADY-001', 'Release Ready Project', directorUserId, accountId, 'won', 'active']
-    );
-    await db.run(
-      `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [quotationId, 'RELREADY-Q-001', 'Release Ready Quote', accountId, projectId, 'won', 54000000, 1]
-    );
-    await db.run(
-      `INSERT INTO SalesOrder (id, quotationId, orderNumber, accountId, status)
-       VALUES (?, ?, ?, ?, ?)`,
-      [salesOrderId, quotationId, 'SO-RELREADY-001', accountId, 'draft']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [approvalId, projectId, quotationId, 'sales_order_release', 'Release sales order', 'Operations', directorUserId, 'director', directorUserId, 'approved']
-    );
+    const accountId = await insertAccount('Release Ready Customer');
+    const projectId = await insertProject({ code: 'RELREADY-001', name: 'Release Ready Project', managerId: directorUserId, accountId, projectStage: 'won', status: 'active' });
+    const quotationId = await insertQuotation({ quoteNumber: 'RELREADY-Q-001', subject: 'Release Ready Quote', accountId, projectId, status: 'won', grandTotal: 54000000, isWinningVersion: 1 });
+    const salesOrderId = await insertSalesOrder({ quotationId, orderNumber: 'SO-RELREADY-001', accountId, status: 'draft' });
+    const approvalId = await insertApprovalRequest({
+      projectId,
+      quotationId,
+      requestType: 'sales_order_release',
+      title: 'Release sales order',
+      department: 'Operations',
+      requestedBy: directorUserId,
+      approverRole: 'director',
+      approverUserId: directorUserId,
+      status: 'approved',
+      dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    });
 
     const directorAuth = await login('release_ready_director', 'Director@123');
 
@@ -500,29 +581,10 @@ async function main() {
       fullName: 'Release PM User',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const quotationId = uuidv4();
-    const salesOrderId = uuidv4();
-
-    await db.run(
-      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
-      [accountId, 'Release Approval Customer']
-    );
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'REL-001', 'Release Approval Project', pmUserId, accountId, 'won', 'active']
-    );
-    await db.run(
-      `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [quotationId, 'REL-Q-001', 'Release Approval Quote', accountId, projectId, 'won', 76000000, 1]
-    );
-    await db.run(
-      `INSERT INTO SalesOrder (id, quotationId, orderNumber, accountId, status)
-       VALUES (?, ?, ?, ?, ?)`,
-      [salesOrderId, quotationId, 'SO-REL-001', accountId, 'draft']
-    );
+    const accountId = await insertAccount('Release Approval Customer');
+    const projectId = await insertProject({ code: 'REL-001', name: 'Release Approval Project', managerId: pmUserId, accountId, projectStage: 'won', status: 'active' });
+    const quotationId = await insertQuotation({ quoteNumber: 'REL-Q-001', subject: 'Release Approval Quote', accountId, projectId, status: 'won', grandTotal: 76000000, isWinningVersion: 1 });
+    const salesOrderId = await insertSalesOrder({ quotationId, orderNumber: 'SO-REL-001', accountId, status: 'draft' });
 
     const pmAuth = await login('release_pm_user', 'ReleasePm@123');
     assert.equal(pmAuth.response.status, 200);
@@ -566,23 +628,20 @@ async function main() {
       fullName: 'Finance Owner',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const approvalId = uuidv4();
-
-    await db.run(
-      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
-      [accountId, 'Admin Persona Customer']
-    );
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'ADM-001', 'Admin Persona Project', adminUserId, accountId, 'won', 'active']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [approvalId, projectId, 'payment-milestone', 'Finance milestone approval', 'Finance', adminUserId, 'accounting', accountingUserId, 'pending']
-    );
+    const accountId = await insertAccount('Admin Persona Customer');
+    const projectId = await insertProject({ code: 'ADM-001', name: 'Admin Persona Project', managerId: adminUserId, accountId, projectStage: 'won', status: 'active' });
+    const approvalId = await insertApprovalRequest({
+      projectId,
+      quotationId: null,
+      requestType: 'payment-milestone',
+      title: 'Finance milestone approval',
+      department: 'Finance',
+      requestedBy: adminUserId,
+      approverRole: 'accounting',
+      approverUserId: accountingUserId,
+      status: 'pending',
+      dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    });
 
     const auth = await login('system_admin', 'Admin@123');
     assert.equal(auth.response.status, 200);
@@ -658,41 +717,12 @@ async function main() {
       fullName: 'Procurement Actor',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const financeApprovalId = uuidv4();
-    const legalApprovalId = uuidv4();
-    const executiveApprovalId = uuidv4();
-    const procurementApprovalId = uuidv4();
-
-    await db.run(
-      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
-      [accountId, 'Approval Matrix Customer']
-    );
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'APR-001', 'Approval Matrix Project', requesterUserId, accountId, 'won', 'active']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [financeApprovalId, projectId, 'payment-milestone', 'Finance approval', 'Finance', requesterUserId, 'accounting', accountingUserId, 'pending']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [legalApprovalId, projectId, 'contract-review', 'Legal approval', 'Legal', requesterUserId, 'legal', legalUserId, 'pending']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [executiveApprovalId, projectId, 'margin-exception', 'Executive approval', 'BOD', requesterUserId, 'director', directorUserId, 'pending']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [procurementApprovalId, projectId, 'po-approval', 'Procurement approval', 'Procurement', requesterUserId, 'procurement', procurementUserId, 'pending']
-    );
+    const accountId = await insertAccount('Approval Matrix Customer');
+    const projectId = await insertProject({ code: 'APR-001', name: 'Approval Matrix Project', managerId: requesterUserId, accountId, projectStage: 'won', status: 'active' });
+    const financeApprovalId = await insertApprovalRequest({ projectId, quotationId: null, requestType: 'payment-milestone', title: 'Finance approval', department: 'Finance', requestedBy: requesterUserId, approverRole: 'accounting', approverUserId: accountingUserId, status: 'pending', dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10) });
+    const legalApprovalId = await insertApprovalRequest({ projectId, quotationId: null, requestType: 'contract-review', title: 'Legal approval', department: 'Legal', requestedBy: requesterUserId, approverRole: 'legal', approverUserId: legalUserId, status: 'pending', dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10) });
+    const executiveApprovalId = await insertApprovalRequest({ projectId, quotationId: null, requestType: 'margin-exception', title: 'Executive approval', department: 'BOD', requestedBy: requesterUserId, approverRole: 'director', approverUserId: directorUserId, status: 'pending', dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10) });
+    const procurementApprovalId = await insertApprovalRequest({ projectId, quotationId: null, requestType: 'po-approval', title: 'Procurement approval', department: 'Procurement', requestedBy: requesterUserId, approverRole: 'procurement', approverUserId: procurementUserId, status: 'pending', dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10) });
 
     const accountingAuth = await login('accounting_actor', 'Accounting@123');
     const accountingDecision = await api(`/api/approval-requests/${financeApprovalId}/decision`, {
@@ -755,41 +785,12 @@ async function main() {
       fullName: 'Director Finance Owner',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const taskId = uuidv4();
-    const financeApprovalId = uuidv4();
-    const executiveApprovalId = uuidv4();
-    const documentId = uuidv4();
-
-    await db.run(
-      `INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`,
-      [accountId, 'Executive Cockpit Customer']
-    );
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'DIR-001', 'Executive Cockpit Project', directorUserId, accountId, 'won', 'active']
-    );
-    await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, taskType, department)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [taskId, projectId, 'Escalated delivery blocker', directorUserId, 'active', 'high', 'follow_up', 'Operations']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [financeApprovalId, projectId, 'payment-milestone', 'Finance review', 'Finance', directorUserId, 'accounting', accountingUserId, 'pending']
-    );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [executiveApprovalId, projectId, 'margin-exception', 'Executive review', 'BOD', directorUserId, 'director', directorUserId, 'pending']
-    );
-    await db.run(
-      `INSERT INTO ProjectDocument (id, projectId, documentCode, documentName, category, department, status, requiredAtStage)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [documentId, projectId, 'APP-01', 'Approval appendix', 'Contract', 'Legal', 'missing', 'legal_review']
-    );
+    const accountId = await insertAccount('Executive Cockpit Customer');
+    const projectId = await insertProject({ code: 'DIR-001', name: 'Executive Cockpit Project', managerId: directorUserId, accountId, projectStage: 'won', status: 'active' });
+    const taskId = await insertTaskRow({ projectId, name: 'Escalated delivery blocker', assigneeId: directorUserId, status: 'active', priority: 'high', taskType: 'follow_up', department: 'Operations' });
+    const financeApprovalId = await insertApprovalRequest({ projectId, quotationId: null, requestType: 'payment-milestone', title: 'Finance review', department: 'Finance', requestedBy: directorUserId, approverRole: 'accounting', approverUserId: accountingUserId, status: 'pending', dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10) });
+    const executiveApprovalId = await insertApprovalRequest({ projectId, quotationId: null, requestType: 'margin-exception', title: 'Executive review', department: 'BOD', requestedBy: directorUserId, approverRole: 'director', approverUserId: directorUserId, status: 'pending', dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10) });
+    const documentId = await insertProjectDocument({ projectId, quotationId: null, documentCode: 'APP-01', documentName: 'Approval appendix', category: 'Contract', department: 'Legal', status: 'missing', requiredAtStage: 'legal_review' });
 
     const auth = await login('director_cockpit', 'Director@123');
     assert.equal(auth.response.status, 200);

@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { createTaskRepository } from './repository';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
@@ -7,7 +6,7 @@ type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unkn
 type RegisterTaskDependencyRoutesDeps = {
   ah: AsyncRouteFactory;
   requireAuth?: any;
-  getCurrentUserId?: (req: Request) => string | null;
+  getCurrentUserId?: (req: Request) => number | string | null;
 };
 
 const VALID_DEPENDENCY_KINDS = new Set(['blocks', 'blocked_by', 'relates_to']);
@@ -61,7 +60,7 @@ export function registerTaskDependencyRoutes(app: Express, deps: RegisterTaskDep
       return res.status(400).json({ error: 'kind must be one of: blocks, blocked_by, relates_to' });
     }
 
-    const created = await repo.createTaskDependency(taskId, uuidv4(), {
+    const created = await repo.createTaskDependency(taskId, {
       relatedTaskId,
       kind,
       note,

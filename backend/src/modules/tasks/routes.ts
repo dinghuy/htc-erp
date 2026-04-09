@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { createTaskRepository } from './repository';
 import { todoRepository, VALID_TODO_PRIORITIES, type ToDoPriority } from './todoRepository';
 
@@ -16,14 +15,14 @@ type RegisterTaskRoutesDeps = {
     from: unknown,
     to: unknown
   ) => void;
-  getCurrentUserId: (req: Request) => string | null;
+  getCurrentUserId: (req: Request) => number | string | null;
   resolveAssigneeId: (
     db: any,
     preferredAssigneeId: unknown,
     salesperson: unknown,
-    fallbackUserId: string | null
-  ) => Promise<string | null>;
-  getTaskWithLinksById: (db: any, taskId: string) => Promise<any>;
+    fallbackUserId: number | string | null
+  ) => Promise<number | string | null>;
+  getTaskWithLinksById: (db: any, taskId: number | string) => Promise<any>;
 };
 
 function resolveWorkspaceTabForTask(task: any) {
@@ -61,6 +60,15 @@ function stringValue(value: unknown) {
 function optionalString(value: unknown) {
   const normalized = stringValue(value);
   return normalized || null;
+}
+
+function idValue(value: unknown): number | string | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    return normalized || null;
+  }
+  return null;
 }
 
 function normalizeTaskViewSurface(value: unknown) {
@@ -111,8 +119,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
     const name = stringValue(req.body?.name);
     if (!name) return res.status(400).json({ error: 'name is required' });
 
-    const id = uuidv4();
-    await taskRepository.createTaskViewPreset(id, userId, {
+    const result = await taskRepository.createTaskViewPreset(userId, {
       name,
       query: optionalString(req.body?.query),
       projectId: optionalString(req.body?.projectId),
@@ -125,7 +132,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       isDefault: Boolean(req.body?.isDefault),
     });
 
-    const created = await taskRepository.findTaskViewPresetByIdForUser(id, userId);
+    const created = await taskRepository.findTaskViewPresetByIdForUser(result.lastID, userId);
     res.status(201).json(normalizeTaskViewPresetRow(created));
   });
 
@@ -257,11 +264,10 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
     const parentTaskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
     const parentTask = await taskRepository.getTaskWithLinksById(parentTaskId);
     if (!parentTask) return res.status(404).json({ error: 'Parent task not found' });
-    const id = uuidv4();
     const name = stringValue(req.body?.name);
     if (!name) return res.status(400).json({ error: 'name is required' });
 
-    await taskRepository.createTask(id, {
+    const result = await taskRepository.createTask({
       projectId: req.body?.projectId ?? parentTask.projectId ?? null,
       parentTaskId,
       name,
@@ -285,13 +291,13 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       blockedReason: req.body?.blockedReason,
     });
 
-    res.status(201).json(await taskRepository.getTaskWithLinksById(id));
+    res.status(201).json(await taskRepository.getTaskWithLinksById(result.lastID));
   }));
 
   app.post('/api/v1/tasks/:taskId/subtasks/reorder', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
     const parentTaskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
     const orderedTaskIds = Array.isArray(req.body?.orderedTaskIds)
-      ? req.body.orderedTaskIds.map((value: unknown) => stringValue(value)).filter(Boolean)
+      ? req.body.orderedTaskIds.map((value: unknown) => idValue(value)).filter((value): value is number | string => value !== null)
       : [];
     if (!orderedTaskIds.length) return res.status(400).json({ error: 'orderedTaskIds is required' });
     const items = await taskRepository.reorderSiblingTasks(parentTaskId, orderedTaskIds);
@@ -302,7 +308,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
     const parentTaskId = Array.isArray(req.params.taskId) ? req.params.taskId[0] : req.params.taskId;
     const subtaskId = Array.isArray(req.params.subtaskId) ? req.params.subtaskId[0] : req.params.subtaskId;
     const subtask = await taskRepository.getTaskWithLinksById(subtaskId);
-    if (!subtask || subtask.parentTaskId !== parentTaskId) {
+    if (!subtask || String(subtask.parentTaskId) !== String(parentTaskId)) {
       return res.status(404).json({ error: 'Subtask not found' });
     }
     await taskRepository.deleteTask(subtaskId);
@@ -316,14 +322,14 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
 
   app.post('/api/v1/tasks/bulk-update', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
     const taskIds = Array.isArray(req.body?.taskIds)
-      ? req.body.taskIds.map((value: unknown) => stringValue(value)).filter(Boolean)
+      ? req.body.taskIds.map((value: unknown) => idValue(value)).filter((value): value is number | string => value !== null)
       : [];
     if (!taskIds.length) return res.status(400).json({ error: 'taskIds is required' });
 
     const changes = {
       status: req.body?.changes?.status !== undefined ? optionalString(req.body?.changes?.status) : null,
       priority: req.body?.changes?.priority !== undefined ? optionalString(req.body?.changes?.priority) : null,
-      assigneeId: req.body?.changes?.assigneeId !== undefined ? optionalString(req.body?.changes?.assigneeId) : undefined,
+      assigneeId: req.body?.changes?.assigneeId !== undefined ? idValue(req.body?.changes?.assigneeId) : undefined,
     };
 
     const items = await taskRepository.bulkUpdateTasks(taskIds, changes);
@@ -336,7 +342,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
   app.post('/api/v1/projects/:projectId/tasks/reorder', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
     const projectId = Array.isArray(req.params.projectId) ? req.params.projectId[0] : req.params.projectId;
     const orderedTaskIds = Array.isArray(req.body?.orderedTaskIds)
-      ? req.body.orderedTaskIds.map((value: unknown) => stringValue(value)).filter(Boolean)
+      ? req.body.orderedTaskIds.map((value: unknown) => idValue(value)).filter((value): value is number | string => value !== null)
       : [];
     if (!orderedTaskIds.length) return res.status(400).json({ error: 'orderedTaskIds is required' });
     const items = await taskRepository.reorderProjectTasks(projectId, orderedTaskIds);
@@ -351,7 +357,6 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
   }));
 
   app.post('/api/tasks', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
-    const id = uuidv4();
     const {
       projectId,
       parentTaskId,
@@ -378,7 +383,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
 
     if (!name) return res.status(400).json({ error: 'name is required' });
 
-    await taskRepository.createTask(id, {
+    const result = await taskRepository.createTask({
       projectId,
       parentTaskId,
       name,
@@ -402,7 +407,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       blockedReason,
     });
 
-    res.status(201).json(await taskRepository.getTaskWithLinksById(id));
+    res.status(201).json(await taskRepository.getTaskWithLinksById(result.lastID));
   }));
 
   app.post('/api/tasks/from-quotation', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
@@ -444,7 +449,6 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       return res.json(await taskRepository.getTaskWithLinksById(existing.id));
     }
 
-    const id = typeof req.body?.id === 'string' && req.body.id.trim() ? req.body.id.trim() : uuidv4();
     const status = typeof req.body?.status === 'string' && req.body.status.trim() ? req.body.status.trim() : 'pending';
     const priority = typeof req.body?.priority === 'string' && req.body.priority.trim() ? req.body.priority.trim() : 'medium';
     const startDate = typeof req.body?.startDate === 'string' && req.body.startDate.trim()
@@ -458,7 +462,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       ? req.body.accountId.trim()
       : (quotation.accountId || null);
 
-    await taskRepository.createTask(id, {
+    const result = await taskRepository.createTask({
       projectId,
       name: taskName,
       description: dedupeDescription,
@@ -481,7 +485,7 @@ export function registerTaskRoutes(app: Express, deps: RegisterTaskRoutesDeps) {
       blockedReason: typeof req.body?.blockedReason === 'string' ? req.body.blockedReason : null,
     });
 
-    res.status(201).json(await taskRepository.getTaskWithLinksById(id));
+    res.status(201).json(await taskRepository.getTaskWithLinksById(result.lastID));
   }));
 
   app.put('/api/tasks/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {

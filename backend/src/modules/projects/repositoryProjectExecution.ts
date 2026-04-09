@@ -1,7 +1,7 @@
 import { getDb } from '../../../sqlite-db';
 
 export function createProjectExecutionRepository() {
-  async function listExecutionBaselines(projectId: string) {
+  async function listExecutionBaselines(projectId: number | string) {
     return getDb().all(
       `
         SELECT *
@@ -13,7 +13,7 @@ export function createProjectExecutionRepository() {
     );
   }
 
-  async function listProcurementLines(projectId: string) {
+  async function listProcurementLines(projectId: number | string) {
     return getDb().all(
       `
         SELECT ppl.*, a.companyName AS supplierName
@@ -26,11 +26,11 @@ export function createProjectExecutionRepository() {
     );
   }
 
-  async function findProcurementLineById(id: string) {
+  async function findProcurementLineById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectProcurementLine WHERE id = ?`, [id]);
   }
 
-  async function findProcurementLineByIdForProject(id: string, projectId: string) {
+  async function findProcurementLineByIdForProject(id: number | string, projectId: number | string) {
     return getDb().get(
       `SELECT * FROM ProjectProcurementLine WHERE id = ? AND projectId = ?`,
       [id, projectId]
@@ -38,8 +38,8 @@ export function createProjectExecutionRepository() {
   }
 
   async function updateProcurementLineById(input: {
-    id: string;
-    supplierId?: string | null;
+    id: number | string;
+    supplierId?: number | string | null;
     poNumber?: string | null;
     orderedQty: number;
     etaDate?: string | null;
@@ -64,7 +64,7 @@ export function createProjectExecutionRepository() {
     );
   }
 
-  async function findInboundTotalsByProcurementLineId(procurementLineId: string) {
+  async function findInboundTotalsByProcurementLineId(procurementLineId: number | string) {
     return getDb().get(
       `SELECT
          COALESCE(SUM(receivedQty), 0) AS totalQty,
@@ -75,7 +75,7 @@ export function createProjectExecutionRepository() {
     );
   }
 
-  async function findDeliveryTotalsByProcurementLineId(procurementLineId: string) {
+  async function findDeliveryTotalsByProcurementLineId(procurementLineId: number | string) {
     return getDb().get(
       `SELECT
          COALESCE(SUM(deliveredQty), 0) AS totalQty,
@@ -87,7 +87,7 @@ export function createProjectExecutionRepository() {
   }
 
   async function updateProcurementLineRollup(input: {
-    procurementLineId: string;
+    procurementLineId: number | string;
     receivedQty: number;
     deliveredQty: number;
     shortageQty: number;
@@ -115,8 +115,8 @@ export function createProjectExecutionRepository() {
   }
 
   async function updateProcurementLineFromBaseline(input: {
-    id: string;
-    baselineId: string;
+    id: number | string;
+    baselineId: number | string;
     itemCode?: string | null;
     itemName?: string | null;
     description?: string | null;
@@ -148,9 +148,8 @@ export function createProjectExecutionRepository() {
   }
 
   async function insertProcurementLine(input: {
-    id: string;
-    projectId: string;
-    baselineId: string;
+    projectId: number | string;
+    baselineId: number | string;
     sourceLineKey: string;
     itemCode?: string | null;
     itemName?: string | null;
@@ -161,14 +160,13 @@ export function createProjectExecutionRepository() {
     etaDate?: string | null;
     committedDeliveryDate?: string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectProcurementLine (
-        id, projectId, baselineId, sourceLineKey, isActive, itemCode, itemName, description, unit,
+        projectId, baselineId, sourceLineKey, isActive, itemCode, itemName, description, unit,
         contractQty, orderedQty, receivedQty, deliveredQty, shortageQty, shortageStatus,
         etaDate, committedDeliveryDate, status, note
-      ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 0, 0, 0, ?, 'pending', ?, ?, 'planned', NULL)`,
+      ) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 0, 0, 0, ?, 'pending', ?, ?, 'planned', NULL)`,
       [
-        input.id,
         input.projectId,
         input.baselineId,
         input.sourceLineKey,
@@ -450,23 +448,21 @@ export function createProjectExecutionRepository() {
   }
 
   async function insertTimelineEvent(event: {
-    id: string;
-    projectId: string;
+    projectId: number | string;
     eventType: string;
     title: string;
     description?: string | null;
     eventDate?: string | null;
     entityType?: string | null;
-    entityId?: string | null;
+    entityId?: number | string | null;
     payload?: string | null;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectTimelineEvent (
-        id, projectId, eventType, title, description, eventDate, entityType, entityId, payload, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, eventType, title, description, eventDate, entityType, entityId, payload, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        event.id,
         event.projectId,
         event.eventType,
         event.title,
@@ -480,15 +476,15 @@ export function createProjectExecutionRepository() {
     );
   }
 
-  async function findTimelineEventById(id: string) {
+  async function findTimelineEventById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectTimelineEvent WHERE id = ?`, [id]);
   }
 
-  async function findExecutionBaselineById(id: string) {
+  async function findExecutionBaselineById(id: number | string) {
     return getDb().get(`SELECT * FROM ProjectExecutionBaseline WHERE id = ?`, [id]);
   }
 
-  async function findMaxBaselineNo(projectId: string) {
+  async function findMaxBaselineNo(projectId: number | string) {
     return getDb().get(
       `SELECT COALESCE(MAX(baselineNo), 0) AS maxBaselineNo
        FROM ProjectExecutionBaseline
@@ -497,7 +493,7 @@ export function createProjectExecutionRepository() {
     );
   }
 
-  async function clearCurrentExecutionBaseline(projectId: string) {
+  async function clearCurrentExecutionBaseline(projectId: number | string) {
     await getDb().run(
       `UPDATE ProjectExecutionBaseline SET isCurrent = 0, updatedAt = datetime('now') WHERE projectId = ?`,
       [projectId]
@@ -505,24 +501,22 @@ export function createProjectExecutionRepository() {
   }
 
   async function insertExecutionBaseline(input: {
-    id: string;
-    projectId: string;
+    projectId: number | string;
     sourceType: 'main_contract' | 'appendix';
-    sourceId: string;
+    sourceId: number | string;
     baselineNo: number;
     title: string;
     effectiveDate?: string | null;
     currency?: string | null;
     totalValue: number;
     lineItems: string;
-    createdBy?: string | null;
+    createdBy?: number | string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectExecutionBaseline (
-        id, projectId, sourceType, sourceId, baselineNo, title, effectiveDate, currency, totalValue, lineItems, isCurrent, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        projectId, sourceType, sourceId, baselineNo, title, effectiveDate, currency, totalValue, lineItems, isCurrent, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
       [
-        input.id,
         input.projectId,
         input.sourceType,
         input.sourceId,
