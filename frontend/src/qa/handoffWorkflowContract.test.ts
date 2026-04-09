@@ -18,6 +18,11 @@ const workspaceSource = readFileSync(
   'utf8',
 );
 
+const workspaceComponentsSource = readFileSync(
+  resolve(process.cwd(), 'src/projects/WorkspaceHubComponents.tsx'),
+  'utf8',
+);
+
 describe('handoff workflow contract', () => {
   it('Home prioritizes backend handoffActivation before local workflow guesses', () => {
     expect(homeSource).toContain('const handoffActivation = item.handoffActivation;');
@@ -32,8 +37,8 @@ describe('handoff workflow contract', () => {
   });
 
   it('Project workspace shows a handoff activation panel separate from gate controls', () => {
-    expect(workspaceSource).toContain('function HandoffActivationPanel({ handoffActivation }: { handoffActivation?: any }) {');
     expect(workspaceSource).toContain('<HandoffActivationPanel handoffActivation={workspace.handoffActivation} />');
-    expect(workspaceSource).toContain('Trạng thái handoff');
+    expect(workspaceComponentsSource).toContain('export function HandoffActivationPanel({ handoffActivation }: { handoffActivation?: any }) {');
+    expect(workspaceComponentsSource).toContain('Trạng thái handoff');
   });
 });
