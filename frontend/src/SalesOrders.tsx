@@ -577,9 +577,9 @@ export function SalesOrders({
         <div style={{
           ...ui.card.base,
           padding: '14px 18px',
-          border: '1px solid rgba(220, 38, 38, 0.18)',
-          background: 'rgba(220, 38, 38, 0.06)',
-          color: '#b91c1c',
+          border: `1px solid ${tokens.colors.errorBorder}`,
+          background: tokens.colors.errorSurfaceSoft,
+          color: tokens.colors.error,
           fontSize: '13px',
           fontWeight: 700,
         }}>

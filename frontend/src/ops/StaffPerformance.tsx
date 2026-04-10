@@ -99,7 +99,7 @@ const isOverdue = (task: TaskRow) => {
 
 const S = {
   shell: { display: 'flex', flexDirection: 'column' as const, gap: '24px', color: tokens.colors.textPrimary, paddingBottom: '12px' },
-  hero: { position: 'relative' as const, overflow: 'hidden' as const, background: `linear-gradient(135deg, rgba(0,151,110,0.12) 0%, rgba(0,63,133,0.08) 55%, ${tokens.colors.surface} 100%)`, border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.xl, boxShadow: tokens.shadow.sm },
+  hero: { position: 'relative' as const, overflow: 'hidden' as const, background: tokens.surface.heroGradient, border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.xl, boxShadow: tokens.shadow.sm },
   heroInner: { position: 'relative' as const, zIndex: 1, padding: '28px', display: 'flex', flexDirection: 'column' as const, gap: '16px' },
   sectionCard: { ...ui.card.base, padding: '24px' },
   chip: { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: tokens.radius.xl, background: tokens.colors.surface, border: `1px solid ${tokens.colors.border}`, color: tokens.colors.textSecondary, fontSize: tokens.fontSize.sm, fontWeight: 700 },
@@ -364,7 +364,7 @@ export function StaffPerformance({ currentUser, isMobile, onNavigate, token }: P
     <div style={S.shell}>
       {selectedStaff && <StaffDetailsModal row={selectedStaff} onClose={() => setSelectedStaff(null)} />}
       <div style={S.hero}>
-        <div style={{ position: 'absolute', inset: 'auto -20px -40px auto', width: '220px', height: '220px', borderRadius: '999px', background: 'radial-gradient(circle, rgba(0,151,110,0.18) 0%, rgba(0,63,133,0.06) 48%, transparent 70%)' }} />
+        <div style={{ position: 'absolute', inset: 'auto -20px -40px auto', width: '220px', height: '220px', borderRadius: '999px', background: `radial-gradient(circle, ${tokens.colors.successTint} 0%, ${tokens.colors.infoBg} 48%, transparent 70%)` }} />
         <div style={S.heroInner}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
             <span style={S.chip}>Hiệu suất nhân sự</span>

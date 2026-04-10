@@ -85,6 +85,7 @@ export function QuotationPreviewPanel({
       <div style={{ padding: '12px', maxHeight: '82vh', overflowY: 'auto', overflowX: 'auto' }}>
         <div
           style={{
+            // Keep a literal paper surface here: this preview intentionally simulates printable A4 output.
             background: '#fff',
             borderRadius: 'var(--radius-lg)',
             border: '1px solid #E2E8F0',

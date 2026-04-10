@@ -224,7 +224,7 @@ export function ProductFormModal({
                   <input id={PRODUCT_FORM_FIELD_IDS.basePrice} type="number" placeholder="Giá bán tham chiếu (USD)" style={S.input} value={form.basePrice} onInput={(e: any) => setForm({ ...form, basePrice: e.target.value })} />
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                     <span style={ui.form.help}>Nhập giá không gồm phân cách, hệ thống sẽ chuẩn hoá khi hiển thị.</span>
-                    {pricePreview ? <span style={{ ...ui.badge.info, background: 'rgba(16, 185, 129, 0.12)' }}>Preview: {pricePreview}</span> : null}
+                    {pricePreview ? <span style={{ ...ui.badge.info, background: tokens.colors.surfaceSuccessSoft }}>Preview: {pricePreview}</span> : null}
                   </div>
                 </div>
               </div>

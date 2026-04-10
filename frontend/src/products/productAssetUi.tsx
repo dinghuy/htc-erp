@@ -278,7 +278,7 @@ export function ProductImagePreviewCard({
         padding: '0',
         cursor: onClick ? 'pointer' : 'default',
         textAlign: 'left',
-        boxShadow: selected ? '0 10px 24px rgba(16, 185, 129, 0.12)' : 'none',
+        boxShadow: selected ? tokens.interaction.shadowMd : 'none',
         display: 'grid',
         minWidth: 0,
         aspectRatio: cardAspectRatio,

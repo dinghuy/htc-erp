@@ -36,6 +36,10 @@ export const tokens = {
     successBorder: 'var(--ht-success-border)',
     surfaceSubtle: 'var(--ht-surface-subtle)',
     surfaceSuccessSoft: 'var(--ht-surface-success-soft)',
+    surfaceHeaderSubtle: 'var(--surface-header-subtle)',
+    surfaceRowAlt: 'var(--surface-row-alt)',
+    surfaceNeutralSoft: 'var(--surface-neutral-soft)',
+    errorSurfaceSoft: 'var(--error-surface-bg-soft)',
     violetAccentBg: 'var(--violet-accent-bg)',
     violetAccentText: 'var(--violet-accent-text)',
     violetStrongBg: 'var(--violet-strong-bg)',
@@ -56,7 +60,8 @@ export const tokens = {
   },
   shadow: {
     sm: 'var(--shadow-sm)',
-    md: 'var(--shadow-md)'
+    md: 'var(--shadow-md)',
+    auth: 'var(--auth-card-shadow)',
   },
   overlay: {
     backdropGradient: 'linear-gradient(180deg, rgba(8, 15, 30, 0.72) 0%, rgba(4, 10, 24, 0.82) 100%)',
@@ -66,10 +71,17 @@ export const tokens = {
     modalShadow: '0 24px 80px rgba(2, 6, 23, 0.45)',
     toastBlur: '8px',
   },
+  interaction: {
+    focusRing: 'var(--focus-ring-color)',
+    shadowLg: 'var(--shadow-interactive-lg)',
+    shadowMd: 'var(--shadow-interactive-md)',
+    dropShadow: 'var(--shadow-drop-target)',
+  },
   surface: {
     panelGradient: 'var(--panel-gradient-bg)',
     heroGradient: 'var(--hero-card-bg)',
     heroGradientSubtle: 'var(--hero-card-bg-subtle)',
+    authCanvas: 'var(--auth-shell-bg)',
     drawerHeader: 'var(--drawer-header-bg)',
     detail: 'var(--ht-surface-subtle)',
     sheen: 'var(--surface-sheen)',

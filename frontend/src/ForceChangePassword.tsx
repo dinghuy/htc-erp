@@ -56,13 +56,13 @@ export function ForceChangePassword({ currentUser, onDone }: { currentUser: any;
     <OverlayPortal>
       <div style={{
         ...getOverlayContainerStyle('emergency', { padding: '20px' }),
-        background: 'linear-gradient(135deg, #004d35 0%, #009B6E 60%, #00c47a 100%)',
+        background: tokens.surface.authCanvas,
         fontFamily: 'var(--font-family-sans)',
       }}>
         <div style={{
           background: tokens.colors.surface,
           borderRadius: tokens.radius.xl,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          boxShadow: tokens.shadow.auth,
           padding: '48px 40px',
           width: '100%',
           maxWidth: '440px',
@@ -85,12 +85,12 @@ export function ForceChangePassword({ currentUser, onDone }: { currentUser: any;
 
         {/* Notice banner */}
         <div style={{
-          background: 'rgba(255, 193, 7, 0.12)',
-          border: '1px solid rgba(255, 193, 7, 0.4)',
+          background: tokens.colors.warningSurfaceBgSoft,
+          border: `1px solid ${tokens.colors.warningSurfaceBorder}`,
           borderRadius: tokens.radius.md,
           padding: '12px 16px',
           fontSize: '13px',
-          color: tokens.colors.textSecondary,
+          color: tokens.colors.warningSurfaceText,
           lineHeight: '1.6',
         }}>
           {t('force_pw.notice')}

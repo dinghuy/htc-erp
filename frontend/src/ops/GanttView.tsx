@@ -373,7 +373,7 @@ function GanttRow({
                   gap: tokens.spacing.sm,
                   padding: `0 ${tokens.spacing.smPlus}`,
                   boxSizing: 'border-box',
-                  boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)',
+                  boxShadow: tokens.interaction.shadowMd,
                   overflow: 'hidden',
                 }}
               >

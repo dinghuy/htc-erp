@@ -131,12 +131,14 @@ export function MetricTile({
   value,
   note,
   accent,
+  surface = tokens.colors.surfaceSubtle,
 }: {
   icon: any;
   label: string;
   value: number;
   note: string;
   accent: string;
+  surface?: string;
 }) {
   const Icon = icon;
   return (
@@ -159,7 +161,7 @@ export function MetricTile({
             display: 'grid',
             placeItems: 'center',
             borderRadius: '14px',
-            background: `${accent}15`,
+            background: surface,
             color: accent,
           }}
         >
@@ -273,8 +275,8 @@ export function KanbanBoard({
                     flexDirection: 'column',
                     gap: '10px',
                     boxShadow: isSelected
-                      ? `0 0 0 3px ${column.meta.soft}, 0 10px 22px rgba(15, 23, 42, 0.06)`
-                      : '0 10px 22px rgba(15, 23, 42, 0.06)',
+                      ? `0 0 0 3px ${column.meta.soft}, ${tokens.interaction.shadowMd}`
+                      : tokens.interaction.shadowMd,
                     opacity: draggingTaskId === task.id ? 0.45 : updatingTaskId === task.id ? 0.72 : 1,
                   }}
                 >

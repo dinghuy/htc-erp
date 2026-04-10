@@ -75,6 +75,25 @@ const S = {
   label: { ...ui.form.label, display: 'block', marginBottom: '6px' } as any
 };
 
+const USERS_WARNING_PILL = {
+  background: tokens.colors.warningSurfaceBg,
+  color: tokens.colors.warningSurfaceText,
+} as const;
+
+const USERS_INFO_PILL = {
+  background: tokens.colors.infoAccentBg,
+  color: tokens.colors.infoAccentText,
+} as const;
+
+const USERS_TABLE_HEADER_BG = tokens.colors.surfaceSubtle;
+const USERS_TABLE_ALT_ROW_BG = tokens.colors.background;
+const USERS_TABLE_MUTED_TEXT = tokens.colors.textSecondary;
+const USERS_ACTION_PRIMARY = {
+  border: tokens.colors.successBorder,
+  background: tokens.colors.surfaceSuccessSoft,
+  color: tokens.colors.success,
+} as const;
+
 function formatDate(val: any): string {
   if (!val) return 'Chưa đăng nhập';
   try {
@@ -105,8 +124,8 @@ function AccountStatusBadge({ status }: { status?: string }) {
   }
   if (status === 'suspended') {
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '99px', background: 'rgba(255,152,0,0.12)', fontSize: '11px', fontWeight: 700, color: '#e65100' }}>
-        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#e65100', display: 'inline-block' }} />
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '99px', background: USERS_WARNING_PILL.background, fontSize: '11px', fontWeight: 700, color: USERS_WARNING_PILL.color }}>
+        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: USERS_WARNING_PILL.color, display: 'inline-block' }} />
         Tạm ngưng
       </span>
     );
@@ -690,7 +709,7 @@ function PasswordStateBadge({ mustChangePassword }: { mustChangePassword?: boole
   const pending = mustChangePassword === true || mustChangePassword === 1;
   if (pending) {
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '99px', background: 'rgba(255,152,0,0.12)', fontSize: '11px', fontWeight: 700, color: '#e65100' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '99px', background: USERS_WARNING_PILL.background, fontSize: '11px', fontWeight: 700, color: USERS_WARNING_PILL.color }}>
         Yêu cầu đổi
       </span>
     );
@@ -809,10 +828,10 @@ function SummaryChip({
   tone: 'info' | 'warning' | 'danger';
 }) {
   const palette = tone === 'warning'
-    ? { background: '#FFF4DE', color: '#B7791F' }
+    ? { background: tokens.colors.warningStrongBg, color: tokens.colors.warningStrong }
     : tone === 'danger'
       ? { background: tokens.colors.badgeBgError, color: tokens.colors.error }
-      : { background: '#E8F5FF', color: '#2B6CB0' };
+      : USERS_INFO_PILL;
 
   return (
     <span
@@ -842,9 +861,9 @@ function TableRolePill({ label }: { label: string }) {
         alignItems: 'center',
         padding: '6px 12px',
         borderRadius: '999px',
-        background: '#F8FBFE',
+        background: tokens.colors.surfaceSubtle,
         border: `1px solid ${tokens.colors.border}`,
-        color: '#43617F',
+        color: tokens.colors.textSecondary,
         fontSize: '12px',
         fontWeight: 700,
         whiteSpace: 'nowrap',
@@ -894,9 +913,9 @@ function TableActionButton({
         height: '36px',
         padding: '0 12px',
         borderRadius: '12px',
-        border: `1px solid ${tone === 'primary' ? '#BFE8D5' : tokens.colors.border}`,
-        background: tone === 'primary' ? '#E8F7F0' : tokens.colors.surface,
-        color: tone === 'primary' ? '#0C7A57' : '#43617F',
+        border: `1px solid ${tone === 'primary' ? USERS_ACTION_PRIMARY.border : tokens.colors.border}`,
+        background: tone === 'primary' ? USERS_ACTION_PRIMARY.background : tokens.colors.surface,
+        color: tone === 'primary' ? USERS_ACTION_PRIMARY.color : tokens.colors.textSecondary,
         fontSize: '13px',
         fontWeight: 700,
         cursor: 'pointer',
@@ -1157,7 +1176,7 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
                 style={{
                   ...S.input,
                   width: '100%',
-                  background: '#F9FBFD',
+                  background: tokens.colors.background,
                   borderRadius: '14px',
                   padding: '12px 16px',
                 }}
@@ -1260,9 +1279,9 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
                   textAlign: 'left',
                   fontSize: '13px',
                   fontWeight: 700,
-                  color: '#7187A2',
+                  color: tokens.colors.textMuted,
                   borderBottom: `1px solid ${tokens.colors.border}`,
-                  background: '#F8FBFE',
+                  background: USERS_TABLE_HEADER_BG,
                   cursor: column.key === 'capabilities' || column.key === 'status' ? 'default' : 'pointer',
                   whiteSpace: 'nowrap',
                 }}
@@ -1271,12 +1290,12 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
                 <span>{column.label}{directoryData.sortConfig.key === column.key ? (directoryData.sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ''}</span>
               </th>
             ))}
-            <th style={{ padding: '20px 16px', textAlign: 'right', fontSize: '13px', fontWeight: 700, color: '#7187A2', borderBottom: `1px solid ${tokens.colors.border}`, background: '#F8FBFE' }}>Thao tác</th>
+            <th style={{ padding: '20px 16px', textAlign: 'right', fontSize: '13px', fontWeight: 700, color: tokens.colors.textMuted, borderBottom: `1px solid ${tokens.colors.border}`, background: USERS_TABLE_HEADER_BG }}>Thao tác</th>
           </tr>
         </thead>
         <tbody>
           {directoryData.items.map((item: any, index: number) => (
-            <tr key={item.id} style={{ ...ui.table.row, borderTop: `1px solid ${tokens.colors.border}`, background: index % 2 === 0 ? tokens.colors.surface : '#FCFDFE' }}>
+            <tr key={item.id} style={{ ...ui.table.row, borderTop: `1px solid ${tokens.colors.border}`, background: index % 2 === 0 ? tokens.colors.surface : USERS_TABLE_ALT_ROW_BG }}>
               <td style={{ ...S.td, minWidth: '240px', paddingTop: '18px', paddingBottom: '18px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <UserAvatar avatar={item.avatar} fullName={item.fullName} size={36} />
@@ -1288,9 +1307,9 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
               </td>
               <td style={S.td}>{item.department || '-'}</td>
               <td style={{ ...S.td, minWidth: '160px' }}><TableRolePill label={item.primaryRoleLabel} /></td>
-              <td style={{ ...S.td, minWidth: '220px', color: '#52657E' }}>{getUserAccessSummary(item)}</td>
+              <td style={{ ...S.td, minWidth: '220px', color: USERS_TABLE_MUTED_TEXT }}>{getUserAccessSummary(item)}</td>
               <td style={S.td}><TableStatusPill user={item} /></td>
-              <td style={{ ...S.td, whiteSpace: 'nowrap', color: !item.lastLoginAt ? tokens.colors.warningStrong : '#7187A2' }}>{formatDate(item.lastLoginAt)}</td>
+              <td style={{ ...S.td, whiteSpace: 'nowrap', color: !item.lastLoginAt ? tokens.colors.warningStrong : USERS_TABLE_MUTED_TEXT }}>{formatDate(item.lastLoginAt)}</td>
               <td style={{ ...S.td, textAlign: 'right' }}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                   <TableActionButton label="Xem" onClick={() => openUserPanel(item)} />
@@ -1320,8 +1339,8 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
               <TableRolePill label={item.primaryRoleLabel} />
               <TableStatusPill user={item} />
             </div>
-            <div style={{ fontSize: '13px', color: '#52657E' }}><strong>Phòng ban:</strong> {item.department || '-'}</div>
-            <div style={{ fontSize: '13px', color: '#52657E' }}><strong>Quyền hạn:</strong> {getUserAccessSummary(item)}</div>
+            <div style={{ fontSize: '13px', color: USERS_TABLE_MUTED_TEXT }}><strong>Phòng ban:</strong> {item.department || '-'}</div>
+            <div style={{ fontSize: '13px', color: USERS_TABLE_MUTED_TEXT }}><strong>Quyền hạn:</strong> {getUserAccessSummary(item)}</div>
             <div style={{ fontSize: '12px', color: !item.lastLoginAt ? tokens.colors.warningStrong : tokens.colors.textMuted }}>Đăng nhập gần nhất: {formatDate(item.lastLoginAt)}</div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
@@ -1386,10 +1405,10 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <h2 style={{ fontSize: '30px', fontWeight: 900, color: '#102A43', margin: 0 }}>
+              <h2 style={{ fontSize: '30px', fontWeight: 900, color: tokens.colors.textPrimary, margin: 0 }}>
                 {t('admin.users.title')}
               </h2>
-              <p style={{ fontSize: '14px', color: '#6B7C93', margin: '6px 0 0', lineHeight: 1.6 }}>
+              <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0', lineHeight: 1.6 }}>
                 {t('admin.users.subtitle')}
               </p>
             </div>
@@ -1408,7 +1427,7 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
           overflow: 'hidden',
           border: `1px solid ${tokens.colors.border}`,
           borderRadius: userCanManage ? '22px' : tokens.radius.lg,
-          boxShadow: userCanManage ? '0 14px 28px rgba(16, 42, 67, 0.06)' : tokens.shadow.sm,
+          boxShadow: tokens.shadow.sm,
         }}
       >
         {loading ? <div style={{ padding: '80px', textAlign: 'center', color: tokens.colors.textMuted }}>Đang tải dữ liệu...</div> : directoryData.items.length === 0 ? <div style={{ padding: '72px 24px', textAlign: 'center', color: tokens.colors.textMuted }}>Không có người dùng nào khớp với bộ lọc hiện tại.</div> : userCanManage ? (isMobile ? renderAdminMobileCards() : renderAdminDesktopTable()) : (isMobile ? renderDirectoryMobileCards() : renderDirectoryDesktopTable())}

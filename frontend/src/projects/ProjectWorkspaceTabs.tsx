@@ -336,7 +336,7 @@ export function ProcurementTab(props: any) {
     })}</div>
   </div>}</WorkspaceSection>
   <WorkspaceSection title="Lịch sử mua hàng">
-    {historyProcurementLines.length === 0 ? <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Chưa có line mua hàng lịch sử nào bị thay thế.</div> : <div style={{ display: 'grid', gap: '10px' }}>{historyProcurementLines.map((line: any) => <div key={line.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', display: 'grid', gap: '10px', background: '#fafafa' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}><div><div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{line.itemCode || 'ITEM'} · {line.itemName || line.description}</div><div style={{ fontSize: '12px', color: tokens.colors.textSecondary, marginTop: '4px' }}>Baseline {line.baselineId || '—'} · Bị thay thế {formatDateValue(line.supersededAt)}</div></div><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}><span style={ui.badge.neutral}>{workflowStatusLabel(line.status || 'history')}</span><span style={ui.badge.warning}>Lịch sử</span></div></div><div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>Hợp đồng {numberValue(line.contractQty)} · Đặt mua {numberValue(line.orderedQty)} · Đã nhận {numberValue(line.receivedQty)} · Đã giao {numberValue(line.deliveredQty)}</div></div>)}</div>}
+    {historyProcurementLines.length === 0 ? <div style={{ color: tokens.colors.textMuted, fontSize: '13px' }}>Chưa có line mua hàng lịch sử nào bị thay thế.</div> : <div style={{ display: 'grid', gap: '10px' }}>{historyProcurementLines.map((line: any) => <div key={line.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', display: 'grid', gap: '10px', background: tokens.colors.surfaceNeutralSoft }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}><div><div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{line.itemCode || 'ITEM'} · {line.itemName || line.description}</div><div style={{ fontSize: '12px', color: tokens.colors.textSecondary, marginTop: '4px' }}>Baseline {line.baselineId || '—'} · Bị thay thế {formatDateValue(line.supersededAt)}</div></div><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}><span style={ui.badge.neutral}>{workflowStatusLabel(line.status || 'history')}</span><span style={ui.badge.warning}>Lịch sử</span></div></div><div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>Hợp đồng {numberValue(line.contractQty)} · Đặt mua {numberValue(line.orderedQty)} · Đã nhận {numberValue(line.receivedQty)} · Đã giao {numberValue(line.deliveredQty)}</div></div>)}</div>}
   </WorkspaceSection>
   </div>;
 }
@@ -384,7 +384,7 @@ export function InboundTab({ inboundLines, setInboundEditor, canEditDelivery = f
           ) : (
             <div style={{ display: 'grid', gap: '10px' }}>
               {filteredLines.map((line: any) => (
-                <div key={line.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', background: line.procurementIsActive === false ? '#fafafa' : tokens.colors.surface }}>
+                <div key={line.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', background: line.procurementIsActive === false ? tokens.colors.surfaceNeutralSoft : tokens.colors.surface }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{line.itemCode || 'ITEM'} · {line.itemName || line.procurementDescription}</div>
@@ -449,7 +449,7 @@ export function DeliveryTab({ deliveryLines, setDeliveryEditor, canEditDelivery 
           ) : (
             <div style={{ display: 'grid', gap: '10px' }}>
               {filteredLines.map((line: any) => (
-                <div key={line.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', background: line.procurementIsActive === false ? '#fafafa' : tokens.colors.surface }}>
+                <div key={line.id} style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, padding: '12px 14px', background: line.procurementIsActive === false ? tokens.colors.surfaceNeutralSoft : tokens.colors.surface }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{line.itemCode || 'ITEM'} · {line.itemName || line.procurementDescription}</div>

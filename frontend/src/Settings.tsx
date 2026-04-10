@@ -229,7 +229,7 @@ export function Settings({ isDarkMode, toggleDarkMode, isMobile, currentUser, on
       <p style={{ color: tokens.colors.textSecondary, marginBottom: '40px' }}>{t('settings.desc')}</p>
 
       {isBaseAdmin ? (
-        <div style={{ marginBottom: '24px', padding: '18px 20px', borderRadius: tokens.radius.lg, background: 'linear-gradient(135deg, rgba(0, 151, 110, 0.12) 0%, rgba(0, 77, 53, 0.04) 100%)', border: `1px solid ${tokens.colors.border}` }}>
+        <div style={{ marginBottom: '24px', padding: '18px 20px', borderRadius: tokens.radius.lg, background: tokens.surface.heroGradientSubtle, border: `1px solid ${tokens.colors.border}` }}>
           <div style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.primary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>System-only admin</div>
           <div style={{ marginTop: '8px', fontSize: '14px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>
             Màn hình này dành cho cấu hình hệ thống, branding, security và tham số vận hành chung. Quyền admin không tự động là approver nghiệp vụ cho finance, legal hoặc executive nếu user chưa được gán thêm role business.

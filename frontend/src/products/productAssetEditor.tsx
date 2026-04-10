@@ -706,10 +706,10 @@ export function AssetListEditor({
               }33`,
               background:
                 uploadFeedback.tone === 'error'
-                  ? 'rgba(239, 68, 68, 0.08)'
+                  ? tokens.colors.errorSurfaceSoft
                   : uploadFeedback.tone === 'success'
                     ? tokens.colors.successTint
-                    : 'rgba(59, 130, 246, 0.08)',
+                    : tokens.colors.infoAccentBg,
             }}
           >
             <span
@@ -739,7 +739,7 @@ export function AssetListEditor({
                     height: '8px',
                     borderRadius: '999px',
                     overflow: 'hidden',
-                    background: 'rgba(148, 163, 184, 0.18)',
+                    background: tokens.colors.progressTrack,
                   }}
                 >
                   <div
@@ -781,7 +781,7 @@ export function AssetListEditor({
               style={{
                 borderRadius: '14px',
                 border: `1px solid ${(item as ProductImageAsset).isPrimary ? tokens.colors.badgeBgSuccess : tokens.colors.border}`,
-                background: 'rgba(15, 23, 42, 0.55)',
+                background: tokens.colors.surfaceNeutralSoft,
                 padding: '10px 12px',
                 display: 'flex',
                 gap: '12px',
@@ -794,7 +794,7 @@ export function AssetListEditor({
                   width: '56px', minWidth: '56px', height: '56px',
                   borderRadius: '10px', overflow: 'hidden',
                   border: `1px solid ${tokens.colors.border}`,
-                  background: kind === 'image' ? 'rgba(2,6,23,0.4)' : kind === 'video' ? 'rgba(59,130,246,0.14)' : tokens.colors.successTint,
+                  background: kind === 'image' ? tokens.colors.background : kind === 'video' ? tokens.colors.infoAccentBg : tokens.colors.successTint,
                   display: 'grid', placeItems: 'center',
                   color: tokens.colors.primary, fontSize: '11px', fontWeight: 900,
                 }}
@@ -802,7 +802,7 @@ export function AssetListEditor({
                 {kind === 'image' ? (
                   <img src={resolveAssetUrl(API_ORIGIN, item.url)} alt={(item as ProductImageAsset).alt || item.title || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 ) : kind === 'video' ? (
-                  <VideoPosterPreview src={resolveAssetUrl(API_ORIGIN, item.url)} title={item.title || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: 'rgba(2,6,23,0.92)' }} />
+                  <VideoPosterPreview src={resolveAssetUrl(API_ORIGIN, item.url)} title={item.title || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: tokens.colors.background }} />
                 ) : (
                   getDocumentBadge(item)
                 )}
@@ -846,7 +846,7 @@ export function AssetListEditor({
                       type="button"
                       title={(item as ProductImageAsset).isPrimary ? 'Đang là ảnh đại diện' : 'Đặt làm ảnh đại diện'}
                       onClick={() => setPrimaryImageLocally(item.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '8px', color: (item as ProductImageAsset).isPrimary ? '#f59e0b' : tokens.colors.textMuted, display: 'flex' }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '8px', color: (item as ProductImageAsset).isPrimary ? tokens.colors.warning : tokens.colors.textMuted, display: 'flex' }}
                     >
                       <StarIcon size={14} fill={(item as ProductImageAsset).isPrimary ? 'currentColor' : 'none'} />
                     </button>

@@ -36,7 +36,7 @@ export const TASKS_POLISH_CSS = `
 .tasks-workspace select:focus-visible,
 .tasks-workspace textarea:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 3px rgba(11, 163, 96, 0.18);
+  box-shadow: 0 0 0 3px var(--focus-ring-color);
   border-color: var(--ht-green);
 }
 .tasks-workspace .planner-surface {
@@ -52,10 +52,10 @@ export const TASKS_POLISH_CSS = `
 }
 .tasks-workspace .planner-interactive:hover {
   transform: translateY(-1px);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--shadow-interactive-lg);
 }
 .tasks-workspace .planner-tab:hover {
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--shadow-interactive-md);
 }
 .tasks-workspace .planner-chip {
   display: inline-flex;
@@ -92,7 +92,7 @@ export const TASKS_POLISH_CSS = `
   100% { background-position: 0 0; }
 }
 .tasks-workspace .kanban-drop-target {
-  box-shadow: inset 0 0 0 2px rgba(11, 163, 96, 0.3), 0 16px 32px rgba(11, 163, 96, 0.08);
+  box-shadow: var(--shadow-drop-target);
 }
 .tasks-workspace .drawer-footer {
   position: sticky;
@@ -133,7 +133,7 @@ function SectionHeader({
             display: 'grid',
             placeItems: 'center',
             borderRadius: '14px',
-            background: '#e8f4ee',
+            background: tokens.colors.surfaceSuccessSoft,
             color: tokens.colors.primary,
           }}
         >
@@ -484,10 +484,10 @@ export function TasksWorkspaceShell(props: any) {
 
       {loading ? loadingSkeleton(isMobile) : (
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: tokens.spacing.mdPlus }}>
-          <MetricTile icon={WarningIcon} label="Quá hạn" value={metrics.overdue} note="Cần xử lý ngay để không làm chậm project." accent="#b42318" />
-          <MetricTile icon={CloseIcon} label="Đang bị chặn" value={metrics.blocked} note="Task cần gỡ blocker hoặc ra quyết định." accent="#c06b21" />
-          <MetricTile icon={TasksIcon} label="Ưu tiên cao" value={metrics.highPriority} note="Nhóm việc ảnh hưởng lớn đến tiến độ tuần này." accent={tokens.colors.primary} />
-          <MetricTile icon={CalendarIcon} label="Đến hạn hôm nay" value={metrics.dueToday} note="Các đầu việc cần được chốt trong ngày." accent="#2563eb" />
+          <MetricTile icon={WarningIcon} label="Quá hạn" value={metrics.overdue} note="Cần xử lý ngay để không làm chậm project." accent={tokens.colors.error} surface={tokens.colors.badgeBgError} />
+          <MetricTile icon={CloseIcon} label="Đang bị chặn" value={metrics.blocked} note="Task cần gỡ blocker hoặc ra quyết định." accent={tokens.colors.warningSurfaceText} surface={tokens.colors.warningSurfaceBg} />
+          <MetricTile icon={TasksIcon} label="Ưu tiên cao" value={metrics.highPriority} note="Nhóm việc ảnh hưởng lớn đến tiến độ tuần này." accent={tokens.colors.primary} surface={tokens.colors.surfaceSuccessSoft} />
+          <MetricTile icon={CalendarIcon} label="Đến hạn hôm nay" value={metrics.dueToday} note="Các đầu việc cần được chốt trong ngày." accent={tokens.colors.infoAccentText} surface={tokens.colors.infoAccentBg} />
         </div>
       )}
 
