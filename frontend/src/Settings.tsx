@@ -43,6 +43,7 @@ export function Settings({ isDarkMode, toggleDarkMode, isMobile, currentUser, on
   const isBaseAdmin = Array.isArray(currentUser?.baseRoleCodes)
     ? currentUser.baseRoleCodes.includes('admin')
     : currentUser?.systemRole === 'admin' || currentUser?.roleCodes?.includes?.('admin');
+  const isPreviewActive = Boolean(currentUser?.isRolePreviewActive);
   const { locale, setLocale, t } = useI18n();
   const [activeTab, setActiveTab] = useState(isBaseAdmin ? 'Admin' : 'Quotation');
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -81,12 +82,13 @@ export function Settings({ isDarkMode, toggleDarkMode, isMobile, currentUser, on
   ).length;
 
   useEffect(() => {
-    fetch(`${API}/settings`)
-      .then((res) => res.json())
+    fetchWithAuth(token || '', `${API}/settings`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
       .then((data) => {
         setSettings((prev: any) => ({ ...prev, ...data }));
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -315,7 +317,14 @@ export function Settings({ isDarkMode, toggleDarkMode, isMobile, currentUser, on
 
       {/* ─── Admin tab ─── */}
       {activeTab === 'Admin' && isBaseAdmin && (
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 300px', gap: '24px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gap: '24px' }}>
+          {isPreviewActive && (
+            <div style={{ padding: '12px 16px', borderRadius: tokens.radius.lg, background: tokens.colors.warningTint, border: `1px solid ${tokens.colors.warningBorder}`, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: tokens.colors.warningText, lineHeight: 1.5 }}>
+              <span style={{ fontWeight: 800 }}>Preview mode:</span>
+              <span>Bạn đang xem hệ thống như role khác. Base admin identity vẫn giữ — thao tác lưu settings vẫn hoạt động bình thường.</span>
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 300px', gap: '24px', alignItems: 'start' }}>
           {/* Left column */}
           <div style={{ display: 'grid', gap: '24px' }}>
             {/* Metric cards */}
@@ -370,6 +379,7 @@ export function Settings({ isDarkMode, toggleDarkMode, isMobile, currentUser, on
             >
               {saving ? <><LoaderIcon size={14} /> {t('settings.saving')}</> : <><CheckIcon size={14} /> {t('settings.save')}</>}
             </button>
+          </div>
           </div>
         </div>
       )}
