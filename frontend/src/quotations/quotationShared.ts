@@ -179,8 +179,8 @@ export function normalizeQuotationLineItems(value: unknown) {
     unit: item?.unit || 'Chiếc',
     technicalSpecs: item?.technicalSpecs || '',
     remarks: item?.remarks || '',
-    quantity: item?.quantity ?? 1,
-    unitPrice: item?.unitPrice ?? 0,
+    quantity: (item?.quantity != null && Number.isFinite(Number(item.quantity))) ? Number(item.quantity) : 1,
+    unitPrice: (item?.unitPrice != null && Number.isFinite(Number(item.unitPrice))) ? Number(item.unitPrice) : 0,
     sortOrder: item?.sortOrder ?? null,
   }));
 }

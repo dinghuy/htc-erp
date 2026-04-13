@@ -157,7 +157,7 @@ export function normalizeQuotationCommercialTerms(raw: unknown): QuotationCommer
   return {
     remarksVi: normalizeText(source.remarksVi ?? source.remarks),
     remarksEn: normalizeText(source.remarksEn),
-    termItems: (explicitTermItems.length ? explicitTermItems : fallbackTermItems).sort((a, b) => a.sortOrder - b.sortOrder),
+    termItems: (explicitTermItems.length ? explicitTermItems : fallbackTermItems).sort((a: QuotationCommercialTermItemRecord, b: QuotationCommercialTermItemRecord) => a.sortOrder - b.sortOrder),
   };
 }
 
