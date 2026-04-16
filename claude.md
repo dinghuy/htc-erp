@@ -68,6 +68,8 @@ These instructions apply to Codex agents working in this repository.
 ## Git Workflow
 
 - Work on a dedicated branch for one bounded task.
+- For every new feature, create and use a separate dedicated branch before implementation starts. Do not mix multiple new features on the same branch.
+- If the user switches to a different problem or topic mid-chat, recommend starting a new chat so planning, verification, and branch scope stay clean.
 - Use focused conventional commits such as `feat:`, `fix:`, `refactor:`, `docs:`, or `test:`.
 - Open a PR instead of merging local work directly.
 - Every PR must include summary, scope, risks, and verification evidence.
