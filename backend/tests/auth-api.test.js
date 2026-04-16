@@ -110,6 +110,8 @@ async function main() {
   await run('default admin login requires password change on first login', async () => {
     const result = await login('admin', 'admin123');
     assert.equal(result.response.status, 200);
+    assert.notEqual(result.body.user.id, null);
+    assert.notEqual(result.body.user.id, '');
     assert.equal(result.body.user.username, 'admin');
     assert.equal(result.body.user.mustChangePassword, true);
     assert.match(result.body.token, /\S+/);
@@ -118,6 +120,8 @@ async function main() {
   await run('v1 auth alias preserves login behavior', async () => {
     const result = await loginV1('admin', 'admin123');
     assert.equal(result.response.status, 200);
+    assert.notEqual(result.body.user.id, null);
+    assert.notEqual(result.body.user.id, '');
     assert.equal(result.body.user.username, 'admin');
     assert.equal(result.body.user.mustChangePassword, true);
     assert.match(result.body.token, /\S+/);

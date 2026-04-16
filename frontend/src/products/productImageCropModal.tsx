@@ -98,6 +98,7 @@ export function ProductImageCropModal({
                 borderRadius: '28px',
                 overflow: 'hidden',
                 border: `1px solid ${tokens.colors.border}`,
+                // Keep a dark stage here for crop legibility over arbitrary source images.
                 background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.94) 0%, rgba(2, 6, 23, 0.94) 100%)',
                 position: 'relative',
                 cursor: 'grab',
@@ -124,6 +125,7 @@ export function ProductImageCropModal({
                 style={{
                   position: 'absolute',
                   inset: 0,
+                  // Keep the scrim literal: this is a media overlay, not an app theme surface.
                   boxShadow: 'inset 0 0 0 999px rgba(2, 6, 23, 0.18)',
                   border: '2px solid rgba(255,255,255,0.2)',
                   borderRadius: '28px',

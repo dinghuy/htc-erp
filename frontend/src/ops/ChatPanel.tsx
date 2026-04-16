@@ -306,9 +306,9 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
         <div style={{
           ...ui.card.base,
           padding: '14px 18px',
-          border: `1px solid rgba(220, 38, 38, 0.18)`,
-          background: 'rgba(220, 38, 38, 0.06)',
-          color: '#b91c1c',
+          border: `1px solid ${tokens.colors.errorBorder}`,
+          background: tokens.colors.errorSurfaceSoft,
+          color: tokens.colors.error,
           fontSize: '13px',
           fontWeight: 600,
         }}>
@@ -357,8 +357,8 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
                     maxWidth: 'min(88%, 640px)',
                     padding: '14px 16px',
                     borderRadius: mine ? '18px 18px 6px 18px' : '18px 18px 18px 6px',
-                    background: mine ? 'linear-gradient(135deg, rgba(0, 151, 110, 0.14), rgba(0, 63, 133, 0.08))' : tokens.colors.background,
-                    border: `1px solid ${mine ? 'rgba(0, 151, 110, 0.18)' : tokens.colors.border}`,
+                    background: mine ? `linear-gradient(135deg, ${tokens.colors.successTint}, ${tokens.colors.infoBg})` : tokens.colors.background,
+                    border: `1px solid ${mine ? tokens.colors.successBorder : tokens.colors.border}`,
                     boxShadow: tokens.shadow.sm,
                   }}
                 >
@@ -438,8 +438,8 @@ export function ChatPanel({ currentUser, isMobile, onNavigate }: Props) {
                   style={{
                     padding: '14px 16px',
                     borderRadius: tokens.radius.lg,
-                    border: `1px solid ${unread ? 'rgba(0, 151, 110, 0.2)' : tokens.colors.border}`,
-                    background: unread ? 'rgba(0, 151, 110, 0.05)' : tokens.colors.background,
+                    border: `1px solid ${unread ? tokens.colors.successBorder : tokens.colors.border}`,
+                    background: unread ? tokens.colors.successTint : tokens.colors.background,
                     cursor: clickable ? 'pointer' : 'default',
                   }}
                   onClick={() => {

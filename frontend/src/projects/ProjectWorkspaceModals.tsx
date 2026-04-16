@@ -182,7 +182,7 @@ export function ProcurementEditorModal({ value, suppliers, onChange, onClose, on
           <div><label style={S.label}>PO NUMBER</label><input style={S.input} value={value.poNumber || ''} onInput={(e: any) => onChange({ ...value, poNumber: e.target.value })} /></div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-          <div><label style={S.label}>QTY HỢP ĐỒNG</label><input style={{ ...S.input, background: '#f8fafc' }} disabled value={value.contractQty ?? 0} /></div>
+          <div><label style={S.label}>QTY HỢP ĐỒNG</label><input style={{ ...S.input, background: tokens.colors.surfaceNeutralSoft }} disabled value={value.contractQty ?? 0} /></div>
           <div><label style={S.label}>QTY ĐÃ ĐẶT</label><input type="number" min="0" style={S.input} value={value.orderedQty ?? 0} onInput={(e: any) => onChange({ ...value, orderedQty: Number(e.target.value || 0) })} /></div>
           <div><label style={S.label}>TRẠNG THÁI</label><select style={S.input} value={value.status || 'planned'} onChange={(e: any) => onChange({ ...value, status: e.target.value })}><option value="planned">{workflowStatusLabel('planned')}</option><option value="ordered">{workflowStatusLabel('ordered')}</option><option value="partial">{workflowStatusLabel('partial')}</option><option value="delivered">{workflowStatusLabel('delivered')}</option></select></div>
         </div>

@@ -125,7 +125,7 @@ const S = {
   hero: {
     position: 'relative' as const,
     overflow: 'hidden' as const,
-    background: `linear-gradient(135deg, rgba(0, 151, 110, 0.12) 0%, rgba(0, 63, 133, 0.08) 55%, ${tokens.colors.surface} 100%)`,
+    background: tokens.surface.heroGradient,
     border: `1px solid ${tokens.colors.border}`,
     borderRadius: tokens.radius.xl,
     boxShadow: tokens.shadow.sm,
@@ -170,43 +170,43 @@ const S = {
 };
 
 const PROJECT_STATUS = {
-  pending: { label: 'Chưa bắt đầu', color: '#64748b' },
+  pending: { label: 'Chưa bắt đầu', color: tokens.colors.textSecondary },
   active: { label: 'Đang thực hiện', color: 'var(--ht-green)' },
-  completed: { label: 'Hoàn thành', color: '#16a34a' },
+  completed: { label: 'Hoàn thành', color: tokens.colors.success },
   paused: { label: 'Tạm dừng', color: 'var(--ht-amber)' },
   cancelled: { label: 'Hủy bỏ', color: tokens.colors.error },
 };
 
 const PROJECT_STAGE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  new: { label: 'Mới', color: '#475569', bg: tokens.colors.surface },
+  new: { label: 'Mới', color: tokens.colors.textSecondary, bg: tokens.colors.surface },
   quoting: { label: 'Đang báo giá', color: tokens.colors.infoAccentText, bg: tokens.colors.infoAccentBg },
   negotiating: { label: 'Thương lượng', color: tokens.colors.warningSurfaceText, bg: tokens.colors.warningSurfaceBg },
   'internal-review': { label: 'Duyệt nội bộ', color: tokens.colors.violetAccentText, bg: tokens.colors.violetAccentBg },
-  won: { label: 'Thắng', color: '#047857', bg: '#d1fae5' },
+  won: { label: 'Thắng', color: tokens.colors.success, bg: tokens.colors.surfaceSuccessSoft },
   lost: { label: 'Thua', color: tokens.colors.error, bg: tokens.colors.badgeBgError },
   delivery: { label: 'Triển khai', color: tokens.colors.violetStrongText, bg: tokens.colors.violetStrongBg },
   closed: { label: 'Đóng', color: tokens.colors.textPrimary, bg: tokens.colors.surfaceSubtle },
 };
 
 const SALES_ORDER_STATUS = {
-  draft: { label: 'Bản nháp', color: '#64748b', bg: tokens.colors.surface },
+  draft: { label: 'Bản nháp', color: tokens.colors.textSecondary, bg: tokens.colors.surface },
   released: { label: 'Released', color: tokens.colors.infoAccentText, bg: tokens.colors.infoAccentBg },
-  locked_for_execution: { label: 'Khóa triển khai', color: '#047857', bg: '#d1fae5' },
+  locked_for_execution: { label: 'Khóa triển khai', color: tokens.colors.success, bg: tokens.colors.surfaceSuccessSoft },
   processing: { label: 'Đang xử lý', color: tokens.colors.infoAccentText, bg: tokens.colors.infoAccentBg },
-  delivered: { label: 'Đã giao', color: '#047857', bg: '#d1fae5' },
+  delivered: { label: 'Đã giao', color: tokens.colors.success, bg: tokens.colors.surfaceSuccessSoft },
   closed: { label: 'Đã đóng', color: tokens.colors.textPrimary, bg: tokens.colors.surfaceSubtle },
   cancelled: { label: 'Đã hủy', color: tokens.colors.error, bg: tokens.colors.badgeBgError },
 };
 
 const TASK_STATUS = {
-  pending: { label: 'Chờ thực hiện', color: '#64748b' },
+  pending: { label: 'Chờ thực hiện', color: tokens.colors.textSecondary },
   active: { label: 'Đang làm', color: 'var(--ht-green)' },
-  completed: { label: 'Hoàn thành', color: '#16a34a' },
+  completed: { label: 'Hoàn thành', color: tokens.colors.success },
   paused: { label: 'Tạm dừng', color: 'var(--ht-amber)' },
 };
 
 const TASK_PRIORITY = {
-  low: { label: 'Thấp', color: '#64748b', bg: tokens.colors.surface },
+  low: { label: 'Thấp', color: tokens.colors.textSecondary, bg: tokens.colors.surface },
   medium: { label: 'Trung bình', color: 'var(--ht-green)', bg: 'var(--ht-success-bg)' },
   high: { label: 'Cao', color: tokens.colors.warningSurfaceText, bg: tokens.colors.warningSurfaceBg },
   urgent: { label: 'Khẩn cấp', color: tokens.colors.error, bg: tokens.colors.badgeBgError },
@@ -997,7 +997,7 @@ export function OperationsOverview({ currentUser, isMobile, onNavigate, token }:
           padding: `${tokens.spacing.lg} ${tokens.spacing.xlPlus}`,
           background: 'var(--ht-error-bg)',
           borderColor: 'rgba(220, 38, 38, 0.2)',
-          color: '#991b1b',
+          color: tokens.colors.error,
           fontSize: F.md,
           fontWeight: 600,
         }}>

@@ -75,6 +75,25 @@ const S = {
   label: { ...ui.form.label, display: 'block', marginBottom: '6px' } as any
 };
 
+const USERS_WARNING_PILL = {
+  background: tokens.colors.warningSurfaceBg,
+  color: tokens.colors.warningSurfaceText,
+} as const;
+
+const USERS_INFO_PILL = {
+  background: tokens.colors.infoAccentBg,
+  color: tokens.colors.infoAccentText,
+} as const;
+
+const USERS_TABLE_HEADER_BG = tokens.colors.surfaceSubtle;
+const USERS_TABLE_ALT_ROW_BG = tokens.colors.background;
+const USERS_TABLE_MUTED_TEXT = tokens.colors.textSecondary;
+const USERS_ACTION_PRIMARY = {
+  border: tokens.colors.successBorder,
+  background: tokens.colors.surfaceSuccessSoft,
+  color: tokens.colors.success,
+} as const;
+
 function formatDate(val: any): string {
   if (!val) return 'Chưa đăng nhập';
   try {
@@ -105,8 +124,8 @@ function AccountStatusBadge({ status }: { status?: string }) {
   }
   if (status === 'suspended') {
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '99px', background: 'rgba(255,152,0,0.12)', fontSize: '11px', fontWeight: 700, color: '#e65100' }}>
-        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#e65100', display: 'inline-block' }} />
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '99px', background: USERS_WARNING_PILL.background, fontSize: '11px', fontWeight: 700, color: USERS_WARNING_PILL.color }}>
+        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: USERS_WARNING_PILL.color, display: 'inline-block' }} />
         Tạm ngưng
       </span>
     );
@@ -213,6 +232,33 @@ function RoleCodeSelector({
   );
 }
 
+function toUsername(fullName: string): string {
+  const map: Record<string, string> = {
+    'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a',
+    'ă': 'a', 'ắ': 'a', 'ặ': 'a', 'ằ': 'a', 'ẳ': 'a', 'ẵ': 'a',
+    'ấ': 'a', 'ậ': 'a', 'ầ': 'a', 'ẩ': 'a', 'ẫ': 'a',
+    'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+    'ề': 'e', 'ế': 'e', 'ệ': 'e', 'ể': 'e', 'ễ': 'e',
+    'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', 'ị': 'i', 'ỉ': 'i', 'ĩ': 'i',
+    'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
+    'ơ': 'o', 'ớ': 'o', 'ợ': 'o', 'ờ': 'o', 'ở': 'o', 'ỡ': 'o',
+    'ồ': 'o', 'ố': 'o', 'ộ': 'o', 'ổ': 'o', 'ỗ': 'o',
+    'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+    'ư': 'u', 'ứ': 'u', 'ự': 'u', 'ừ': 'u', 'ử': 'u', 'ữ': 'u',
+    'ỳ': 'y', 'ý': 'y', 'ỵ': 'y', 'ỷ': 'y', 'ỹ': 'y',
+    'đ': 'd',
+  };
+  return fullName
+    .toLowerCase()
+    .split('')
+    .map(c => map[c] ?? c)
+    .join('')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .join('.');
+}
+
 function AddUserModal({ onClose, onSaved, token }: any) {
   const [form, setForm] = useState({
     fullName: '',
@@ -234,10 +280,27 @@ function AddUserModal({ onClose, onSaved, token }: any) {
     mustChangePassword: true,
   });
   const [saving, setSaving] = useState(false);
+  const [usernameEdited, setUsernameEdited] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Auto-generate username from full name unless user has manually edited it
+  useEffect(() => {
+    if (!usernameEdited && form.fullName.trim()) {
+      setForm(f => ({ ...f, username: toUsername(form.fullName) }));
+    }
+  }, [form.fullName, usernameEdited]);
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.fullName.trim()) e.fullName = 'Bắt buộc nhập họ và tên';
+    if (form.password && form.password.length < 6) e.password = 'Tối thiểu 6 ký tự';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const submit = async () => {
-    if (!form.fullName.trim()) return showNotify('Thiếu họ và tên', 'error');
-    if (form.password && form.password.length < 6) return showNotify('Mật khẩu tối thiểu 6 ký tự', 'error');
+    if (!validate()) return;
     setSaving(true);
     try {
       const normalizedRoleCodes = normalizeRoleCodes([...form.roleCodes, form.systemRole], form.systemRole);
@@ -246,6 +309,7 @@ function AddUserModal({ onClose, onSaved, token }: any) {
         method: 'POST',
         body: JSON.stringify({
           ...form,
+          fullName: form.fullName.trim(),
           systemRole: persistedSystemRole,
           roleCodes: normalizedRoleCodes,
         }),
@@ -263,7 +327,14 @@ function AddUserModal({ onClose, onSaved, token }: any) {
     }
   };
 
-  const F = (field: string, val: any) => setForm(f => ({ ...f, [field]: val }));
+  const F = (field: string, val: any) => {
+    setForm(f => ({ ...f, [field]: val }));
+    if (errors[field]) setErrors(e => ({ ...e, [field]: '' }));
+  };
+
+  const inputErr = (field: string) => errors[field]
+    ? { ...S.input, borderColor: tokens.colors.error }
+    : S.input;
 
   return (
     <ModalWrapper title="Thêm nhân viên mới" onClose={onClose}>
@@ -271,6 +342,18 @@ function AddUserModal({ onClose, onSaved, token }: any) {
 
         {/* Personal info */}
         <SectionDivider label="Thông tin cá nhân" />
+        <div style={{ gridColumn: 'span 2' }}>
+          <label style={S.label}>Họ và tên đầy đủ *</label>
+          <input
+            type="text"
+            placeholder="Nhập tên nhân viên"
+            value={form.fullName}
+            onChange={(e: any) => F('fullName', e.target.value)}
+            style={inputErr('fullName')}
+            autoFocus
+          />
+          {errors.fullName && <p style={{ margin: '4px 0 0', fontSize: '12px', color: tokens.colors.error }}>{errors.fullName}</p>}
+        </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Giới tính</label>
           <select value={form.gender} onChange={(e: any) => F('gender', e.target.value)} style={S.input}>
@@ -278,35 +361,31 @@ function AddUserModal({ onClose, onSaved, token }: any) {
           </select>
         </div>
         <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Họ và tên đầy đủ *</label>
-          <input type="text" placeholder="Nhập tên nhân viên" value={form.fullName} onInput={(e: any) => F('fullName', e.target.value)} style={S.input} />
-        </div>
-        <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Ma NV (HTG-001)</label>
-          <input type="text" placeholder="VD: HTG-001" value={form.employeeCode} onInput={(e: any) => F('employeeCode', e.target.value)} style={S.input} />
+          <label style={S.label}>Mã NV (HTG-001)</label>
+          <input type="text" placeholder="VD: HTG-001" value={form.employeeCode} onChange={(e: any) => F('employeeCode', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Ngày sinh</label>
-          <input type="date" value={form.dateOfBirth} onInput={(e: any) => F('dateOfBirth', e.target.value)} style={S.input} />
-        </div>
-        <div style={{ gridColumn: 'span 1' }}>
-          <label style={S.label}>Địa chỉ email công ty</label>
-          <input type="email" placeholder="email@huynhthy.com" value={form.email} onInput={(e: any) => F('email', e.target.value)} style={S.input} />
+          <input type="date" value={form.dateOfBirth} onChange={(e: any) => F('dateOfBirth', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Số điện thoại di động</label>
-          <input type="text" placeholder="0901 234 567" value={form.phone} onInput={(e: any) => F('phone', e.target.value)} style={S.input} />
+          <input type="text" placeholder="0901 234 567" value={form.phone} onChange={(e: any) => F('phone', e.target.value)} style={S.input} />
+        </div>
+        <div style={{ gridColumn: 'span 1' }}>
+          <label style={S.label}>Địa chỉ email công ty</label>
+          <input type="email" placeholder="email@huynhthy.com" value={form.email} onChange={(e: any) => F('email', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 2' }}>
           <label style={S.label}>Địa chỉ</label>
-          <input type="text" placeholder="Số nhà, đường, quận/huyện, tỉnh/thành phố" value={form.address} onInput={(e: any) => F('address', e.target.value)} style={S.input} />
+          <input type="text" placeholder="Số nhà, đường, quận/huyện, tỉnh/thành phố" value={form.address} onChange={(e: any) => F('address', e.target.value)} style={S.input} />
         </div>
 
         {/* Work info */}
         <SectionDivider label="Thông tin công việc" />
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Chức vụ đang đảm nhiệm</label>
-          <input type="text" placeholder="VD: Sales Executive" value={form.role} onInput={(e: any) => F('role', e.target.value)} style={S.input} />
+          <input type="text" placeholder="VD: Sales Executive" value={form.role} onChange={(e: any) => F('role', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Phòng ban trực thuộc</label>
@@ -317,7 +396,7 @@ function AddUserModal({ onClose, onSaved, token }: any) {
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Ngày vào công ty</label>
-          <input type="date" value={form.startDate} onInput={(e: any) => F('startDate', e.target.value)} style={S.input} />
+          <input type="date" value={form.startDate} onChange={(e: any) => F('startDate', e.target.value)} style={S.input} />
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Trạng thái nhân sự</label>
@@ -331,11 +410,39 @@ function AddUserModal({ onClose, onSaved, token }: any) {
         <SectionDivider label="Tài khoản đăng nhập hệ thống" />
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Tên đăng nhập (username)</label>
-          <input type="text" placeholder="VD: tran.van.a" value={form.username} onInput={(e: any) => F('username', e.target.value)} style={S.input} />
+          <input
+            type="text"
+            placeholder="VD: tran.van.a"
+            value={form.username}
+            onChange={(e: any) => {
+              setUsernameEdited(true);
+              F('username', e.target.value);
+            }}
+            style={S.input}
+          />
+          {!usernameEdited && form.fullName.trim() && (
+            <p style={{ margin: '4px 0 0', fontSize: '11px', color: tokens.colors.textMuted }}>Tự động từ họ tên — có thể sửa</p>
+          )}
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Mật khẩu ban đầu</label>
-          <input type="password" placeholder="Tối thiểu 6 ký tự" value={form.password} onInput={(e: any) => F('password', e.target.value)} style={S.input} />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Tối thiểu 6 ký tự"
+              value={form.password}
+              onChange={(e: any) => F('password', e.target.value)}
+              style={{ ...inputErr('password'), paddingRight: '40px' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: tokens.colors.textMuted, padding: '4px', fontSize: '13px' }}
+            >
+              {showPassword ? 'Ẩn' : 'Hiện'}
+            </button>
+          </div>
+          {errors.password && <p style={{ margin: '4px 0 0', fontSize: '12px', color: tokens.colors.error }}>{errors.password}</p>}
         </div>
         <div style={{ gridColumn: 'span 1' }}>
           <label style={S.label}>Phân quyền hệ thống</label>
@@ -363,7 +470,7 @@ function AddUserModal({ onClose, onSaved, token }: any) {
             onChange={(e: any) => F('mustChangePassword', e.target.checked)}
             style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: tokens.colors.primary }}
           />
-          <label for="mustChangePassword" style={{ ...S.label, marginBottom: 0, cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: tokens.colors.textSecondary }}>
+          <label htmlFor="mustChangePassword" style={{ ...S.label, marginBottom: 0, cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: tokens.colors.textSecondary }}>
             Bắt buộc đổi mật khẩu lần đầu
           </label>
         </div>
@@ -602,7 +709,7 @@ function PasswordStateBadge({ mustChangePassword }: { mustChangePassword?: boole
   const pending = mustChangePassword === true || mustChangePassword === 1;
   if (pending) {
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '99px', background: 'rgba(255,152,0,0.12)', fontSize: '11px', fontWeight: 700, color: '#e65100' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '99px', background: USERS_WARNING_PILL.background, fontSize: '11px', fontWeight: 700, color: USERS_WARNING_PILL.color }}>
         Yêu cầu đổi
       </span>
     );
@@ -721,10 +828,10 @@ function SummaryChip({
   tone: 'info' | 'warning' | 'danger';
 }) {
   const palette = tone === 'warning'
-    ? { background: '#FFF4DE', color: '#B7791F' }
+    ? { background: tokens.colors.warningStrongBg, color: tokens.colors.warningStrong }
     : tone === 'danger'
       ? { background: tokens.colors.badgeBgError, color: tokens.colors.error }
-      : { background: '#E8F5FF', color: '#2B6CB0' };
+      : USERS_INFO_PILL;
 
   return (
     <span
@@ -754,9 +861,9 @@ function TableRolePill({ label }: { label: string }) {
         alignItems: 'center',
         padding: '6px 12px',
         borderRadius: '999px',
-        background: '#F8FBFE',
+        background: tokens.colors.surfaceSubtle,
         border: `1px solid ${tokens.colors.border}`,
-        color: '#43617F',
+        color: tokens.colors.textSecondary,
         fontSize: '12px',
         fontWeight: 700,
         whiteSpace: 'nowrap',
@@ -806,9 +913,9 @@ function TableActionButton({
         height: '36px',
         padding: '0 12px',
         borderRadius: '12px',
-        border: `1px solid ${tone === 'primary' ? '#BFE8D5' : tokens.colors.border}`,
-        background: tone === 'primary' ? '#E8F7F0' : tokens.colors.surface,
-        color: tone === 'primary' ? '#0C7A57' : '#43617F',
+        border: `1px solid ${tone === 'primary' ? USERS_ACTION_PRIMARY.border : tokens.colors.border}`,
+        background: tone === 'primary' ? USERS_ACTION_PRIMARY.background : tokens.colors.surface,
+        color: tone === 'primary' ? USERS_ACTION_PRIMARY.color : tokens.colors.textSecondary,
         fontSize: '13px',
         fontWeight: 700,
         cursor: 'pointer',
@@ -1069,7 +1176,7 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
                 style={{
                   ...S.input,
                   width: '100%',
-                  background: '#F9FBFD',
+                  background: tokens.colors.background,
                   borderRadius: '14px',
                   padding: '12px 16px',
                 }}
@@ -1172,9 +1279,9 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
                   textAlign: 'left',
                   fontSize: '13px',
                   fontWeight: 700,
-                  color: '#7187A2',
+                  color: tokens.colors.textMuted,
                   borderBottom: `1px solid ${tokens.colors.border}`,
-                  background: '#F8FBFE',
+                  background: USERS_TABLE_HEADER_BG,
                   cursor: column.key === 'capabilities' || column.key === 'status' ? 'default' : 'pointer',
                   whiteSpace: 'nowrap',
                 }}
@@ -1183,12 +1290,12 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
                 <span>{column.label}{directoryData.sortConfig.key === column.key ? (directoryData.sortConfig.direction === 'asc' ? ' ↑' : ' ↓') : ''}</span>
               </th>
             ))}
-            <th style={{ padding: '20px 16px', textAlign: 'right', fontSize: '13px', fontWeight: 700, color: '#7187A2', borderBottom: `1px solid ${tokens.colors.border}`, background: '#F8FBFE' }}>Thao tác</th>
+            <th style={{ padding: '20px 16px', textAlign: 'right', fontSize: '13px', fontWeight: 700, color: tokens.colors.textMuted, borderBottom: `1px solid ${tokens.colors.border}`, background: USERS_TABLE_HEADER_BG }}>Thao tác</th>
           </tr>
         </thead>
         <tbody>
           {directoryData.items.map((item: any, index: number) => (
-            <tr key={item.id} style={{ ...ui.table.row, borderTop: `1px solid ${tokens.colors.border}`, background: index % 2 === 0 ? tokens.colors.surface : '#FCFDFE' }}>
+            <tr key={item.id} style={{ ...ui.table.row, borderTop: `1px solid ${tokens.colors.border}`, background: index % 2 === 0 ? tokens.colors.surface : USERS_TABLE_ALT_ROW_BG }}>
               <td style={{ ...S.td, minWidth: '240px', paddingTop: '18px', paddingBottom: '18px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <UserAvatar avatar={item.avatar} fullName={item.fullName} size={36} />
@@ -1200,9 +1307,9 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
               </td>
               <td style={S.td}>{item.department || '-'}</td>
               <td style={{ ...S.td, minWidth: '160px' }}><TableRolePill label={item.primaryRoleLabel} /></td>
-              <td style={{ ...S.td, minWidth: '220px', color: '#52657E' }}>{getUserAccessSummary(item)}</td>
+              <td style={{ ...S.td, minWidth: '220px', color: USERS_TABLE_MUTED_TEXT }}>{getUserAccessSummary(item)}</td>
               <td style={S.td}><TableStatusPill user={item} /></td>
-              <td style={{ ...S.td, whiteSpace: 'nowrap', color: !item.lastLoginAt ? tokens.colors.warningStrong : '#7187A2' }}>{formatDate(item.lastLoginAt)}</td>
+              <td style={{ ...S.td, whiteSpace: 'nowrap', color: !item.lastLoginAt ? tokens.colors.warningStrong : USERS_TABLE_MUTED_TEXT }}>{formatDate(item.lastLoginAt)}</td>
               <td style={{ ...S.td, textAlign: 'right' }}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                   <TableActionButton label="Xem" onClick={() => openUserPanel(item)} />
@@ -1232,8 +1339,8 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
               <TableRolePill label={item.primaryRoleLabel} />
               <TableStatusPill user={item} />
             </div>
-            <div style={{ fontSize: '13px', color: '#52657E' }}><strong>Phòng ban:</strong> {item.department || '-'}</div>
-            <div style={{ fontSize: '13px', color: '#52657E' }}><strong>Quyền hạn:</strong> {getUserAccessSummary(item)}</div>
+            <div style={{ fontSize: '13px', color: USERS_TABLE_MUTED_TEXT }}><strong>Phòng ban:</strong> {item.department || '-'}</div>
+            <div style={{ fontSize: '13px', color: USERS_TABLE_MUTED_TEXT }}><strong>Quyền hạn:</strong> {getUserAccessSummary(item)}</div>
             <div style={{ fontSize: '12px', color: !item.lastLoginAt ? tokens.colors.warningStrong : tokens.colors.textMuted }}>Đăng nhập gần nhất: {formatDate(item.lastLoginAt)}</div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
@@ -1298,10 +1405,10 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <h2 style={{ fontSize: '30px', fontWeight: 900, color: '#102A43', margin: 0 }}>
+              <h2 style={{ fontSize: '30px', fontWeight: 900, color: tokens.colors.textPrimary, margin: 0 }}>
                 {t('admin.users.title')}
               </h2>
-              <p style={{ fontSize: '14px', color: '#6B7C93', margin: '6px 0 0', lineHeight: 1.6 }}>
+              <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0', lineHeight: 1.6 }}>
                 {t('admin.users.subtitle')}
               </p>
             </div>
@@ -1320,7 +1427,7 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
           overflow: 'hidden',
           border: `1px solid ${tokens.colors.border}`,
           borderRadius: userCanManage ? '22px' : tokens.radius.lg,
-          boxShadow: userCanManage ? '0 14px 28px rgba(16, 42, 67, 0.06)' : tokens.shadow.sm,
+          boxShadow: tokens.shadow.sm,
         }}
       >
         {loading ? <div style={{ padding: '80px', textAlign: 'center', color: tokens.colors.textMuted }}>Đang tải dữ liệu...</div> : directoryData.items.length === 0 ? <div style={{ padding: '72px 24px', textAlign: 'center', color: tokens.colors.textMuted }}>Không có người dùng nào khớp với bộ lọc hiện tại.</div> : userCanManage ? (isMobile ? renderAdminMobileCards() : renderAdminDesktopTable()) : (isMobile ? renderDirectoryMobileCards() : renderDirectoryDesktopTable())}

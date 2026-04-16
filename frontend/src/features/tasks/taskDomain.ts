@@ -2,6 +2,7 @@ import {
   departmentValueOptions,
   taskTypeValueOptions,
 } from '../../ops/workflowOptions';
+import { tokens } from '../../ui/tokens';
 
 export const ALL_PROJECT = '__all__';
 
@@ -84,17 +85,17 @@ export type TaskFormState = {
 };
 
 export const UI_STATUS_META: Record<UiTaskStatus, { label: string; accent: string; soft: string }> = {
-  not_started: { label: 'Chưa bắt đầu', accent: '#9a7a10', soft: '#f7efc7' },
-  in_progress: { label: 'Đang triển khai', accent: '#0ba360', soft: '#e7f5ee' },
-  complete: { label: 'Hoàn tất', accent: '#2563eb', soft: '#eaf1ff' },
+  not_started: { label: 'Chưa bắt đầu', accent: tokens.colors.warningSurfaceText, soft: tokens.colors.warningSurfaceBgSoft },
+  in_progress: { label: 'Đang triển khai', accent: tokens.colors.primary, soft: tokens.colors.surfaceSuccessSoft },
+  complete: { label: 'Hoàn tất', accent: tokens.colors.infoAccentText, soft: tokens.colors.infoAccentBg },
   on_hold: { label: 'Tạm dừng', accent: tokens.colors.warningSurfaceText, soft: tokens.colors.warningStrongBg },
-  cancelled: { label: 'Đã hủy', accent: '#5f6b7a', soft: tokens.colors.surfaceSubtle },
+  cancelled: { label: 'Đã hủy', accent: tokens.colors.textSecondary, soft: tokens.colors.surfaceSubtle },
 };
 
 export const PRIORITY_META: Record<TaskPriority, { label: string; accent: string; soft: string }> = {
-  high: { label: 'Cao', accent: '#b42318', soft: '#fdecea' },
+  high: { label: 'Cao', accent: tokens.colors.error, soft: tokens.colors.badgeBgError },
   medium: { label: 'Trung bình', accent: tokens.colors.warningSurfaceText, soft: tokens.colors.warningStrongBg },
-  low: { label: 'Thấp', accent: '#4b5563', soft: tokens.colors.surfaceSubtle },
+  low: { label: 'Thấp', accent: tokens.colors.textSecondary, soft: tokens.colors.surfaceSubtle },
 };
 
 function pad(value: number) {
@@ -288,4 +289,3 @@ export function matchesTaskSearch(task: TaskRecord, query: string) {
     task.output,
   ].some((value) => String(value || '').toLowerCase().includes(q));
 }
-import { tokens } from '../../ui/tokens';

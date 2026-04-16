@@ -849,6 +849,7 @@ export function Tasks({
       deleteTask={deleteTask}
       openProjectFromDrawer={openProjectFromDrawer}
     />
+
   );
 }
 export default Tasks;

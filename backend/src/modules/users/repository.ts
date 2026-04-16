@@ -87,6 +87,12 @@ type CreateImportedUserInput = {
   role: string;
   department: string;
   status: string;
+  username: string | null;
+  passwordHash: string | null;
+  systemRole: string;
+  employeeCode: string | null;
+  accountStatus: string;
+  mustChangePassword: number;
 };
 
 type UserRoleNormalizationRecord = {
@@ -188,7 +194,10 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
 
   function createImportedUser(input: CreateImportedUserInput) {
     return getDbInstance().run(
-      `INSERT INTO User (id, fullName, gender, email, phone, role, department, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO User (
+        id, fullName, gender, email, phone, role, department, status,
+        username, passwordHash, systemRole, employeeCode, accountStatus, mustChangePassword
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.id,
         input.fullName,
@@ -198,6 +207,12 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
         input.role,
         input.department,
         input.status,
+        input.username,
+        input.passwordHash,
+        input.systemRole,
+        input.employeeCode,
+        input.accountStatus,
+        input.mustChangePassword,
       ],
     );
   }

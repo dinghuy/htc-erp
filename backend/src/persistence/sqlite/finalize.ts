@@ -1,4 +1,5 @@
 import { type Database } from 'sqlite';
+import { randomUUID } from 'node:crypto';
 import { normalizeGender } from '../../../gender';
 import {
   DEFAULT_QUOTATION_FINANCIAL_CONFIG,
@@ -98,6 +99,48 @@ type ForeignKeyDef = {
   toColumn: string;
   onDelete?: string;
 };
+
+export async function repairMissingUserIds(db: Database) {
+  const userTable: any = await db.get(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'User'"
+  );
+  if (!userTable?.name) return 0;
+
+  const cols: any[] = await db.all(`PRAGMA table_info('User')`);
+  const idColumn = cols.find((column: any) => column.name === 'id');
+  const usesIntegerPrimaryKey = String(idColumn?.type || '').toUpperCase().includes('INT');
+  const rows: Array<{ rowid: number; id: unknown; username: unknown }> = await db.all(
+    `SELECT rowid as rowid, id, username
+     FROM User
+     WHERE id IS NULL OR TRIM(CAST(id AS TEXT)) = ''`
+  );
+
+  for (const row of rows) {
+    const usernameSlug = String(row.username || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    let nextId = usesIntegerPrimaryKey
+      ? String(row.rowid)
+      : (usernameSlug ? `user-${usernameSlug}` : `user-${randomUUID()}`);
+
+    const existing = await db.get(
+      'SELECT rowid FROM User WHERE id = ? AND rowid != ?',
+      [nextId, row.rowid]
+    );
+    if (existing) {
+      nextId = usesIntegerPrimaryKey
+        ? String(row.rowid)
+        : `user-${randomUUID()}`;
+    }
+
+    await db.run('UPDATE User SET id = ? WHERE rowid = ?', [nextId, row.rowid]);
+  }
+
+  return rows.length;
+}
 
 export async function finalizeSqliteSchema(db: Database) {
   const tableExists = async (table: string) => {
@@ -1093,6 +1136,10 @@ export async function finalizeSqliteSchema(db: Database) {
   }
 
   await db.run("UPDATE User SET language = 'vi' WHERE language IS NULL OR TRIM(language) = ''");
+  const repairedUserIds = await repairMissingUserIds(db);
+  if (repairedUserIds > 0) {
+    console.log(`[DB] Backfilled ${repairedUserIds} user id(s) that were null or empty.`);
+  }
   await db.run("UPDATE SupportTicket SET status = 'open' WHERE status IS NULL OR TRIM(status) = ''");
   await db.run("UPDATE SupportTicket SET subject = COALESCE(NULLIF(TRIM(subject), ''), 'Support request') WHERE subject IS NULL OR TRIM(subject) = ''");
   await db.run("UPDATE SupportTicket SET updatedAt = COALESCE(updatedAt, createdAt, datetime('now')) WHERE updatedAt IS NULL OR TRIM(updatedAt) = ''");

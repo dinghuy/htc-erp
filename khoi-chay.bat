@@ -1,14 +1,9 @@
 @echo off
-title CRM HT Group - Launcher
-echo 🚀 Dang khoi chay he thong CRM Huynh Thy...
-echo ------------------------------------------
+setlocal
 
-:: Khoi chay Backend trong cua so moi
-start "CRM_BACKEND" cmd /k "cd backend && npm run dev"
+set "ROOT=%~dp0"
 
-:: Khoi chay Frontend trong cua so moi
-start "CRM_FRONTEND" cmd /k "cd frontend && npm run dev"
+start "HTC ERP Backend" cmd /k "cd /d ""%ROOT%backend"" && npm.cmd run dev"
+start "HTC ERP Frontend" cmd /k "cd /d ""%ROOT%frontend"" && npm.cmd run dev -- --host 127.0.0.1 --port 5173"
 
-echo ✅ Da mo cac terminal cho Backend (Port 3001) va Frontend (Vite).
-echo 💡 Ban co the dong cua so nay. 
-pause
+exit /b 0

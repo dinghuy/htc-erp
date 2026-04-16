@@ -66,7 +66,7 @@ function AddAccountModal({
   token: string;
   defaultAccountType?: AccountTypeFilter;
 }) {
-  const [form, setForm] = useState({ companyName: '', region: '', industry: '', website: '', taxCode: '', address: '', accountType: defaultAccountType, shortName: '' });
+  const [form, setForm] = useState({ companyName: '', region: '', industry: '', website: '', taxCode: '', address: '', accountType: defaultAccountType, shortName: '', code: '', tag: '', country: '' });
   const [saving, setSaving] = useState(false);
   const submit = async () => {
     if (!form.companyName.trim()) return showNotify('Thiếu tên công ty', 'error');
@@ -98,6 +98,9 @@ function AddAccountModal({
         <div style={{ gridColumn: 'span 1' }}><label style={S.label}>Địa chỉ Website</label><input type="text" placeholder="https://example.com" style={S.input} value={form.website} onInput={(e:any)=>setForm({...form, website: e.target.value})} /></div>
         <div style={{ gridColumn: 'span 1' }}><label style={S.label}>Mã số thuế (Tài chính)</label><input type="text" placeholder="Nhập mã số thuế" style={S.input} value={form.taxCode} onInput={(e:any)=>setForm({...form, taxCode: e.target.value})} /></div>
         <div style={{ gridColumn: 'span 2' }}><label style={S.label}>Địa chỉ trụ sở chính (Xuất hóa đơn)</label><input type="text" placeholder="Số nhà, Tên đường, Quận/Huyện, Tỉnh/Thành..." style={S.input} value={form.address} onInput={(e:any)=>setForm({...form, address: e.target.value})} /></div>
+        <div style={{ gridColumn: 'span 1' }}><label style={S.label}>Mã đối tác (Code)</label><input type="text" placeholder="VD: CATL-001" style={S.input} value={form.code} onInput={(e:any)=>setForm({...form, code: e.target.value})} /></div>
+        <div style={{ gridColumn: 'span 1' }}><label style={S.label}>Quốc gia</label><input type="text" placeholder="VD: Việt Nam" style={S.input} value={form.country} onInput={(e:any)=>setForm({...form, country: e.target.value})} /></div>
+        <div style={{ gridColumn: 'span 2' }}><label style={S.label}>Ngành hàng / Tag</label><input type="text" placeholder="VD: logistics, cảng biển, điện lạnh" style={S.input} value={form.tag} onInput={(e:any)=>setForm({...form, tag: e.target.value})} /></div>
       </div>
       <div style={{ display: 'flex', gap: '12px', marginTop: '32px', justifyContent: 'flex-end', borderTop: `1px solid ${tokens.colors.border}`, paddingTop: '24px' }}>
         <button onClick={onClose} style={S.btnOutline}>Bỏ qua</button>

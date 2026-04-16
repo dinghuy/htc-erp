@@ -81,6 +81,10 @@ function expandLoopbackCorsOrigins(origin: string) {
   return [origin];
 }
 
+function isLoopbackHostname(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
 const configuredOrigins = process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:4173';
 const externalIpOrigins = process.env.IP_NETWORK
   ? `http://${process.env.IP_NETWORK}:5173,http://${process.env.IP_NETWORK}:4173`
@@ -97,9 +101,30 @@ const allowedOrigins = Array.from(
   ),
 );
 
+const allowedLoopbackProtocols = new Set(
+  allowedOrigins.flatMap((origin) => {
+    try {
+      const url = new URL(origin);
+      return isLoopbackHostname(url.hostname) ? [url.protocol] : [];
+    } catch {
+      return [];
+    }
+  }),
+);
+
+function isAllowedCorsOrigin(origin: string) {
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const url = new URL(origin);
+    return isLoopbackHostname(url.hostname) && allowedLoopbackProtocols.has(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    if (!origin || isAllowedCorsOrigin(origin)) return cb(null, true);
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -78,7 +78,7 @@ const csvTemplates: Record<string, { filename: string; header: string }> = {
   },
   users: {
     filename: 'template_nhan_vien.csv',
-    header: 'fullName,gender,email,phone,role,department,status\nNguyễn Văn A,male,nva@huynhthy.com,0901234567,Sales Executive,KINH DOANH,Active\n',
+    header: 'fullName,gender,employeeCode,email,phone,role,department,status,username,password,systemRole\nNguyễn Văn A,male,HTG-001,nva@huynhthy.com,0901234567,Sales Executive,Sales & Marketing,Active,nguyen.a,Abc@123,viewer\n',
   },
   contacts: {
     filename: 'template_lien_he.csv',

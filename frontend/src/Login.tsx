@@ -43,13 +43,13 @@ export function Login({ onLogin }: LoginProps) {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(135deg, #004d35 0%, #009B6E 60%, #00c47a 100%)',
+      background: tokens.surface.authCanvas,
       fontFamily: 'var(--font-family-sans)',
     }}>
       <div style={{
         background: tokens.colors.surface,
         borderRadius: tokens.radius.xl,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        boxShadow: tokens.shadow.auth,
         padding: '48px 40px',
         width: '100%',
         maxWidth: '420px',

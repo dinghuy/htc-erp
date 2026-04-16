@@ -50,6 +50,12 @@ npm run build
 npm run verify:media-runtime
 ```
 
+One-click local startup from repo root:
+
+```powershell
+.\khoi-chay.bat
+```
+
 ### Frontend
 
 ```powershell

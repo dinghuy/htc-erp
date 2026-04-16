@@ -85,7 +85,7 @@ Hoặc dùng launcher một lệnh ở root repo:
 
 ```powershell
 cd .
-.\scripts\start-ux-audit-stack.ps1
+.\khoi-chay.bat
 ```
 
 Kiểm tra stack sau khi bật:
