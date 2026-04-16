@@ -985,7 +985,7 @@ export function GanttView({ token, currentUser, onOpenProject, onOpenTask }: Gan
   }, [centerMonthStartIndex, pendingTimelineScroll, todayIndex]);
 
   return (
-    <div style={{ padding: tokens.spacing.xl, maxWidth: '1600px', margin: '0 auto' }}>
+    <div style={{ ...ui.page.shell, padding: tokens.spacing.xl }}>
       <div
         style={{
           ...S.card,

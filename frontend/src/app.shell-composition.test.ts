@@ -21,6 +21,15 @@ describe('app shell composition', () => {
     expect(source).not.toContain("import { Approvals } from './Approvals';");
   });
 
+  it('routes Equipment through the feature adapter instead of mounting the legacy Products screen directly', () => {
+    const appPath = path.resolve(__dirname, 'app.tsx');
+    const source = readFileSync(appPath, 'utf8');
+
+    expect(source).toContain("import { EquipmentRoute, ProjectsRoute } from './features/projects';");
+    expect(source).toContain("{resolvedRoute === 'Equipment' && <EquipmentRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}");
+    expect(source).not.toContain("import { Products } from './Products';");
+  });
+
   it('keeps the role preview banner available to base admin sessions even before a preview is active', () => {
     const layoutPath = path.resolve(__dirname, 'Layout.tsx');
     const source = readFileSync(layoutPath, 'utf8');

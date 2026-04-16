@@ -9,10 +9,12 @@
 
 ## Before Editing
 
-1. Read the relevant spec and task template.
-2. Identify the owning module.
-3. Confirm the verification commands for that module.
-4. For UI work, read `docs/runbooks/ui-theme-principles.md` before changing colors, surfaces, or overlays.
+1. Start from `docs/index.md` and read only the active canonical docs it routes to for the task.
+2. Read the relevant spec and task template.
+3. Identify the owning module.
+4. Confirm the verification commands for that module.
+5. For UI work, read `DESIGN.md` and `docs/runbooks/ui-theme-principles.md` before changing layout, typography, color, spacing, surfaces, or overlays.
+6. For frontend production verification, use the default Vite build output at `frontend/build/`. Do not rely on `frontend/dist/` in this workspace because the legacy path may be backed by a OneDrive reparse point that blocks cleanup.
 
 ## Before Merging
 

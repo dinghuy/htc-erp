@@ -20,12 +20,21 @@ coverage/
 # Temporary and generated workspaces
 .omx/
 tmp/
+coverage/
+**/coverage/
 test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
+blob-report/
+**/blob-report/
 .worktrees/
 worktrees/
 .codex-e2e/
 .npm-cache/
+**/.npm-cache/
 .npm-cache-local/
+**/.npm-cache-local/
 .codex/npm-cache/
 **/.codex/npm-cache/
 .venv/
@@ -37,6 +46,10 @@ __pycache__/
 .superpowers/
 tmp-*.js
 graphify-out/
+*.trace
+*.trace.zip
+*.har
+*.webm
 
 # Runtime uploads and local vendor artifacts
 backend/uploads/
