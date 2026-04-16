@@ -216,10 +216,10 @@ function AddSupplierQuoteModal({ suppliers, onClose, onSaved, token }: any) {
 }
 
 function AddSupplierModal({ onClose, onSaved, token }: any) {
-  const [form, setForm] = useState({ code: '', company: '', tag: '', country: '' });
+  const [form, setForm] = useState({ code: '', companyName: '', tag: '', country: '' });
   const [saving, setSaving] = useState(false);
   const submit = async () => {
-    if (!form.company) return showNotify('Thiếu tên nhà cung cấp', 'error');
+    if (!form.companyName) return showNotify('Thiếu tên nhà cung cấp', 'error');
     setSaving(true);
     await fetchWithAuth(token, `${API}/suppliers`, { method: 'POST', body: JSON.stringify(form) });
     onSaved(); onClose();
@@ -227,7 +227,7 @@ function AddSupplierModal({ onClose, onSaved, token }: any) {
   return (
     <Modal title="Thêm Nhà cung cấp / Vendor" onClose={onClose}>
       <input type="text" placeholder="Mã Nhà CC (HT-SUP...)" style={{ ...S.input, marginBottom: '12px' }} value={form.code} onInput={(e:any)=>setForm({...form, code: e.target.value})} />
-      <input type="text" placeholder="Tên Công ty Vendor *" style={{ ...S.input, marginBottom: '12px' }} value={form.company} onInput={(e:any)=>setForm({...form, company: e.target.value})} />
+      <input type="text" placeholder="Tên Công ty Vendor *" style={{ ...S.input, marginBottom: '12px' }} value={form.companyName} onInput={(e:any)=>setForm({...form, companyName: e.target.value})} />
       <textarea placeholder="Tag sản phẩm, cách nhau bằng dấu phẩy. Ví dụ: Crane, Spare Parts, PLC" rows={3} style={{ ...S.input, marginBottom: '12px', resize: 'vertical', minHeight: '88px' }} value={form.tag} onInput={(e:any)=>setForm({...form, tag: e.target.value})} />
       <input type="text" placeholder="Quốc gia" style={S.input} value={form.country} onInput={(e:any)=>setForm({...form, country: e.target.value})} />
       <div style={{ display: 'flex', gap: '8px', marginTop: '24px', justifyContent: 'flex-end', borderTop: `1px solid ${tokens.colors.border}`, paddingTop: '20px' }}>

@@ -23,7 +23,7 @@ export function createSupplierService(deps: CreateSupplierServiceDeps) {
       const normalizedTagString = serializeSupplierTags(input.productTags ?? input.tag);
       const created = await supplierRepository.create({
         id: uuidv4(),
-        companyName: String(input.company ?? ''),
+        companyName: String(input.companyName ?? input.company ?? ''),
         code: String(input.code ?? ''),
         description: String(input.description ?? ''),
         tag: normalizedTagString,
@@ -36,7 +36,7 @@ export function createSupplierService(deps: CreateSupplierServiceDeps) {
     async updateSupplier(id: string, input: Record<string, unknown>) {
       const normalizedTagString = serializeSupplierTags(input.productTags ?? input.tag);
       const updated = await supplierRepository.update(id, {
-        companyName: String(input.company ?? ''),
+        companyName: String(input.companyName ?? input.company ?? ''),
         code: String(input.code ?? ''),
         description: String(input.description ?? ''),
         tag: normalizedTagString,
