@@ -381,38 +381,30 @@ export function Reports({ isMobile, currentUser }: { isMobile?: boolean; current
   };
 
   if (isExecutiveCockpit) {
-    return (
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '100px', color: tokens.colors.textMuted }}>Đang tổng hợp executive cockpit...</div>
-        ) : (
-          <ExecutiveCockpit
-            summary={executivePayload?.summary || {}}
-          />
-        )}
-      </div>
+    return loading ? (
+      <div style={{ textAlign: 'center', padding: '100px', color: tokens.colors.textMuted }}>Đang tổng hợp executive cockpit...</div>
+    ) : (
+      <ExecutiveCockpit
+        summary={executivePayload?.summary || {}}
+      />
     );
   }
 
   if (currentUser?.token) {
-    return (
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '100px', color: tokens.colors.textMuted }}>Đang tổng hợp role cockpit...</div>
-        ) : (
-          <PersonaReportsCockpit
-            mode={profile.personaMode}
-            homePayload={homePayload}
-            inboxPayload={inboxPayload}
-            approvalsPayload={approvalsPayload}
-          />
-        )}
-      </div>
+    return loading ? (
+      <div style={{ textAlign: 'center', padding: '100px', color: tokens.colors.textMuted }}>Đang tổng hợp role cockpit...</div>
+    ) : (
+      <PersonaReportsCockpit
+        mode={profile.personaMode}
+        homePayload={homePayload}
+        inboxPayload={inboxPayload}
+        approvalsPayload={approvalsPayload}
+      />
     );
   }
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ display: 'grid', gap: tokens.spacing.xxxl }}>
       <PageHero
         eyebrow="Analytics"
         title="Báo cáo & Phân tích"

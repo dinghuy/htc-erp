@@ -194,6 +194,18 @@ export const ui = {
       flexWrap: 'wrap',
       flexShrink: 0,
     } as const,
+    /** End-aligned row for a single action or compact action group */
+    endActionRow: {
+      display: 'flex',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+    } as const,
+    shell: {
+      maxWidth: '1400px',
+      margin: '0 auto',
+      display: 'grid',
+      gap: tokens.shell.sectionGap,
+    } as const,
   },
   modal: {
     shell: {

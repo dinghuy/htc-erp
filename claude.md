@@ -1,6 +1,8 @@
-# HTC ERP Agent Instructions
+# CLAUDE.md
 
-These instructions apply to Codex agents working in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## HTC ERP Agent Instructions
 
 ## Non-Negotiables
 
@@ -73,3 +75,92 @@ These instructions apply to Codex agents working in this repository.
 - Use focused conventional commits such as `feat:`, `fix:`, `refactor:`, `docs:`, or `test:`.
 - Open a PR instead of merging local work directly.
 - Every PR must include summary, scope, risks, and verification evidence.
+
+## Common Commands
+
+Run commands from the package directory unless noted otherwise.
+
+- No `lint` script is currently defined in the backend or frontend package scripts. Do not assume `npm run lint`; use the listed typecheck/test/build commands instead.
+
+### Backend (`backend/`)
+
+- Install: `npm install`
+- Dev server: `npm run dev`
+- Build: `npm run build`
+- Start built server: `npm run start`
+- Typecheck: `npm run typecheck`
+- Core tests: `npm test` or `npm run test:core`
+- Full tests: `npm run test:all`
+- Single focused suites:
+  - Auth API: `npm run test:auth`
+  - QA seed API: `npm run test:qa-seed`
+- DB verification:
+  - Init smoke: `npm run smoke:db-init`
+  - Migration smoke: `npm run smoke:migration`
+  - Seed local DB: `npm run db:seed`
+- Media runtime verification: `npm run verify:media-runtime`
+- One-off single test file pattern: `node -r ./tests/bootstrap-test-env.js tests/<file>.test.js`
+
+### Frontend (`frontend/`)
+
+- Install: `npm install`
+- Dev server: `npm run dev`
+- QA dev server on fixed port `4173`: `npm run dev:qa`
+- Build: `npm run build`
+- Preview build: `npm run preview`
+- Typecheck: `npm run typecheck`
+- Contract sync from backend: `npm run sync:contracts`
+- Core tests: `npm test` or `npm run test:core`
+- Full tests: `npm run test:all`
+- Targeted suites:
+  - UX contract tests: `npm run test:ux:contracts`
+  - UX audit (PowerShell wrapper): `npm run test:ux:audit`
+  - UX audit headed: `npm run test:ux:audit:headed`
+  - Node entrypoint version: `npm run test:ux:audit:node`
+- One-off single test file pattern: `node ./scripts/run-vitest-sandbox.mjs src/path/to/test.test.ts`
+
+### Cross-surface verification order
+
+- Shared contract changes: run `backend/npm run typecheck`, then `frontend/npm run sync:contracts`, then frontend typecheck/tests/build.
+- Backend delivery gate from docs: `npm run typecheck && npm run build && npm run smoke:db-init && npm run smoke:migration && npm run test:core`
+- Frontend delivery gate from docs: `npm run sync:contracts && npm run typecheck && npm run build && npm run test:core`
+
+### Quick verification matrix
+
+- UI-only change: `frontend/npm run typecheck && npm run test:core && npm run build`
+- API/backend-only change: `backend/npm run typecheck && npm run build && npm run test:core`
+- Shared contract change: `backend/npm run typecheck && frontend/npm run sync:contracts && npm run typecheck && npm run test:core && npm run build`
+- DB/bootstrap/migration change: `backend/npm run typecheck && npm run build && npm run smoke:db-init && npm run smoke:migration && npm run test:core`
+- User-facing UI regression-sensitive change: start with the UI-only gate, then add `frontend/npm run test:ux:contracts` and browser/UX audit when the change affects shell/layout/overlay behavior
+
+## Architecture Snapshot
+
+### Runtime shape
+
+- The repo is a modular monolith, not separate microservices. The active target architecture is documented in [docs/architecture/overview.md](docs/architecture/overview.md).
+- `backend/` is an Express + TypeScript server with module-oriented route ownership under `backend/src/modules/*`, shared infrastructure under `backend/src/shared/*`, bootstrap wiring under `backend/src/bootstrap/*`, and SQLite persistence split under `backend/src/persistence/sqlite/*`.
+- `frontend/` is a Vite + Preact app. The route shell still mixes newer feature routes with some legacy screen entry files, so expect a hybrid migration state rather than a fully converged `features/*` app.
+
+### Business domains and boundaries
+
+- Core business flow is lead → quotation → approval → project/workspace → ERP outbox handoff.
+- Canonical entities and enums live on the backend contract side and are synchronized forward to the frontend. Source of truth is `backend/src/shared/contracts/domain.ts`; generated frontend contracts land in `frontend/src/shared/domain/generatedContracts.ts` via `scripts/sync-shared-contracts.mjs`.
+- New/refactored APIs should move toward `/api/v1/*`. Some domains still rely on compatibility aliases in `backend/src/modules/platform/apiV1Aliases.ts`, so check whether you are changing a true module-owned route or an alias-backed legacy surface.
+- ERP integration uses outbox semantics. Side effects should flow through ERP/outbox contracts rather than ad hoc direct integrations.
+
+### Module patterns that matter
+
+- Backend handlers should stay thin: route registration → schema parse/validation → service orchestration → repository persistence. The quotations module is the reference implementation for this shape (`registerRoutes.ts`, `routes/*`, `schemas/*`, `validators/*`, `service.ts`, `repository.ts`, `mappers/*`).
+- Frontend code should keep shell/layout orchestration separate from business rules. Reuse `frontend/src/ui/tokens.ts` and `frontend/src/ui/styles.ts` instead of feature-local style systems.
+- Keep cross-surface rules in shared pure TypeScript kernels/contracts rather than duplicating logic separately in backend and frontend.
+
+## Repo-Specific Working Rules
+
+- Start with [docs/index.md](docs/index.md). Read only the active docs it routes to; do not recursively scan `docs/`.
+- For any frontend or UI work, read [DESIGN.md](DESIGN.md) and [docs/runbooks/ui-theme-principles.md](docs/runbooks/ui-theme-principles.md) first.
+- For backend changes, also check [backend/AGENTS.md](backend/AGENTS.md). For frontend changes, check [frontend/AGENTS.md](frontend/AGENTS.md). For docs work, check [docs/AGENTS.md](docs/AGENTS.md).
+- Use `frontend/build/` as the production verification output path. Do not rely on `frontend/dist/` in this workspace.
+- Keep runtime artifacts, caches, generated outputs, and scratch files out of Git; use `tmp/` for disposable artifacts and `archive/` for historical/reference-only material.
+- When UI patterns, shell behavior, spacing/token rules, or reusable visual grammar change, update both [DESIGN.md](DESIGN.md) and [docs/runbooks/ui-theme-principles.md](docs/runbooks/ui-theme-principles.md) in the same slice unless the user explicitly narrows scope.
+- Treat Linear as the execution tracker and Notion as the plan/evidence tracker for material workstreams.
+- Before claiming completion, record actual verification evidence; this repo expects proof, not assumed pass status.

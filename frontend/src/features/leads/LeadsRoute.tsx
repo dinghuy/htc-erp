@@ -1,6 +1,11 @@
-import { h } from 'preact';
-import { Leads } from '../../Leads';
+import { lazy } from 'preact/compat';
 import type { CurrentUser } from '../../auth';
+import { FeatureRouteShell } from '../shared/FeatureRouteShell';
+
+const LeadsScreen = lazy(async () => {
+  const module = await import('../../Leads');
+  return { default: module.Leads };
+});
 
 type LeadsRouteProps = {
   currentUser?: CurrentUser | null;
@@ -8,5 +13,9 @@ type LeadsRouteProps = {
 };
 
 export function LeadsRoute({ currentUser, isMobile }: LeadsRouteProps) {
-  return h(Leads, { currentUser, isMobile });
+  return (
+    <FeatureRouteShell fallbackMessage="Đang tải khu vực lead...">
+      <LeadsScreen currentUser={currentUser} isMobile={isMobile} />
+    </FeatureRouteShell>
+  );
 }

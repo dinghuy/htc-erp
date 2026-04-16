@@ -20,6 +20,7 @@ const API = API_BASE;
 const API_ORIGIN = API.replace(/\/api\/?$/, '');
 
 const UNITS = ['Chiếc', 'Bộ', 'Cái', 'Cặp', 'Hộp', 'Thùng', 'Kg', 'Gói'];
+const CURRENCIES = ['USD', 'VND', 'EUR', 'JPY', 'CNY'];
 
 const S = {
   btnPrimary: { ...ui.btn.primary, justifyContent: 'center', transition: 'all 0.2s ease' } as any,
@@ -45,6 +46,7 @@ export type ProductFormState = {
   category: string;
   unit: string;
   basePrice: string | number;
+  currency: string;
   technicalSpecs: string;
   qbuData?: Record<string, any>;
   productImages: any[];
@@ -60,6 +62,7 @@ export function createEmptyProductForm(): ProductFormState {
     category: '',
     unit: 'Chiếc',
     basePrice: '',
+    currency: 'USD',
     technicalSpecs: '',
     productImages: [],
     productVideos: [],
@@ -219,13 +222,19 @@ export function ProductFormModal({
                 <div style={{ ...ui.form.help, lineHeight: 1.6 }}>Giá tham chiếu dùng cho trao đổi ban đầu. Giá chính thức vẫn được xác nhận trong báo giá hoặc QBU.</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px 20px' }}>
-                <div style={{ gridColumn: '1/-1', minWidth: 0, display: 'grid', gap: '6px' }}>
-                  <label htmlFor={PRODUCT_FORM_FIELD_IDS.basePrice} style={S.label}>Giá bán tham chiếu (USD)</label>
-                  <input id={PRODUCT_FORM_FIELD_IDS.basePrice} type="number" placeholder="Giá bán tham chiếu (USD)" style={S.input} value={form.basePrice} onInput={(e: any) => setForm({ ...form, basePrice: e.target.value })} />
+                <div style={{ minWidth: 0, display: 'grid', gap: '6px' }}>
+                  <label htmlFor={PRODUCT_FORM_FIELD_IDS.basePrice} style={S.label}>Giá bán tham chiếu</label>
+                  <input id={PRODUCT_FORM_FIELD_IDS.basePrice} type="number" placeholder="Giá bán tham chiếu" style={S.input} value={form.basePrice} onInput={(e: any) => setForm({ ...form, basePrice: e.target.value })} />
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                     <span style={ui.form.help}>Nhập giá không gồm phân cách, hệ thống sẽ chuẩn hoá khi hiển thị.</span>
                     {pricePreview ? <span style={{ ...ui.badge.info, background: tokens.colors.surfaceSuccessSoft }}>Preview: {pricePreview}</span> : null}
                   </div>
+                </div>
+                <div style={{ minWidth: 0, display: 'grid', gap: '6px' }}>
+                  <label style={S.label}>Đơn vị tiền tệ</label>
+                  <select style={S.input} value={form.currency || 'USD'} onChange={(e: any) => setForm({ ...form, currency: e.target.value })}>
+                    {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
               </div>
             </section>

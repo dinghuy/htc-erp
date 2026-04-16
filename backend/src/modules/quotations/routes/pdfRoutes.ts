@@ -32,7 +32,7 @@ export function registerQuotationPdfRoutes(params: RegisterQuotationPdfRoutesPar
         name: q.companyName || 'N/A',
         address: q.address || 'N/A',
         taxCode: q.taxCode || 'N/A',
-        contact: contact ? (contact.fullName || `${contact.lastName || ''} ${contact.firstName}`.trim()) : 'N/A',
+        contact: contact ? (`${contact.lastName || ''} ${contact.firstName || ''}`.trim() || 'N/A') : 'N/A',
         phone: contact?.phone || 'N/A',
       },
       salesPerson: q.salesperson || 'Huynh Thy Sales Team',

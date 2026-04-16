@@ -680,7 +680,7 @@ export function Support({ isMobile, currentUser, onNavigate }: { isMobile?: bool
   );
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={ui.page.shell as any}>
       {selectedArticle && (
         <OverlayModal title={selectedArticle.title} onClose={() => setSelectedArticle(null)} maxWidth="760px">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
