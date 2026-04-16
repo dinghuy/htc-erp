@@ -1,18 +1,19 @@
 import { Suspense } from 'preact/compat';
 import type { ComponentChildren } from 'preact';
 import { tokens } from '../../ui/tokens';
+import { ui } from '../../ui/styles';
 
 export function FeatureRouteShell({
   children,
   fallbackMessage = 'Đang tải module...',
-  maxWidth = '1400px',
+  maxWidth,
 }: {
   children: ComponentChildren;
   fallbackMessage?: string;
   maxWidth?: string;
 }) {
   return (
-    <div style={{ padding: 0, maxWidth, margin: '0 auto' }}>
+    <div style={{ ...ui.page.shell, padding: 0, ...(maxWidth ? { maxWidth } : {}) }}>
       <Suspense
         fallback={
           <div

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
 import { Layout } from './Layout';
-import { Products } from './Products';
 import { NotificationContainer, showNotify } from './Notification';
 import { Login } from './Login';
 import { ForceChangePassword } from './ForceChangePassword';
@@ -21,7 +20,7 @@ import { CustomersRoute } from './features/customers';
 import { EventLogRoute } from './features/event-log';
 import { LeadsRoute } from './features/leads';
 import { GanttRoute, OpsChatRoute, OpsOverviewRoute, OpsStaffRoute } from './features/operations';
-import { ProjectsRoute } from './features/projects';
+import { EquipmentRoute, ProjectsRoute } from './features/projects';
 import { QuotationsRoute } from './features/quotations';
 import { ReportsRoute } from './features/reports';
 import { SalesOrdersRoute } from './features/sales-orders';
@@ -152,7 +151,7 @@ export function App() {
         {resolvedRoute === 'Accounts' && <CustomersRoute route="Accounts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Contacts' && <CustomersRoute route="Contacts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Partners' && <CustomersRoute route="Partners" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
-        {resolvedRoute === 'Equipment' && <Products isMobile={isMobile} currentUser={currentUser} />}
+        {resolvedRoute === 'Equipment' && <EquipmentRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Suppliers' && <CustomersRoute route="Suppliers" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Sales' && (
           <QuotationsRoute
