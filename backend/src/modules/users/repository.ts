@@ -79,7 +79,6 @@ type UpdateUserRecordInput = {
 };
 
 type CreateImportedUserInput = {
-  id: string;
   fullName: string;
   gender: string | null;
   email: string;
@@ -195,11 +194,10 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
   function createImportedUser(input: CreateImportedUserInput) {
     return getDbInstance().run(
       `INSERT INTO User (
-        id, fullName, gender, email, phone, role, department, status,
+        fullName, gender, email, phone, role, department, status,
         username, passwordHash, systemRole, employeeCode, accountStatus, mustChangePassword
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.fullName,
         input.gender,
         input.email,

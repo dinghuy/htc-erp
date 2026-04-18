@@ -284,14 +284,17 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
 
   app.post('/api/v1/threads', requireAuth, ah(async (req: Request, res: Response) => {
     const entityType = typeof req.body?.entityType === 'string' ? req.body.entityType.trim() : '';
-    const entityId = typeof req.body?.entityId === 'string' ? req.body.entityId.trim() : '';
+    const entityId =
+      typeof req.body?.entityId === 'string'
+        ? req.body.entityId.trim()
+        : typeof req.body?.entityId === 'number'
+          ? String(req.body.entityId).trim()
+          : '';
     const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
     if (!entityType) return res.status(400).json({ error: 'entityType is required' });
     if (!entityId) return res.status(400).json({ error: 'entityId is required' });
 
-    const id = uuidv4();
-    await collaborationRepository.createEntityThread({
-      id,
+    const id = await collaborationRepository.createEntityThread({
       entityType,
       entityId,
       title: title || null,
@@ -319,9 +322,7 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
     const thread = await collaborationRepository.findEntityThreadById(id);
     if (!thread) return res.status(404).json({ error: 'Thread not found' });
 
-    const messageId = uuidv4();
-    await collaborationRepository.createEntityThreadMessage({
-      id: messageId,
+    const messageId = await collaborationRepository.createEntityThreadMessage({
       threadId: id,
       authorUserId: getCurrentUserId(req),
       content,

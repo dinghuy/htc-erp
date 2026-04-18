@@ -20,6 +20,22 @@ function routeParam(value: string | string[]) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+async function ensureAccountExists(accountId: unknown, repository: ReturnType<typeof createCrmRepository>, res: Response) {
+  const normalizedAccountId = typeof accountId === 'string' ? accountId.trim() : String(accountId ?? '').trim();
+  if (!normalizedAccountId) {
+    res.status(400).json({ error: 'accountId is required' });
+    return null;
+  }
+
+  const account = await repository.findAccountById(normalizedAccountId);
+  if (!account) {
+    res.status(400).json({ error: 'Invalid accountId' });
+    return null;
+  }
+
+  return Number(account.id);
+}
+
 export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
   const {
     ah,
@@ -43,11 +59,11 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
   }));
 
   app.post('/api/accounts', ah(async (req: Request, res: Response) => {
-    const id = uuidv4();
     const { companyName, region, industry, website, taxCode, address, assignedTo, status = 'active', accountType = 'Customer', code, shortName, description, tag, country } = req.body;
-    await crmRepository.insertAccount({ id, companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country });
-    await logAct('Tạo khách hàng mới', `Đã thêm ${companyName} vào danh sách ${accountType}`, 'Account', '🏢', '#e0f2fe', '#0284c7', id, 'Account');
-    res.status(201).json(await crmRepository.findAccountById(id));
+    const result = await crmRepository.insertAccount({ companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country });
+    const accountId = result.lastID;
+    await logAct('Tạo khách hàng mới', `Đã thêm ${companyName} vào danh sách ${accountType}`, 'Account', '🏢', '#e0f2fe', '#0284c7', accountId, 'Account');
+    res.status(201).json(await crmRepository.findAccountById(String(accountId)));
   }));
 
   app.put('/api/accounts/:id', ah(async (req: Request, res: Response) => {
@@ -81,11 +97,9 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
       }
 
       try {
-        const id = uuidv4();
         const accountType = (row.values.accountType || row.values['Phân loại'] || row.values['Loại'] || 'Customer').trim();
         const status = row.values.status || row.values['Trạng thái'] || 'active';
         await crmRepository.insertAccount({
-          id,
           companyName,
           region: row.values.region || row.values['Khu vực'] || '',
           industry: row.values.industry || row.values['Lĩnh vực'] || '',
@@ -127,18 +141,21 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
   }));
 
   app.post('/api/contacts', ah(async (req: Request, res: Response) => {
-    const id = uuidv4();
     const { accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact = false } = req.body;
+    const validAccountId = await ensureAccountExists(accountId, crmRepository, res);
+    if (!validAccountId) return;
     const normalizedGender = normalizeGender(gender);
-    await crmRepository.insertContact({ id, accountId, lastName, firstName, department, jobTitle, gender: normalizedGender, email, phone, isPrimaryContact: isPrimaryContact ? 1 : 0 });
-    res.status(201).json(mapGenderRecord(await crmRepository.findContactById(id)));
+    const result = await crmRepository.insertContact({ accountId: validAccountId, lastName, firstName, department, jobTitle, gender: normalizedGender, email, phone, isPrimaryContact: isPrimaryContact ? 1 : 0 });
+    res.status(201).json(mapGenderRecord(await crmRepository.findContactById(String(result.lastID))));
   }));
 
   app.put('/api/contacts/:id', ah(async (req: Request, res: Response) => {
     const contactId = routeParam(req.params.id);
-    const { lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact } = req.body;
+    const { accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact } = req.body;
+    const validAccountId = await ensureAccountExists(accountId, crmRepository, res);
+    if (!validAccountId) return;
     const normalizedGender = normalizeGender(gender);
-    await crmRepository.updateContactById(contactId, { lastName, firstName, department, jobTitle, gender: normalizedGender, email, phone, isPrimaryContact: isPrimaryContact ? 1 : 0 });
+    await crmRepository.updateContactById(contactId, { accountId: validAccountId, lastName, firstName, department, jobTitle, gender: normalizedGender, email, phone, isPrimaryContact: isPrimaryContact ? 1 : 0 });
     res.json(mapGenderRecord(await crmRepository.findContactById(contactId)));
   }));
 
@@ -158,11 +175,11 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
   }));
 
   app.post('/api/leads', ah(async (req: Request, res: Response) => {
-    const id = uuidv4();
     const { companyName, contactName, email, phone, status = 'New', source } = req.body;
-    await crmRepository.insertLead({ id, companyName, contactName, email, phone, status, source });
-    await logAct('Tạo Lead mới', `Khách tiềm năng: ${companyName}`, 'Lead', '🎯', '#fce7f3', '#db2777', id, 'Lead');
-    res.status(201).json(await crmRepository.findLeadById(id));
+    const result = await crmRepository.insertLead({ companyName, contactName, email, phone, status, source });
+    const leadId = result.lastID;
+    await logAct('Tạo Lead mới', `Khách tiềm năng: ${companyName}`, 'Lead', '🎯', '#fce7f3', '#db2777', leadId, 'Lead');
+    res.status(201).json(await crmRepository.findLeadById(String(leadId)));
   }));
 
   app.put('/api/leads/:id', ah(async (req: Request, res: Response) => {
@@ -202,7 +219,6 @@ export function registerCrmRoutes(app: Express, deps: RegisterCrmRoutesDeps) {
 
       try {
         await crmRepository.insertLead({
-          id: uuidv4(),
           companyName,
           contactName,
           email: row.values.email || '',

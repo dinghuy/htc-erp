@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../../sqlite-db';
 
 export type TimeSpendReportRow = {
@@ -41,13 +40,12 @@ export function createTimeSpendRepository() {
     },
 
     async create(input: { taskId: string; userId: string; reportDate: string; hours: number; description?: string | null }) {
-      const id = uuidv4();
-      await getDb().run(
-        `INSERT INTO TimeSpendReport (id, taskId, userId, reportDate, hours, description, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-        [id, input.taskId, input.userId, input.reportDate, input.hours, input.description ?? null]
+      const result = await getDb().run(
+        `INSERT INTO TimeSpendReport (taskId, userId, reportDate, hours, description, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        [input.taskId, input.userId, input.reportDate, input.hours, input.description ?? null]
       );
-      return this.findById(id);
+      return this.findById(String(result.lastID));
     },
 
     async updateById(id: string, input: Partial<Pick<TimeSpendReportRow, 'reportDate' | 'hours' | 'description'>>) {

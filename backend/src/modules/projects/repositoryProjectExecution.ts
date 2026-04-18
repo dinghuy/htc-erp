@@ -214,7 +214,6 @@ export function createProjectExecutionRepository() {
   }
 
   async function insertInboundLine(input: {
-    id: string;
     projectId: string;
     procurementLineId: string;
     baselineId?: string | null;
@@ -227,12 +226,11 @@ export function createProjectExecutionRepository() {
     note?: string | null;
     createdBy?: string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectInboundLine (
-        id, projectId, procurementLineId, baselineId, sourceLineKey, receivedQty, etaDate, actualReceivedDate, status, receiptRef, note, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, procurementLineId, baselineId, sourceLineKey, receivedQty, etaDate, actualReceivedDate, status, receiptRef, note, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.procurementLineId,
         input.baselineId || null,
@@ -299,7 +297,6 @@ export function createProjectExecutionRepository() {
   }
 
   async function insertDeliveryLine(input: {
-    id: string;
     projectId: string;
     procurementLineId: string;
     baselineId?: string | null;
@@ -312,12 +309,11 @@ export function createProjectExecutionRepository() {
     note?: string | null;
     createdBy?: string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectDeliveryLine (
-        id, projectId, procurementLineId, baselineId, sourceLineKey, deliveredQty, committedDate, actualDeliveryDate, status, deliveryRef, note, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, procurementLineId, baselineId, sourceLineKey, deliveredQty, committedDate, actualDeliveryDate, status, deliveryRef, note, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.procurementLineId,
         input.baselineId || null,
@@ -382,7 +378,6 @@ export function createProjectExecutionRepository() {
   }
 
   async function insertMilestone(input: {
-    id: string;
     projectId: string;
     milestoneType?: string | null;
     title: string;
@@ -392,12 +387,11 @@ export function createProjectExecutionRepository() {
     note?: string | null;
     createdBy?: string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectMilestone (
-        id, projectId, milestoneType, title, plannedDate, actualDate, status, note, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, milestoneType, title, plannedDate, actualDate, status, note, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.milestoneType || null,
         input.title,

@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { enqueueErpEvent } from '../../../erp-sync';
 import type { AuthenticatedRequest } from '../../shared/auth/httpAuth';
 import { canUserApproveRequest, resolveApprovalActingCapability } from '../../shared/auth/permissions';
@@ -73,7 +72,6 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     const title = typeof req.body?.title === 'string' && req.body.title.trim() ? req.body.title.trim() : '';
     if (!requestType || !title) return res.status(400).json({ error: 'requestType and title are required' });
 
-    const id = uuidv4();
     const approverRole = typeof req.body?.approverRole === 'string' && req.body.approverRole.trim() ? req.body.approverRole.trim() : 'manager';
     const approverUserId = typeof req.body?.approverUserId === 'string' && req.body.approverUserId.trim() ? req.body.approverUserId.trim() : null;
     const department = typeof req.body?.department === 'string' ? req.body.department.trim() : null;
@@ -84,8 +82,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
       return res.status(400).json({ error: 'Approval requests must be created in pending status' });
     }
 
-    await projectRepository.insertApprovalRequest({
-      id,
+    const id = await projectRepository.insertApprovalRequest({
       projectId,
       quotationId,
       requestType,
@@ -265,7 +262,6 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     const documentName = typeof req.body?.documentName === 'string' && req.body.documentName.trim() ? req.body.documentName.trim() : '';
     if (!documentCode || !documentName) return res.status(400).json({ error: 'documentCode and documentName are required' });
 
-    const id = uuidv4();
     const category = typeof req.body?.category === 'string' ? req.body.category.trim() : null;
     const department = typeof req.body?.department === 'string' ? req.body.department.trim() : null;
     const allowedStatuses = new Set(['missing', 'requested', 'received', 'approved']);
@@ -274,8 +270,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : null;
     const receivedAt = status === 'received' || status === 'approved' ? new Date().toISOString() : null;
 
-    await projectRepository.insertProjectDocument({
-      id,
+    const id = await projectRepository.insertProjectDocument({
       projectId,
       quotationId,
       documentCode,

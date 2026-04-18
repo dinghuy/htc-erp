@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { canStartLogisticsExecution } from '../../shared/workflow/revenueFlow';
 import { finalizeDeliveryCompletion } from './deliveryCompletion';
 import { createProjectRepository } from './repository';
@@ -133,14 +132,14 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     if (!releaseCheck.ok) return res.status(releaseCheck.httpStatus).json({ error: releaseCheck.error });
     const readiness = await ensureLogisticsReadiness(projectId, (req as any).user);
     if (!readiness.ok) return res.status(readiness.httpStatus).json({ error: readiness.error, code: readiness.code, blockers: readiness.blockers });
-    const procurementLineId = projectHubText(req.body?.procurementLineId);
+    const procurementLineId = typeof req.body?.procurementLineId === 'number'
+      ? String(req.body.procurementLineId)
+      : projectHubText(req.body?.procurementLineId);
     if (!procurementLineId) return res.status(400).json({ error: 'procurementLineId is required' });
     const procurementLine = await projectRepository.findProcurementLineByIdForProject(procurementLineId, projectId);
     if (!procurementLine) return res.status(404).json({ error: 'Procurement line not found' });
 
-    const id = uuidv4();
-    await projectRepository.insertInboundLine({
-      id,
+    const inboundInsertResult = await projectRepository.insertInboundLine({
       projectId,
       procurementLineId,
       baselineId: procurementLine.baselineId || null,
@@ -154,7 +153,8 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
       createdBy: getCurrentUserId(req) || null,
     });
 
-    const line = mapProjectInboundLineRow(await projectRepository.findInboundLineById(id));
+    const inboundLineId = String(inboundInsertResult.lastID);
+    const line = mapProjectInboundLineRow(await projectRepository.findInboundLineById(inboundLineId));
     const procurement = await recalculateProjectProcurementRollup(null, procurementLineId);
     await promoteProjectStage(projectId, 'procurement_active');
     await createProjectTimelineEvent(null, {
@@ -164,7 +164,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
       description: `Nhập ${projectHubNumber(line?.receivedQty, 0)} đơn vị${line?.receiptRef ? ` · ${line.receiptRef}` : ''}`,
       eventDate: line?.actualReceivedDate || line?.etaDate || null,
       entityType: 'ProjectInboundLine',
-      entityId: id,
+      entityId: inboundLineId,
       payload: { line, procurement },
       createdBy: getCurrentUserId(req),
     });
@@ -222,14 +222,14 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     if (!releaseCheck.ok) return res.status(releaseCheck.httpStatus).json({ error: releaseCheck.error });
     const readiness = await ensureLogisticsReadiness(projectId, (req as any).user);
     if (!readiness.ok) return res.status(readiness.httpStatus).json({ error: readiness.error, code: readiness.code, blockers: readiness.blockers });
-    const procurementLineId = projectHubText(req.body?.procurementLineId);
+    const procurementLineId = typeof req.body?.procurementLineId === 'number'
+      ? String(req.body.procurementLineId)
+      : projectHubText(req.body?.procurementLineId);
     if (!procurementLineId) return res.status(400).json({ error: 'procurementLineId is required' });
     const procurementLine = await projectRepository.findProcurementLineByIdForProject(procurementLineId, projectId);
     if (!procurementLine) return res.status(404).json({ error: 'Procurement line not found' });
 
-    const id = uuidv4();
-    await projectRepository.insertDeliveryLine({
-      id,
+    const deliveryInsertResult = await projectRepository.insertDeliveryLine({
       projectId,
       procurementLineId,
       baselineId: procurementLine.baselineId || null,
@@ -243,7 +243,8 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
       createdBy: getCurrentUserId(req) || null,
     });
 
-    const line = mapProjectDeliveryLineRow(await projectRepository.findDeliveryLineById(id));
+    const deliveryLineId = String(deliveryInsertResult.lastID);
+    const line = mapProjectDeliveryLineRow(await projectRepository.findDeliveryLineById(deliveryLineId));
     const procurement = await recalculateProjectProcurementRollup(null, procurementLineId);
     await promoteProjectStage(projectId, 'delivery_active');
     await createProjectTimelineEvent(null, {
@@ -253,7 +254,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
       description: `Giao ${projectHubNumber(line?.deliveredQty, 0)} đơn vị${line?.deliveryRef ? ` · ${line.deliveryRef}` : ''}`,
       eventDate: line?.actualDeliveryDate || line?.committedDate || null,
       entityType: 'ProjectDeliveryLine',
-      entityId: id,
+      entityId: deliveryLineId,
       payload: { line, procurement },
       createdBy: getCurrentUserId(req),
     });
@@ -352,9 +353,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
     const title = projectHubText(req.body?.title);
     if (!title) return res.status(400).json({ error: 'title is required' });
 
-    const id = uuidv4();
-    await projectRepository.insertMilestone({
-      id,
+    const milestoneInsertResult = await projectRepository.insertMilestone({
       projectId,
       milestoneType: projectHubText(req.body?.milestoneType) || null,
       title,
@@ -364,7 +363,8 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
       note: projectHubText(req.body?.note) || null,
       createdBy: getCurrentUserId(req) || null,
     });
-    const milestone = await projectRepository.findMilestoneById(id);
+    const milestoneId = String(milestoneInsertResult.lastID);
+    const milestone = await projectRepository.findMilestoneById(milestoneId);
     await createProjectTimelineEvent(null, {
       projectId,
       eventType: 'milestone.created',
@@ -372,7 +372,7 @@ export function registerProjectLogisticsRoutes(app: Express, deps: RegisterProje
       description: projectHubText(req.body?.note) || null,
       eventDate: milestone.actualDate || milestone.plannedDate || null,
       entityType: 'ProjectMilestone',
-      entityId: id,
+      entityId: milestoneId,
       payload: milestone,
       createdBy: getCurrentUserId(req),
     });

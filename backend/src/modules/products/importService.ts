@@ -531,7 +531,6 @@ export function createProductImportService(deps: ImportServiceDeps) {
         }
 
         await repository.insertProduct({
-          id: uuidv4(),
           sku: normalized.sku,
           name: normalized.name,
           category: normalized.category,

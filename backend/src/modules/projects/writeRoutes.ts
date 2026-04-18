@@ -132,9 +132,7 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
     if (!documentName) return res.status(400).json({ error: 'documentName is required' });
     if (!department) return res.status(400).json({ error: 'department is required' });
 
-    const id = uuidv4();
     const payload = {
-      id,
       projectId,
       quotationId: optionalString(req.body?.quotationId),
       documentCode: optionalString(req.body?.documentCode),
@@ -150,7 +148,7 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
       ),
     };
 
-    await projectRepository.insertProjectDocument(payload);
+    const id = await projectRepository.insertProjectDocument(payload);
     await projectRepository.insertTimelineEvent({
       projectId,
       eventType: 'document.created',
@@ -213,7 +211,7 @@ export function registerProjectWriteRoutes(app: Express, deps: RegisterProjectWr
     if (!existing) return res.status(404).json({ error: 'Project document not found' });
 
     const reviewStatus = normalizeProjectDocumentReviewStatus(req.body?.reviewStatus, normalizeProjectDocumentReviewStatus(existing.reviewStatus, 'draft'));
-    const reviewerUserId = optionalString(req.body?.reviewerUserId) || getRequestUserId(req);
+    const reviewerUserId = optionalString(req.body?.reviewerUserId != null ? String(req.body?.reviewerUserId) : null) || getRequestUserId(req);
     const reviewNote = optionalString(req.body?.reviewNote);
     const storageKey = optionalString(req.body?.storageKey);
     const threadId = optionalString(req.body?.threadId ?? existing.threadId);

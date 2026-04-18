@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { createProjectRepository } from './repository';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
@@ -55,7 +54,6 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
       return res.status(400).json({ error: 'contractNumber or title is required' });
     }
 
-    const id = uuidv4();
     const actorUserId = getCurrentUserId(req);
     const status = projectHubText(req.body?.status) || 'draft';
     const lineItems = normalizeContractLineItems(req.body?.lineItems || []);
@@ -63,8 +61,7 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
     const effectiveDate = projectHubText(req.body?.effectiveDate) || signedDate;
     const totalValue = projectHubNumber(req.body?.totalValue, lineItems.reduce((sum, item) => sum + projectHubNumber(item.lineTotal, 0), 0));
 
-    await projectRepository.insertProjectContract({
-      id,
+    const result = await projectRepository.insertProjectContract({
       projectId,
       quotationId,
       contractNumber: contractNumber || null,
@@ -79,12 +76,13 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
       createdBy: actorUserId || null,
     });
 
-    const contract = mapProjectContractRow(await projectRepository.findProjectContractById(id));
+    const contractId = String(result.lastID);
+    const contract = mapProjectContractRow(await projectRepository.findProjectContractById(contractId));
     const baseline = await createExecutionBaselineFromSource(null, {
       projectId,
       sourceType: 'main_contract',
-      sourceId: id,
-      title: contract?.contractNumber || contract?.title || `Contract ${id.slice(0, 8)}`,
+      sourceId: contractId,
+      title: contract?.contractNumber || contract?.title || `Contract ${contractId}`,
       effectiveDate,
       currency: contract?.currency,
       totalValue,
@@ -99,11 +97,11 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
       description: projectHubText(req.body?.summary) || 'Hợp đồng chính đã được tạo cho dự án.',
       eventDate: effectiveDate,
       entityType: 'ProjectContract',
-      entityId: id,
+      entityId: contractId,
       payload: { contract, baseline },
       createdBy: actorUserId,
     });
-    await logAct('Create project contract', `${contract?.contractNumber || contract?.title || id}`, 'Project', '📑', '#eff6ff', '#1d4ed8', projectId, 'Project');
+    await logAct('Create project contract', `${contract?.contractNumber || contract?.title || contractId}`, 'Project', '📑', '#eff6ff', '#1d4ed8', projectId, 'Project');
 
     res.status(201).json({ ...contract, baseline });
   }));
@@ -112,7 +110,7 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
     const contractId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const existing = await projectRepository.findProjectContractById(contractId);
     if (!existing) return res.status(404).json({ error: 'Project contract not found' });
-    const nextQuotationId = projectHubText(req.body?.quotationId) || existing.quotationId || null;
+    const nextQuotationId = (typeof req.body?.quotationId === 'number' ? String(req.body?.quotationId) : projectHubText(req.body?.quotationId)) || existing.quotationId || null;
     if (nextQuotationId) {
       const quotation = await projectRepository.findQuotationByIdForProject(nextQuotationId, existing.projectId);
       if (!quotation) return res.status(400).json({ error: 'Quotation does not belong to this project' });
@@ -179,15 +177,13 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
       return res.status(400).json({ error: 'appendixNumber or title is required' });
     }
 
-    const id = uuidv4();
     const actorUserId = getCurrentUserId(req);
     const lineItems = normalizeContractLineItems(req.body?.lineItems || parseProjectHubJson<any[]>(contract.lineItems, []));
     const signedDate = projectHubText(req.body?.signedDate) || null;
     const effectiveDate = projectHubText(req.body?.effectiveDate) || signedDate;
     const totalDeltaValue = projectHubNumber(req.body?.totalDeltaValue, 0);
 
-    await projectRepository.insertProjectContractAppendix({
-      id,
+    const appendixInsertResult = await projectRepository.insertProjectContractAppendix({
       projectId,
       contractId,
       appendixNumber: appendixNumber || null,
@@ -201,12 +197,13 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
       createdBy: actorUserId || null,
     });
 
-    const appendix = mapProjectAppendixRow(await projectRepository.findProjectContractAppendixById(id));
+    const appendixId = String(appendixInsertResult.lastID);
+    const appendix = mapProjectAppendixRow(await projectRepository.findProjectContractAppendixById(appendixId));
     const baseline = await createExecutionBaselineFromSource(null, {
       projectId,
       sourceType: 'appendix',
-      sourceId: id,
-      title: appendix?.appendixNumber || appendix?.title || `Appendix ${id.slice(0, 8)}`,
+      sourceId: appendixId,
+      title: appendix?.appendixNumber || appendix?.title || `Appendix ${appendixId}`,
       effectiveDate,
       currency: contract.currency || 'VND',
       totalValue: projectHubNumber(contract.totalValue, 0) + totalDeltaValue,
@@ -221,7 +218,7 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
       description: projectHubText(req.body?.summary) || 'Phụ lục đã được tạo và baseline thực thi đã cập nhật.',
       eventDate: effectiveDate,
       entityType: 'ProjectContractAppendix',
-      entityId: id,
+      entityId: appendixId,
       payload: { appendix, baseline },
       createdBy: actorUserId,
     });
@@ -232,11 +229,11 @@ export function registerProjectContractRoutes(app: Express, deps: RegisterProjec
       description: projectHubText(req.body?.summary) || 'Appendix created',
       eventDate: effectiveDate,
       entityType: 'ProjectContractAppendix',
-      entityId: id,
-      payload: { appendixId: id, baselineId: baseline?.id || null },
+      entityId: appendixId,
+      payload: { appendixId, baselineId: baseline?.id || null },
       createdBy: actorUserId,
     });
-    await logAct('Create project appendix', `${appendix?.appendixNumber || appendix?.title || id}`, 'Project', '🧩', '#f5f3ff', '#7c3aed', projectId, 'Project');
+    await logAct('Create project appendix', `${appendix?.appendixNumber || appendix?.title || appendixId}`, 'Project', '🧩', '#f5f3ff', '#7c3aed', projectId, 'Project');
 
     res.status(201).json({ ...appendix, baseline });
   }));

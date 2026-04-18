@@ -7,7 +7,7 @@ export type SalespersonRow = {
   phone?: string | null;
 };
 
-type DirectorySalespersonCreateInput = SalespersonRow;
+type DirectorySalespersonCreateInput = Omit<SalespersonRow, 'id'>;
 
 export function createSalespersonRepository() {
   return {
@@ -33,13 +33,12 @@ export function createSalespersonRepository() {
     },
 
     async create(input: DirectorySalespersonCreateInput) {
-      await getDb().run(
+      const result = await getDb().run(
         `INSERT INTO User (
-          id, fullName, gender, email, phone, role, department, status,
+          fullName, gender, email, phone, role, department, status,
           username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          input.id,
           input.name,
           'unknown',
           input.email ?? null,
@@ -56,7 +55,7 @@ export function createSalespersonRepository() {
           'vi',
         ]
       );
-      return this.findById(input.id);
+      return this.findById(String(result.lastID));
     },
 
     deleteById(id: string) {

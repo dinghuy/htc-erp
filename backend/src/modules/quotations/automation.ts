@@ -1,5 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
-
 type CreateQuotationAutomationServicesDeps = {
   ensureNotification: (
     db: any,
@@ -13,7 +11,7 @@ type CreateQuotationAutomationServicesDeps = {
     salesperson: unknown,
     fallbackUserId: string | null
   ) => Promise<string | null>;
-  getTaskWithLinksById: (db: any, id: string) => Promise<any>;
+  getTaskWithLinksById: (db: any, id: string | number) => Promise<any>;
   logAct: (...args: any[]) => Promise<void>;
 };
 
@@ -60,17 +58,15 @@ export function createQuotationAutomationServices(deps: CreateQuotationAutomatio
     let taskRow = existingTask ? await getTaskWithLinksById(db, existingTask.id) : null;
 
     if (!existingTask) {
-      const taskId = uuidv4();
       const taskStatus = status === 'won' ? 'active' : 'pending';
       const taskPriority = status === 'won' ? 'high' : 'medium';
-      await db.run(
+      const insertResult = await db.run(
         `INSERT INTO Task (
-          id, projectId, name, description, assigneeId, status, priority,
+          projectId, name, description, assigneeId, status, priority,
           startDate, dueDate, completionPct, notes, accountId, leadId, quotationId,
           target, resultLinks, output, reportDate
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          taskId,
           extra.projectId || null,
           `${taskLabel} ${ref}`,
           status === 'won'
@@ -92,7 +88,7 @@ export function createQuotationAutomationServices(deps: CreateQuotationAutomatio
           null,
         ]
       );
-      taskRow = await getTaskWithLinksById(db, taskId);
+      taskRow = await getTaskWithLinksById(db, insertResult.lastID);
       taskCreated = true;
     }
 

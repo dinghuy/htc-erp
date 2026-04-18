@@ -90,7 +90,6 @@ export function createProjectCommercialRepository() {
   }
 
   async function insertProjectContract(input: {
-    id: string;
     projectId: string;
     quotationId?: string | null;
     contractNumber?: string | null;
@@ -104,12 +103,11 @@ export function createProjectCommercialRepository() {
     lineItems: string;
     createdBy?: string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectContract (
-        id, projectId, quotationId, contractNumber, title, signedDate, effectiveDate, status, currency, totalValue, summary, lineItems, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, quotationId, contractNumber, title, signedDate, effectiveDate, status, currency, totalValue, summary, lineItems, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.quotationId || null,
         input.contractNumber || null,
@@ -191,7 +189,6 @@ export function createProjectCommercialRepository() {
   }
 
   async function insertProjectContractAppendix(input: {
-    id: string;
     projectId: string;
     contractId: string;
     appendixNumber?: string | null;
@@ -204,12 +201,11 @@ export function createProjectCommercialRepository() {
     lineItems: string;
     createdBy?: string | null;
   }) {
-    await getDb().run(
+    return getDb().run(
       `INSERT INTO ProjectContractAppendix (
-        id, projectId, contractId, appendixNumber, title, signedDate, effectiveDate, status, totalDeltaValue, summary, lineItems, createdBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, contractId, appendixNumber, title, signedDate, effectiveDate, status, totalDeltaValue, summary, lineItems, createdBy
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.contractId,
         input.appendixNumber || null,

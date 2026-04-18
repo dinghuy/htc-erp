@@ -17,12 +17,22 @@ export type SupplierQuoteCreateInput = {
 export async function createSupplierQuote(db: any, input: SupplierQuoteCreateInput) {
   const database = db || getDb();
   const id = uuidv4();
-  const projectId = typeof input.projectId === 'string' && input.projectId.trim() ? input.projectId.trim() : null;
-  const linkedQuotationId = typeof input.linkedQuotationId === 'string' && input.linkedQuotationId.trim()
-    ? input.linkedQuotationId.trim()
-    : null;
 
-  if (linkedQuotationId && projectId) {
+  const normalizeNumericId = (value: unknown): number | null => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+  };
+
+  const projectId = normalizeNumericId(input.projectId);
+  const linkedQuotationId = normalizeNumericId(input.linkedQuotationId);
+
+  if (linkedQuotationId !== null && projectId !== null) {
     const linkedQuotation = await database.get(
       'SELECT id FROM Quotation WHERE id = ? AND projectId = ?',
       [linkedQuotationId, projectId]
