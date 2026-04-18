@@ -204,7 +204,7 @@ export const ui = {
       maxWidth: '1400px',
       margin: '0 auto',
       display: 'grid',
-      gap: tokens.shell.sectionGap,
+      gap: tokens.spacing.xl,
     } as const,
   },
   modal: {

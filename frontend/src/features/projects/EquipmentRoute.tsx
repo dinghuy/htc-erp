@@ -4,21 +4,22 @@ import { FeatureRouteShell } from '../shared/FeatureRouteShell';
 
 const EquipmentScreen = lazy(async () => {
   const module = await import('../../Products');
-  return { default: module.Products };
+  return {
+    default: (props: {
+      isMobile?: boolean;
+      currentUser?: CurrentUser;
+    }) => <module.Products {...props} />,
+  };
 });
 
-export function EquipmentRoute({
-  isMobile,
-  currentUser,
-  onNavigate,
-}: {
+export function EquipmentRoute(props: {
   isMobile?: boolean;
   currentUser: CurrentUser;
   onNavigate?: (route: string) => void;
 }) {
   return (
     <FeatureRouteShell fallbackMessage="Đang tải danh mục sản phẩm...">
-      <EquipmentScreen isMobile={isMobile} currentUser={currentUser} onNavigate={onNavigate} />
+      <EquipmentScreen isMobile={props.isMobile} currentUser={props.currentUser} />
     </FeatureRouteShell>
   );
 }

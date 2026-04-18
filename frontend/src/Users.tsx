@@ -928,9 +928,9 @@ function TableActionButton({
 
 function DetailField({ label, value }: { label: string; value?: any }) {
   return (
-    <div style={{ display: 'grid', gap: '6px' }}>
-      <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
-      <div style={{ fontSize: '14px', fontWeight: 600, color: tokens.colors.textPrimary }}>{value || '-'}</div>
+    <div style={{ display: 'grid', gap: '8px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.4 }}>{label}</div>
+      <div style={{ fontSize: '14px', fontWeight: 600, color: tokens.colors.textPrimary, lineHeight: 1.5, wordBreak: 'break-word' }}>{value || '-'}</div>
     </div>
   );
 }
@@ -940,19 +940,41 @@ function SidePanel({ open, title, subtitle, onClose, children }: { open: boolean
   return (
     <OverlayPortal>
       <div style={getOverlayContainerStyle('drawer', { padding: '0', alignItems: 'stretch', justifyContent: 'flex-end' })}>
-      <button type="button" aria-label="Close panel" onClick={onClose} style={{ position: 'absolute', inset: 0, background: tokens.overlay.softBackdrop, backdropFilter: `blur(${tokens.overlay.backdropBlur})`, WebkitBackdropFilter: `blur(${tokens.overlay.backdropBlur})`, border: 'none', padding: 0, cursor: 'pointer' }} />
-      <div style={{ position: 'relative', zIndex: 1, width: 'min(560px, 100vw)', height: '100%', ...ui.overlay.drawer, overflowY: 'auto' }}>
-        <div style={{ padding: '22px 24px 18px', borderBottom: `1px solid ${tokens.colors.border}`, background: tokens.surface.drawerHeader }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-            <div style={{ display: 'grid', gap: '6px' }}>
-              <div style={{ fontSize: '22px', fontWeight: 900, color: tokens.colors.textPrimary }}>{title}</div>
-              {subtitle ? <div style={{ fontSize: '13px', color: tokens.colors.textSecondary }}>{subtitle}</div> : null}
+        <button type="button" aria-label="Close panel" onClick={onClose} style={{ position: 'absolute', inset: 0, background: tokens.overlay.softBackdrop, backdropFilter: `blur(${tokens.overlay.backdropBlur})`, WebkitBackdropFilter: `blur(${tokens.overlay.backdropBlur})`, border: 'none', padding: 0, cursor: 'pointer' }} />
+        <div style={{ position: 'relative', zIndex: 1, width: 'min(560px, 100vw)', height: '100%', ...ui.overlay.drawer, overflowY: 'auto' }}>
+          <div style={{ padding: '22px 24px 18px', borderBottom: `1px solid ${tokens.colors.border}`, background: tokens.surface.drawerHeader }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+              <div style={{ display: 'grid', gap: '6px', minWidth: 0 }}>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: tokens.colors.textPrimary, lineHeight: 1.3 }}>{title}</div>
+                {subtitle ? <div style={{ fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{subtitle}</div> : null}
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close panel"
+                title="Close panel"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  border: `1px solid ${tokens.colors.border}`,
+                  borderRadius: '999px',
+                  background: tokens.colors.surface,
+                  color: tokens.colors.textSecondary,
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                }}
+              >
+                <span aria-hidden="true" style={{ fontSize: '16px' }}>&times;</span>
+                <span>Close</span>
+              </button>
             </div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '24px', color: tokens.colors.textMuted, lineHeight: 1 }}>&times;</button>
           </div>
+          <div style={{ padding: '24px' }}>{children}</div>
         </div>
-        <div style={{ padding: '24px' }}>{children}</div>
-      </div>
       </div>
     </OverlayPortal>
   );
@@ -1390,7 +1412,7 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
       {showAdd && <AddUserModal onClose={() => setShowAdd(false)} onSaved={loadData} token={token} />}
       {editingUser && <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSaved={loadData} token={token} />}
       <SidePanel open={!!viewingUser} title={viewingUser?.fullName || ''} subtitle={userCanManage ? 'Employee record & access profile' : 'Employee directory profile'} onClose={() => setViewingUser(null)}>
-        {viewingUser ? <div style={{ display: 'grid', gap: '20px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><UserAvatar avatar={viewingUser.avatar} fullName={viewingUser.fullName} size={56} /><div style={{ display: 'grid', gap: '6px' }}><div style={{ fontSize: '18px', fontWeight: 900, color: tokens.colors.textPrimary }}>{viewingUser.fullName}</div><div style={{ fontSize: '13px', color: tokens.colors.textSecondary }}>{viewingUser.role || ROLE_LABELS[buildRoleProfile(viewingUser.roleCodes, viewingUser.systemRole).primaryRole]}</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}><EmploymentStatusBadge status={viewingUser.status} />{userCanManage ? <AccountStatusBadge status={viewingUser.accountStatus} /> : null}{userCanManage ? <PasswordStateBadge mustChangePassword={viewingUser.mustChangePassword} /> : null}</div></div></div>{userCanManage ? <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', borderBottom: `1px solid ${tokens.colors.border}`, paddingBottom: '12px' }}>{[{ key: 'profile', label: 'Profile' }, { key: 'access', label: 'Access' }, { key: 'security', label: 'Security' }, { key: 'activity', label: 'Activity' }].map((tab) => <button key={tab.key} onClick={() => setPanelTab(tab.key as any)} style={{ ...ui.btn.outline, padding: '8px 12px', background: panelTab === tab.key ? tokens.colors.primary : tokens.colors.surface, color: panelTab === tab.key ? tokens.colors.textOnPrimary : tokens.colors.textSecondary, borderColor: panelTab === tab.key ? tokens.colors.primary : tokens.colors.border }}>{tab.label}</button>)}</div> : null}{!userCanManage || panelTab === 'profile' ? <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}><DetailField label="Mã nhân sự" value={viewingUser.employeeCode} /><DetailField label="Phòng ban" value={viewingUser.department} /><DetailField label="Chức vụ" value={viewingUser.role} /><DetailField label="Email" value={viewingUser.email} /><DetailField label="Điện thoại" value={viewingUser.phone} /><DetailField label="Ngày vào công ty" value={viewingUser.startDate ? formatDate(viewingUser.startDate) : '-'} /><div style={{ gridColumn: '1 / -1' }}><DetailField label="Địa chỉ" value={viewingUser.address} /></div></div> : null}{userCanManage && panelTab === 'access' ? <div style={{ display: 'grid', gap: '18px' }}><DetailField label="Username" value={viewingUser.username} /><DetailField label="Primary role" value={ROLE_LABELS[buildRoleProfile(viewingUser.roleCodes, viewingUser.systemRole).primaryRole]} /><div style={{ display: 'grid', gap: '8px' }}><div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Capability roles</div><CapabilitySummary roleCodes={normalizeRoleCodes(viewingUser.roleCodes, viewingUser.systemRole)} systemRole={viewingUser.systemRole} emptyLabel="No extra capabilities" /></div></div> : null}{userCanManage && panelTab === 'security' ? <div style={{ display: 'grid', gap: '16px' }}><div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}><DetailField label="Account status" value={<AccountStatusBadge status={viewingUser.accountStatus} />} /><DetailField label="Password state" value={<PasswordStateBadge mustChangePassword={viewingUser.mustChangePassword} />} /><DetailField label="Last login" value={formatDate(viewingUser.lastLoginAt)} /><DetailField label="Employment status" value={<EmploymentStatusBadge status={viewingUser.status} />} /></div><div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}><button onClick={() => handleLockToggle(viewingUser)} style={ui.btn.outline}>{viewingUser.accountStatus === 'locked' || viewingUser.accountStatus === 'suspended' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}</button>{userCanEdit ? <button onClick={() => { setEditingUser(viewingUser); setViewingUser(null); }} style={ui.btn.primary}>Chỉnh username / mật khẩu tạm / force reset</button> : null}</div></div> : null}{userCanManage && panelTab === 'activity' ? <div style={{ display: 'grid', gap: '12px' }}><DetailField label="Last login" value={formatDate(viewingUser.lastLoginAt)} /><DetailField label="Language" value={viewingUser.language || 'vi'} /></div> : null}</div> : null}
+        {viewingUser ? <div style={{ display: 'grid', gap: '24px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><UserAvatar avatar={viewingUser.avatar} fullName={viewingUser.fullName} size={56} /><div style={{ display: 'grid', gap: '6px', minWidth: 0 }}><div style={{ fontSize: '18px', fontWeight: 900, color: tokens.colors.textPrimary, lineHeight: 1.4 }}>{viewingUser.fullName}</div><div style={{ fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.5 }}>{viewingUser.role || ROLE_LABELS[buildRoleProfile(viewingUser.roleCodes, viewingUser.systemRole).primaryRole]}</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}><EmploymentStatusBadge status={viewingUser.status} />{userCanManage ? <AccountStatusBadge status={viewingUser.accountStatus} /> : null}{userCanManage ? <PasswordStateBadge mustChangePassword={viewingUser.mustChangePassword} /> : null}</div></div></div>{userCanManage ? <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', borderBottom: `1px solid ${tokens.colors.border}`, paddingBottom: '14px', marginTop: '4px' }}>{[{ key: 'profile', label: 'Profile' }, { key: 'access', label: 'Access' }, { key: 'security', label: 'Security' }, { key: 'activity', label: 'Activity' }].map((tab) => <button key={tab.key} onClick={() => setPanelTab(tab.key as any)} style={{ ...ui.btn.outline, padding: '8px 12px', background: panelTab === tab.key ? tokens.colors.primary : tokens.colors.surface, color: panelTab === tab.key ? tokens.colors.textOnPrimary : tokens.colors.textSecondary, borderColor: panelTab === tab.key ? tokens.colors.primary : tokens.colors.border }}>{tab.label}</button>)}</div> : null}{!userCanManage || panelTab === 'profile' ? <div style={{ display: 'grid', gap: '18px', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}><DetailField label="Mã nhân sự" value={viewingUser.employeeCode} /><DetailField label="Phòng ban" value={viewingUser.department} /><DetailField label="Chức vụ" value={viewingUser.role} /><DetailField label="Email" value={viewingUser.email} /><DetailField label="Điện thoại" value={viewingUser.phone} /><DetailField label="Ngày vào công ty" value={viewingUser.startDate ? formatDate(viewingUser.startDate) : '-'} /><div style={{ gridColumn: '1 / -1' }}><DetailField label="Địa chỉ" value={viewingUser.address} /></div></div> : null}{userCanManage && panelTab === 'access' ? <div style={{ display: 'grid', gap: '20px' }}><DetailField label="Username" value={viewingUser.username} /><DetailField label="Primary role" value={ROLE_LABELS[buildRoleProfile(viewingUser.roleCodes, viewingUser.systemRole).primaryRole]} /><div style={{ display: 'grid', gap: '8px' }}><div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Capability roles</div><CapabilitySummary roleCodes={normalizeRoleCodes(viewingUser.roleCodes, viewingUser.systemRole)} systemRole={viewingUser.systemRole} emptyLabel="No extra capabilities" /></div></div> : null}{userCanManage && panelTab === 'security' ? <div style={{ display: 'grid', gap: '20px' }}><div style={{ display: 'grid', gap: '14px', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}><DetailField label="Account status" value={<AccountStatusBadge status={viewingUser.accountStatus} />} /><DetailField label="Password state" value={<PasswordStateBadge mustChangePassword={viewingUser.mustChangePassword} />} /><DetailField label="Last login" value={formatDate(viewingUser.lastLoginAt)} /><DetailField label="Employment status" value={<EmploymentStatusBadge status={viewingUser.status} />} /></div><div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', paddingTop: '4px' }}><button onClick={() => handleLockToggle(viewingUser)} style={ui.btn.outline}>{viewingUser.accountStatus === 'locked' || viewingUser.accountStatus === 'suspended' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}</button>{userCanEdit ? <button onClick={() => { setEditingUser(viewingUser); setViewingUser(null); }} style={ui.btn.primary}>Chỉnh username / mật khẩu tạm / force reset</button> : null}</div></div> : null}{userCanManage && panelTab === 'activity' ? <div style={{ display: 'grid', gap: '14px' }}><DetailField label="Last login" value={formatDate(viewingUser.lastLoginAt)} /><DetailField label="Language" value={viewingUser.language || 'vi'} /></div> : null}</div> : null}
       </SidePanel>
       <input type="file" ref={fileInputRef} onChange={importCSV} style={{ display: 'none' }} accept=".csv,.xlsx" />
       {userCanManage ? (
@@ -1430,7 +1452,7 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
           boxShadow: tokens.shadow.sm,
         }}
       >
-        {loading ? <div style={{ padding: '80px', textAlign: 'center', color: tokens.colors.textMuted }}>Đang tải dữ liệu...</div> : directoryData.items.length === 0 ? <div style={{ padding: '72px 24px', textAlign: 'center', color: tokens.colors.textMuted }}>Không có người dùng nào khớp với bộ lọc hiện tại.</div> : userCanManage ? (isMobile ? renderAdminMobileCards() : renderAdminDesktopTable()) : (isMobile ? renderDirectoryMobileCards() : renderDirectoryDesktopTable())}
+        {loading ? <div style={{ padding: '56px 24px', display: 'grid', justifyItems: 'center', gap: '8px', textAlign: 'center' }}><div style={{ fontSize: '14px', fontWeight: 700, color: tokens.colors.textSecondary }}>Đang tải danh sách nhân sự</div><div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>Vui lòng chờ trong giây lát.</div></div> : directoryData.items.length === 0 ? <div style={{ padding: '56px 24px', display: 'grid', justifyItems: 'center', gap: '8px', textAlign: 'center' }}><div style={{ fontSize: '14px', fontWeight: 700, color: tokens.colors.textSecondary }}>Không tìm thấy người dùng phù hợp</div><div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>Hãy điều chỉnh từ khóa hoặc bộ lọc để thử lại.</div></div> : userCanManage ? (isMobile ? renderAdminMobileCards() : renderAdminDesktopTable()) : (isMobile ? renderDirectoryMobileCards() : renderDirectoryDesktopTable())}
       </div>
     </div>
   );

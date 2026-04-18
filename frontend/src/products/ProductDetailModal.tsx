@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'preact/hooks';
 import { API_BASE } from '../config';
 import { tokens } from '../ui/tokens';
 import { ui } from '../ui/styles';
@@ -28,12 +29,19 @@ import {
   type ProductTimelineEntry,
 } from './productDetailSections';
 
-const API = API_BASE;
-const API_ORIGIN = API.replace(/\/api\/?$/, '');
+const API_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 const VN_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const PRODUCT_DETAIL_HERO_BG = tokens.surface.heroGradient;
 const PRODUCT_DETAIL_SURFACE_BG = tokens.colors.surfaceSubtle;
 const PRODUCT_DETAIL_PANEL_BG = tokens.surface.panelGradient;
+const PRODUCT_DETAIL_UI = {
+  spacing: {
+    lgPlus: '20px',
+  },
+} as const;
+const PRODUCT_DETAIL_TABS = [{ id: 'overview', label: 'Tổng quan' }] as const;
+
+type ProductDetailTabId = (typeof PRODUCT_DETAIL_TABS)[number]['id'];
 
 const S = {
   btnPrimary: { ...ui.btn.primary, justifyContent: 'center', transition: 'all 0.2s ease' } as any,
@@ -344,8 +352,40 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
     { label: 'Phí hải quan / bảo lãnh', value: Number(qbu.customFees || 0) },
     { label: 'Chi phí khác', value: Number(qbu.other || 0) },
   ];
+  const [activeTab, setActiveTab] = useState<ProductDetailTabId>('overview');
+  const [isCompactDetail, setIsCompactDetail] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 720 : false));
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setIsCompactDetail(window.innerWidth <= 720);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const resolveUrl = (url: string) => resolveAssetUrl(API_ORIGIN, url);
+  const floatingTabShellStyle = {
+    display: 'flex',
+    gap: '8px',
+    borderBottom: `1px solid ${tokens.colors.border}`,
+    paddingBottom: '12px',
+    overflowX: isCompactDetail ? 'auto' : 'visible',
+    flexWrap: isCompactDetail ? 'nowrap' : 'wrap',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+  } as const;
+  const getFloatingTabButtonStyle = (active: boolean) => ({
+    padding: isCompactDetail ? '10px 14px' : `${tokens.spacing.md} ${tokens.spacing.xl}`,
+    fontSize: '14px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    background: active ? tokens.colors.primary : 'transparent',
+    color: active ? tokens.colors.textOnPrimary : tokens.colors.textSecondary,
+    border: 'none',
+    borderRadius: tokens.radius.lg,
+    transition: 'all 0.2s ease',
+    whiteSpace: 'nowrap',
+  } as const);
 
   return (
     <OverlayModal
@@ -359,27 +399,15 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
       contentPadding="24px"
     >
       <div style={{ display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)', gap: PRODUCT_DETAIL_UI.spacing.lgPlus, height: '100%', minHeight: 0 }}>
-        <div style={getProductFloatingTabShellStyle({ compact: isCompactDetail, sticky: true })}>
+        <div style={floatingTabShellStyle}>
           {PRODUCT_DETAIL_TABS.map((tab) => (
-            <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} style={getProductFloatingTabButtonStyle(activeTab === tab.id, isCompactDetail)}>
+            <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} style={getFloatingTabButtonStyle(activeTab === tab.id)}>
               {tab.label}
             </button>
           ))}
         </div>
         <div style={{ minHeight: 0, overflowY: 'auto', display: 'grid' }}>
-
-        <div style={{ display: activeTab === 'cost' ? 'block' : 'none' }}>
-          {typeof onEdit === 'function' ? (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
-              <button type="button" onClick={() => onEdit(product, { tab: 'qbu' })} style={S.btnPrimary}>
-                {PRODUCT_DETAIL_QUICK_ACTIONS.cost.label}
-              </button>
-            </div>
-          ) : null}
-          <ProductCostTab product={resolvedProduct} token={savedToken} onSaved={handleSaved} />
-        </div>
-
-        <div style={{ display: activeTab === 'overview' ? 'grid' : 'none', gap: PRODUCT_DETAIL_UI.spacing.lgPlus }}>
+          <div style={{ display: activeTab === 'overview' ? 'grid' : 'none', gap: PRODUCT_DETAIL_UI.spacing.lgPlus }}>
         <section
           style={{
             ...ui.card.base,
@@ -579,6 +607,8 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
           <button onClick={onClose} style={{ ...S.btnPrimary, padding: '10px 22px', minWidth: '110px' }}>Đóng</button>
         </div>
       </div>
+    </div>
+  </div>
     </OverlayModal>
   );
 }
