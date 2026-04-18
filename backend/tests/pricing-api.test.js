@@ -5,7 +5,6 @@ const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-pricing-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-pricing.db');
@@ -45,7 +44,6 @@ async function login(username, password) {
 async function seedUser({ username, password, systemRole, fullName }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
   const departmentByRole = {
     procurement: 'Procurement',
     accounting: 'Finance',
@@ -54,11 +52,10 @@ async function seedUser({ username, password, systemRole, fullName }) {
   };
   await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -74,7 +71,7 @@ async function seedUser({ username, password, systemRole, fullName }) {
       'vi',
     ]
   );
-  return id;
+  return null;
 }
 
 async function run(name, fn) {
@@ -282,6 +279,10 @@ async function main() {
     assert.equal(update.response.status, 200);
     assert.equal(update.body.customerName, 'Updated Customer');
     assert.equal(update.body.lineItems.length, 3);
+    importLineItemId = update.body.lineItems.find((item) => item.costRoutingType === 'IMPORT_COST')?.id;
+    otherLineItemId = update.body.lineItems.find((item) => item.costRoutingType === 'OTHER_COST')?.id;
+    assert.ok(importLineItemId);
+    assert.ok(otherLineItemId);
   });
 
   await run('rental config, maintenance, schedule, and amortization endpoints work', async () => {
@@ -1082,6 +1083,376 @@ async function main() {
 
     assert.equal(invalidSupplierQuote.response.status, 400);
     assert.equal(invalidSupplierQuote.body.error, 'linkedQuotationId does not belong to this project');
+  });
+
+  await run('standalone quotation rejects missing referenced account', async () => {
+    const account = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Quotation Existing Account',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(account.response.status, 201);
+
+    const create = await api('/api/quotations', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-MISSING-ACCOUNT-001',
+        subject: 'Missing referenced account must be rejected',
+        currency: 'VND',
+        accountId: String(Number(account.body.id) + 1000000),
+        subtotal: 2000,
+        taxTotal: 160,
+        grandTotal: 2160,
+        status: 'draft',
+        autoCreateProject: false,
+      }),
+    });
+
+    assert.equal(create.response.status, 400);
+    assert.deepEqual(create.body, { error: 'Invalid accountId' });
+  });
+
+  await run('standalone quotation rejects contact not linked to selected account', async () => {
+    const accountA = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Quotation Account A',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(accountA.response.status, 201);
+
+    const accountB = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Quotation Account B',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(accountB.response.status, 201);
+
+    const contactB = await api('/api/contacts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        accountId: accountB.body.id,
+        lastName: 'Mismatch',
+        firstName: 'Contact',
+        email: 'quotation-mismatch-contact@example.com',
+      }),
+    });
+    assert.equal(contactB.response.status, 201);
+
+    const create = await api('/api/quotations', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-CONTACT-MISMATCH-001',
+        subject: 'Contact-account mismatch must be rejected',
+        currency: 'VND',
+        accountId: String(accountA.body.id),
+        contactId: String(contactB.body.id),
+        subtotal: 3000,
+        taxTotal: 240,
+        grandTotal: 3240,
+        status: 'draft',
+        autoCreateProject: false,
+      }),
+    });
+
+    assert.equal(create.response.status, 400);
+    assert.deepEqual(create.body, { error: 'contactId does not belong to accountId' });
+  });
+
+  await run('project quotation rejects missing referenced account', async () => {
+    const project = await api('/api/projects', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        code: 'PRJ-QUOTE-VALID-001',
+        name: 'Project quote validation account',
+        projectStage: 'quoting',
+      }),
+    });
+    assert.equal(project.response.status, 201);
+
+    const account = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Project Quotation Existing Account',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(account.response.status, 201);
+
+    const create = await api(`/api/projects/${project.body.id}/quotations`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-PROJ-MISSING-ACCOUNT-001',
+        subject: 'Project quote missing referenced account',
+        currency: 'VND',
+        accountId: String(Number(account.body.id) + 1000000),
+        subtotal: 1000,
+        taxTotal: 80,
+        grandTotal: 1080,
+        status: 'draft',
+      }),
+    });
+
+    assert.equal(create.response.status, 400);
+    assert.deepEqual(create.body, { error: 'Invalid accountId' });
+  });
+
+  await run('project quotation rejects contact not linked to selected account', async () => {
+    const project = await api('/api/projects', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        code: 'PRJ-QUOTE-VALID-002',
+        name: 'Project quote validation contact-account linkage',
+        projectStage: 'quoting',
+      }),
+    });
+    assert.equal(project.response.status, 201);
+
+    const accountA = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Project Quotation Account A',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(accountA.response.status, 201);
+
+    const accountB = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Project Quotation Account B',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(accountB.response.status, 201);
+
+    const contactB = await api('/api/contacts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        accountId: accountB.body.id,
+        lastName: 'Project',
+        firstName: 'Mismatch',
+        email: 'project-quotation-mismatch-contact@example.com',
+      }),
+    });
+    assert.equal(contactB.response.status, 201);
+
+    const create = await api(`/api/projects/${project.body.id}/quotations`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-PROJ-CONTACT-MISMATCH-001',
+        subject: 'Project quotation contact-account mismatch',
+        currency: 'VND',
+        accountId: String(accountA.body.id),
+        contactId: String(contactB.body.id),
+        subtotal: 1500,
+        taxTotal: 120,
+        grandTotal: 1620,
+        status: 'draft',
+      }),
+    });
+
+    assert.equal(create.response.status, 400);
+    assert.deepEqual(create.body, { error: 'contactId does not belong to accountId' });
+  });
+
+  await run('project quotation rejects unknown contactId', async () => {
+    const project = await api('/api/projects', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        code: 'PRJ-QUOTE-VALID-003',
+        name: 'Project quote validation unknown contact',
+        projectStage: 'quoting',
+      }),
+    });
+    assert.equal(project.response.status, 201);
+
+    const account = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Project Quotation Account Unknown Contact',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(account.response.status, 201);
+
+    const create = await api(`/api/projects/${project.body.id}/quotations`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-PROJ-UNKNOWN-CONTACT-001',
+        subject: 'Project quotation invalid contact id',
+        currency: 'VND',
+        accountId: String(account.body.id),
+        contactId: '99999999',
+        subtotal: 1100,
+        taxTotal: 88,
+        grandTotal: 1188,
+        status: 'draft',
+      }),
+    });
+
+    assert.equal(create.response.status, 400);
+    assert.deepEqual(create.body, { error: 'Invalid contactId' });
+  });
+
+  await run('project quotation rejects contactId without accountId', async () => {
+    const project = await api('/api/projects', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        code: 'PRJ-QUOTE-VALID-004',
+        name: 'Project quote validation contact without account',
+        projectStage: 'quoting',
+      }),
+    });
+    assert.equal(project.response.status, 201);
+
+    const account = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Project Quotation Contact Without Account',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(account.response.status, 201);
+
+    const contact = await api('/api/contacts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        accountId: account.body.id,
+        lastName: 'Project',
+        firstName: 'NoAccount',
+        email: 'project-quotation-no-account@example.com',
+      }),
+    });
+    assert.equal(contact.response.status, 201);
+
+    const create = await api(`/api/projects/${project.body.id}/quotations`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-PROJ-NO-ACCOUNT-001',
+        subject: 'Project quotation contact without account',
+        currency: 'VND',
+        contactId: String(contact.body.id),
+        subtotal: 1400,
+        taxTotal: 112,
+        grandTotal: 1512,
+        status: 'draft',
+      }),
+    });
+
+    assert.equal(create.response.status, 400);
+    assert.deepEqual(create.body, { error: 'accountId is required when contactId is provided' });
+  });
+
+  await run('standalone quotation rejects unknown contactId', async () => {
+    const account = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Standalone Quotation Unknown Contact Account',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(account.response.status, 201);
+
+    const create = await api('/api/quotations', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-UNKNOWN-CONTACT-001',
+        subject: 'Standalone quotation invalid contact id',
+        currency: 'VND',
+        accountId: String(account.body.id),
+        contactId: '99999999',
+        subtotal: 1700,
+        taxTotal: 136,
+        grandTotal: 1836,
+        status: 'draft',
+        autoCreateProject: false,
+      }),
+    });
+
+    assert.equal(create.response.status, 400);
+    assert.deepEqual(create.body, { error: 'Invalid contactId' });
+  });
+
+  await run('standalone quotation rejects contactId without accountId', async () => {
+    const account = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Standalone Quotation Contact No Account',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(account.response.status, 201);
+
+    const contact = await api('/api/contacts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        accountId: account.body.id,
+        lastName: 'Standalone',
+        firstName: 'NoAccount',
+        email: 'standalone-quotation-no-account@example.com',
+      }),
+    });
+    assert.equal(contact.response.status, 201);
+
+    const create = await api('/api/quotations', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-STANDALONE-NO-ACCOUNT-001',
+        subject: 'Standalone quotation contact without account',
+        currency: 'VND',
+        contactId: String(contact.body.id),
+        subtotal: 1800,
+        taxTotal: 144,
+        grandTotal: 1944,
+        status: 'draft',
+        autoCreateProject: false,
+      }),
+    });
+
+    assert.equal(create.response.status, 400);
+    assert.deepEqual(create.body, { error: 'accountId is required when contactId is provided' });
   });
 
   await run('quotation create without grandTotal does not partially fail after insert', async () => {

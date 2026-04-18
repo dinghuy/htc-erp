@@ -5,7 +5,6 @@ const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-project-activity-stream-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-project-activity-stream.db');
@@ -38,14 +37,12 @@ async function run(name, fn) {
 async function seedUser({ username, password, systemRole, roleCodes, fullName }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -60,9 +57,9 @@ async function seedUser({ username, password, systemRole, roleCodes, fullName })
       'active',
       0,
       'vi',
-    ]
+    ],
   );
-  return id;
+  return result.lastID;
 }
 
 async function login(username, password) {
@@ -100,41 +97,37 @@ async function main() {
       fullName: 'Project Activity Manager',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const taskId = uuidv4();
-    const approvalId = uuidv4();
-    const timelineEventId = uuidv4();
-    const activityId = uuidv4();
-
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
+    const accountResult = await db.run(`INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`, [
       'Activity Stream Customer',
     ]);
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'PA-001', 'Project Activity Stream', managerUserId, accountId, 'delivery_active', 'active'],
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['PA-001', 'Project Activity Stream', managerUserId, accountId, 'delivery_active', 'active'],
     );
-    await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, taskType, department)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [taskId, projectId, 'Task linked to stream', managerUserId, 'active', 'high', 'delivery_handoff', 'Operations'],
+    const projectId = projectResult.lastID;
+    const taskResult = await db.run(
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, taskType, department)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'Task linked to stream', managerUserId, 'active', 'high', 'delivery_handoff', 'Operations'],
     );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [approvalId, projectId, 'delivery_release', 'Delivery release approval', 'Operations', managerUserId, 'director', managerUserId, 'pending'],
+    const taskId = taskResult.lastID;
+    const approvalResult = await db.run(
+      `INSERT INTO ApprovalRequest (projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
+      [projectId, 'delivery_release', 'Delivery release approval', 'Operations', managerUserId, 'director', managerUserId, 'pending'],
     );
+    const approvalId = approvalResult.lastID;
     await db.run(
-      `INSERT INTO ProjectTimelineEvent (id, projectId, eventType, title, description, entityType, entityId, createdBy, eventDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-      [timelineEventId, projectId, 'delivery.release_requested', 'Timeline delivery request', 'Timeline detail', 'ApprovalRequest', approvalId, managerUserId],
+      `INSERT INTO ProjectTimelineEvent (projectId, eventType, title, description, entityType, entityId, createdBy, eventDate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      [projectId, 'delivery.release_requested', 'Timeline delivery request', 'Timeline detail', 'ApprovalRequest', approvalId, managerUserId],
     );
     await db.run(
       `INSERT INTO Activity (
-        id, title, description, category, entityId, entityType, link, actorUserId, actorRoles, actingCapability, action, timestamp, createdAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [activityId, 'Activity refresh', 'Activity detail', 'Project', taskId, 'Task', 'Tasks', managerUserId, 'manager', 'manager', 'task_refreshed'],
+        title, description, category, entityId, entityType, link, actorUserId, actorRoles, actingCapability, action, timestamp, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      ['Activity refresh', 'Activity detail', 'Project', taskId, 'Task', 'Tasks', managerUserId, 'manager', 'manager', 'task_refreshed'],
     );
 
     const auth = await login('project.activity.manager', 'Manager@123');

@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { v4: uuidv4 } = require('uuid');
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-security-hardening-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-security-hardening.db');
@@ -40,14 +39,12 @@ async function run(name, fn) {
 async function seedUser({ username, password, systemRole, roleCodes, fullName }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'male',
       `${username}@example.com`,
@@ -64,7 +61,7 @@ async function seedUser({ username, password, systemRole, roleCodes, fullName })
       'vi',
     ],
   );
-  return id;
+  return String(result.lastID);
 }
 
 async function login(username, password) {
@@ -124,14 +121,12 @@ async function main() {
 
   await run('manager can manage salespersons while sales is restricted to read-only access', async () => {
     const db = getDb();
-    const seededSalespersonId = uuidv4();
-    await db.run(
+    const seededSalespersonResult = await db.run(
       `INSERT INTO User (
-        id, fullName, gender, email, phone, role, department, status,
+        fullName, gender, email, phone, role, department, status,
         username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        seededSalespersonId,
         'Existing Salesperson',
         'male',
         'existing.salesperson@example.com',
@@ -148,6 +143,7 @@ async function main() {
         'vi',
       ],
     );
+    const seededSalespersonId = seededSalespersonResult.lastID;
 
     await seedUser({
       username: 'route_manager',

@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-work-hub-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-work-hub.db');
@@ -44,14 +43,12 @@ async function seedUser({
 }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -68,7 +65,7 @@ async function seedUser({
       'vi',
     ],
   );
-  return id;
+  return result.lastID;
 }
 
 async function login(username, password) {
@@ -113,52 +110,44 @@ async function main() {
       fullName: 'Work Hub Manager',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const taskOpenId = uuidv4();
-    const taskBlockedId = uuidv4();
-    const approvalId = uuidv4();
-    const milestoneDoneId = uuidv4();
-    const milestoneLateId = uuidv4();
-    const activityId = uuidv4();
-
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
+    const accountResult = await db.run(`INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`, [
       'Work Hub Customer',
     ]);
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['WH-001', 'Work Hub Project', managerUserId, accountId, 'delivery_active', 'active'],
+    );
+    const projectId = projectResult.lastID;
     await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'WH-001', 'Work Hub Project', managerUserId, accountId, 'delivery_active', 'active'],
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, dueDate, taskType, department)
+       VALUES (?, ?, ?, ?, ?, date('now', '+1 day'), ?, ?)`,
+      [projectId, 'Open execution task', managerUserId, 'active', 'high', 'delivery_handoff', 'Operations'],
     );
     await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, dueDate, taskType, department)
-       VALUES (?, ?, ?, ?, ?, ?, date('now', '+1 day'), ?, ?)`,
-      [taskOpenId, projectId, 'Open execution task', managerUserId, 'active', 'high', 'delivery_handoff', 'Operations'],
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, dueDate, taskType, department, blockedReason)
+       VALUES (?, ?, ?, ?, ?, date('now', '-1 day'), ?, ?, ?)`,
+      [projectId, 'Blocked task', managerUserId, 'pending', 'high', 'follow_up', 'Operations', 'Waiting supplier reply'],
     );
     await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, dueDate, taskType, department, blockedReason)
-       VALUES (?, ?, ?, ?, ?, ?, date('now', '-1 day'), ?, ?, ?)`,
-      [taskBlockedId, projectId, 'Blocked task', managerUserId, 'pending', 'high', 'follow_up', 'Operations', 'Waiting supplier reply'],
+      `INSERT INTO ApprovalRequest (projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
+      [projectId, 'delivery_release', 'Delivery gate approval', 'Operations', managerUserId, 'director', managerUserId, 'pending'],
     );
     await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+1 day'))`,
-      [approvalId, projectId, 'delivery_release', 'Delivery gate approval', 'Operations', managerUserId, 'director', managerUserId, 'pending'],
+      `INSERT INTO ProjectMilestone (projectId, title, note, status, plannedDate, actualDate)
+       VALUES (?, ?, ?, ?, date('now', '-2 day'), date('now', '-2 day'))`,
+      [projectId, 'Kickoff done', 'Kickoff completed', 'completed'],
     );
     await db.run(
-      `INSERT INTO ProjectMilestone (id, projectId, title, note, status, plannedDate, actualDate)
-       VALUES (?, ?, ?, ?, ?, date('now', '-2 day'), date('now', '-2 day'))`,
-      [milestoneDoneId, projectId, 'Kickoff done', 'Kickoff completed', 'completed'],
+      `INSERT INTO ProjectMilestone (projectId, title, note, status, plannedDate)
+       VALUES (?, ?, ?, ?, date('now', '-1 day'))`,
+      [projectId, 'Pending delivery prep', 'Still waiting', 'pending'],
     );
     await db.run(
-      `INSERT INTO ProjectMilestone (id, projectId, title, note, status, plannedDate)
-       VALUES (?, ?, ?, ?, ?, date('now', '-1 day'))`,
-      [milestoneLateId, projectId, 'Pending delivery prep', 'Still waiting', 'pending'],
-    );
-    await db.run(
-      `INSERT INTO Activity (id, title, description, category, entityId, entityType, link, actorUserId, actorRoles, actingCapability, action, timestamp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-      [activityId, 'Delivery plan updated', 'Execution lane refreshed', 'Project', projectId, 'Project', 'Projects', managerUserId, 'project_manager', 'project_manager', 'workspace_refresh'],
+      `INSERT INTO Activity (title, description, category, entityId, entityType, link, actorUserId, actorRoles, actingCapability, action, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      ['Delivery plan updated', 'Execution lane refreshed', 'Project', projectId, 'Project', 'Projects', managerUserId, 'project_manager', 'project_manager', 'workspace_refresh'],
     );
 
     const auth = await login('workhub.manager', 'Manager@123');
@@ -169,7 +158,7 @@ async function main() {
     });
 
     assert.equal(result.response.status, 200);
-    assert.equal(result.body.projectId, projectId);
+    assert.equal(Number(result.body.projectId), projectId);
     assert.equal(result.body.activeTab, 'delivery');
     assert.equal(result.body.taskSummary.total, 2);
     assert.equal(result.body.taskSummary.active, 1);
@@ -194,23 +183,21 @@ async function main() {
       fullName: 'Work Hub Sales',
     });
 
-    const projectId = uuidv4();
-    const accountId = uuidv4();
-    const approvalId = uuidv4();
-
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
+    const accountResult = await db.run(`INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`, [
       'Approval Queue Customer',
     ]);
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'AQ-001', 'Approval Queue Project', salesUserId, accountId, 'internal-review', 'active'],
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['AQ-001', 'Approval Queue Project', salesUserId, accountId, 'internal-review', 'active'],
     );
-    await db.run(
-      `INSERT INTO ApprovalRequest (id, projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now', '+2 day'))`,
-      [approvalId, projectId, 'contract-review', 'Queue legal review', 'Legal', salesUserId, 'legal', salesUserId, 'pending'],
+    const projectId = projectResult.lastID;
+    const approvalResult = await db.run(
+      `INSERT INTO ApprovalRequest (projectId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, date('now', '+2 day'))`,
+      [projectId, 'contract-review', 'Queue legal review', 'Legal', salesUserId, 'legal', salesUserId, 'pending'],
     );
+    const approvalId = approvalResult.lastID;
 
     const auth = await login('workhub.sales', 'Sales@123');
     const result = await api('/api/v1/approvals/queue', {
@@ -236,29 +223,27 @@ async function main() {
       fullName: 'Work Hub Owner',
     });
 
-    const projectId = uuidv4();
-    const accountId = uuidv4();
-    const taskId = uuidv4();
-    const relatedTaskId = uuidv4();
-
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
+    const accountResult = await db.run(`INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`, [
       'Task Graph Customer',
     ]);
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'TG-001', 'Task Graph Project', ownerUserId, accountId, 'delivery_active', 'active'],
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['TG-001', 'Task Graph Project', ownerUserId, accountId, 'delivery_active', 'active'],
     );
-    await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, taskType, department)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [taskId, projectId, 'Main task', ownerUserId, 'active', 'high', 'delivery_handoff', 'Operations'],
+    const projectId = projectResult.lastID;
+    const taskResult = await db.run(
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, taskType, department)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'Main task', ownerUserId, 'active', 'high', 'delivery_handoff', 'Operations'],
     );
-    await db.run(
-      `INSERT INTO Task (id, projectId, name, assigneeId, status, priority, taskType, department)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [relatedTaskId, projectId, 'Dependency task', ownerUserId, 'pending', 'medium', 'procurement_follow_up', 'Procurement'],
+    const taskId = taskResult.lastID;
+    const relatedTaskResult = await db.run(
+      `INSERT INTO Task (projectId, name, assigneeId, status, priority, taskType, department)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'Dependency task', ownerUserId, 'pending', 'medium', 'procurement_follow_up', 'Procurement'],
     );
+    const relatedTaskId = relatedTaskResult.lastID;
 
     const auth = await login('workhub.owner', 'Owner@123');
     assert.equal(auth.response.status, 200);
@@ -267,14 +252,14 @@ async function main() {
       method: 'POST',
       headers: bearer(auth.body.token),
       body: JSON.stringify({
-        relatedTaskId,
+        relatedTaskId: String(relatedTaskId),
         kind: 'blocked_by',
         note: 'Need supplier confirmation first',
       }),
     });
     assert.equal(createDependency.response.status, 201);
-    assert.equal(createDependency.body.taskId, taskId);
-    assert.equal(createDependency.body.relatedTaskId, relatedTaskId);
+    assert.equal(Number(createDependency.body.taskId), taskId);
+    assert.equal(Number(createDependency.body.relatedTaskId), relatedTaskId);
     assert.equal(createDependency.body.kind, 'blocked_by');
 
     const dependencyList = await api(`/api/v1/tasks/${taskId}/dependencies`, {
@@ -293,8 +278,8 @@ async function main() {
         description: 'Checked delivery readiness',
       }),
     });
-    assert.equal(createWorklog.response.status, 201);
-    assert.equal(createWorklog.body.taskId, taskId);
+    assert.equal(createWorklog.response.status, 201, JSON.stringify(createWorklog.body));
+    assert.equal(Number(createWorklog.body.taskId), taskId);
     assert.equal(createWorklog.body.durationMinutes, 150);
     assert.equal(createWorklog.body.summary, 'Checked delivery readiness');
 
@@ -304,7 +289,7 @@ async function main() {
     assert.equal(worklogList.response.status, 200);
     assert.equal(worklogList.body.items.length, 1);
     assert.equal(worklogList.body.items[0].durationMinutes, 150);
-    assert.equal(worklogList.body.items[0].authorUserId, ownerUserId);
+    assert.equal(Number(worklogList.body.items[0].authorUserId), ownerUserId);
   });
 
   await teardown();

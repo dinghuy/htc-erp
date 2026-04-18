@@ -421,10 +421,14 @@ export async function bootstrapSqliteSchema(db: Database) {
       deliveredQty REAL DEFAULT 0,
       shortageQty REAL DEFAULT 0,
       shortageStatus TEXT DEFAULT 'pending',
+      status TEXT DEFAULT 'planned',
       supplierId INTEGER,
       poNumber TEXT,
       etaDate TEXT,
       committedDeliveryDate TEXT,
+      actualReceivedDate TEXT,
+      actualDeliveryDate TEXT,
+      note TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
@@ -965,7 +969,6 @@ export async function bootstrapSqliteSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_notification_user ON Notification (userId);
     CREATE INDEX IF NOT EXISTS idx_erpoutbox_status ON ErpOutbox (status);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_erpoutbox_dedupe ON ErpOutbox (dedupeKey);
-    CREATE INDEX IF NOT EXISTS idx_pricing_quote_project ON PricingQuotation (projectId);
     CREATE INDEX IF NOT EXISTS idx_timespend_task ON TimeSpendReport (taskId);
     CREATE INDEX IF NOT EXISTS idx_todo_user ON ToDo (userId, doneAt);
   `);

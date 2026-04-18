@@ -80,15 +80,17 @@ async function run(name, fn) {
   }
 }
 
+let legacyProductOneId = '';
+let legacyProductTwoId = '';
+
 async function setup() {
   await initDb();
   const db = getDb();
-  await db.run(
+  const legacyProductOne = await db.run(
     `INSERT INTO Product (
-      id, sku, name, category, unit, basePrice, currency, specifications, media, qbuData, technicalSpecs, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sku, name, category, unit, basePrice, currency, specifications, media, qbuData, technicalSpecs, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      'legacy-product-1',
       'LEG-001',
       'Legacy Product One',
       'Legacy',
@@ -103,12 +105,11 @@ async function setup() {
     ]
   );
 
-  await db.run(
+  const legacyProductTwo = await db.run(
     `INSERT INTO Product (
-      id, sku, name, category, unit, basePrice, currency, specifications, media, qbuData, technicalSpecs, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sku, name, category, unit, basePrice, currency, specifications, media, qbuData, technicalSpecs, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      'legacy-product-2',
       'LEG-002',
       'Legacy Product Two',
       'Legacy',
@@ -128,10 +129,13 @@ async function setup() {
 
   await db.run(
     `INSERT INTO ExchangeRate (
-      id, baseCurrency, quoteCurrency, effectiveDate, rateValue, source
-    ) VALUES (?, ?, ?, ?, ?, ?)`,
-    ['fx-seed-1', 'USD', 'VND', '2026-03-25', 25888, 'vcb']
+      baseCurrency, quoteCurrency, effectiveDate, rateValue, source
+    ) VALUES (?, ?, ?, ?, ?)`,
+    ['USD', 'VND', '2026-03-25', 25888, 'vcb']
   );
+
+  legacyProductOneId = String(legacyProductOne.lastID);
+  legacyProductTwoId = String(legacyProductTwo.lastID);
 
   server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
@@ -158,7 +162,7 @@ async function main() {
     const list = await api('/api/products', { headers: { Authorization: '' } });
     assert.equal(list.response.status, 401);
 
-    const detail = await api('/api/products/legacy-product-1', { headers: { Authorization: '' } });
+    const detail = await api(`/api/products/${legacyProductOneId}`, { headers: { Authorization: '' } });
     assert.equal(detail.response.status, 401);
   });
 
@@ -168,7 +172,7 @@ async function main() {
     assert.equal(result.response.status, 200);
     assert.equal(Array.isArray(result.body), true);
 
-    const row = result.body.find((item) => item.id === 'legacy-product-1');
+    const row = result.body.find((item) => String(item.id) === legacyProductOneId);
     assert.ok(row);
     assert.deepEqual(row.specifications, { text: 'plain legacy specification text' });
     assert.deepEqual(row.media, []);
@@ -176,17 +180,17 @@ async function main() {
   });
 
   await run('legacy product rows do not crash GET /api/products/:id and return safe fallback types', async () => {
-    const result = await api('/api/products/legacy-product-1');
+    const result = await api(`/api/products/${legacyProductOneId}`);
 
     assert.equal(result.response.status, 200);
-    assert.equal(result.body.id, 'legacy-product-1');
+    assert.equal(String(result.body.id), legacyProductOneId);
     assert.deepEqual(result.body.specifications, { text: 'plain legacy specification text' });
     assert.deepEqual(result.body.media, []);
     assert.deepEqual(result.body.qbuData, {});
   });
 
   await run('legacy media is split into productImages and productDocuments fallback fields', async () => {
-    const result = await api('/api/products/legacy-product-2');
+    const result = await api(`/api/products/${legacyProductTwoId}`);
 
     assert.equal(result.response.status, 200);
     assert.equal(Array.isArray(result.body.productImages), true);
@@ -574,7 +578,7 @@ async function main() {
       ]
     );
 
-    const updatedLegacy = await api('/api/products/legacy-product-1');
+    const updatedLegacy = await api(`/api/products/${legacyProductOneId}`);
     assert.equal(updatedLegacy.response.status, 200);
     assert.equal(updatedLegacy.body.name, 'Updated Legacy');
     assert.equal(updatedLegacy.body.unit, 'Bộ');
@@ -655,7 +659,7 @@ async function main() {
     assert.equal(result.body.rows[0].rowNumber, 2);
     assert.equal(result.body.rows[0].action, 'updated');
 
-    const updated = await api('/api/products/legacy-product-2');
+    const updated = await api(`/api/products/${legacyProductTwoId}`);
     assert.equal(updated.response.status, 200);
     assert.equal(updated.body.name, 'Legacy Product Two Overwritten');
     assert.equal(updated.body.category, '');
@@ -719,7 +723,7 @@ async function main() {
     assert.equal(result.response.status, 200);
     assert.equal(result.body.updated, 1);
 
-    const updated = await api('/api/products/legacy-product-2');
+    const updated = await api(`/api/products/${legacyProductTwoId}`);
     assert.equal(updated.response.status, 200);
     assert.equal(updated.body.name, 'Legacy Product Two Cleared');
     assert.deepEqual(updated.body.productImages, []);
@@ -727,7 +731,7 @@ async function main() {
   });
 
   await run('POST /api/products/import merge mode supports clearing documents without touching images', async () => {
-    const reseed = await api('/api/products/legacy-product-2', withAuth({
+    const reseed = await api(`/api/products/${legacyProductTwoId}`, withAuth({
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -800,7 +804,7 @@ async function main() {
     assert.equal(result.body.clearImages, false);
     assert.equal(result.body.clearVideos, false);
 
-    const updated = await api('/api/products/legacy-product-2');
+    const updated = await api(`/api/products/${legacyProductTwoId}`);
     assert.equal(updated.response.status, 200);
     assert.equal(updated.body.productImages.length, 1);
     assert.equal(updated.body.productVideos.length, 1);
@@ -865,7 +869,7 @@ async function main() {
     assert.equal(result.body.updated, 0);
     assert.equal(result.body.skipped, 1);
 
-    const legacy = await api('/api/products/legacy-product-1');
+    const legacy = await api(`/api/products/${legacyProductOneId}`);
     assert.equal(legacy.response.status, 200);
     assert.equal(legacy.body.name, 'Updated Legacy');
 
@@ -908,7 +912,7 @@ async function main() {
     assert.equal(result.body.updated, 1);
     assert.equal(result.body.skipped, 1);
 
-    const first = await api('/api/products/legacy-product-1');
+    const first = await api(`/api/products/${legacyProductOneId}`);
     assert.equal(first.response.status, 200);
     assert.equal(first.body.name, 'Selected Replace Legacy');
 
