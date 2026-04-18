@@ -1,0 +1,224 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "HTC Logo" [ref=e6]
+      - generic [ref=e7]:
+        - generic [ref=e8]: Huynh Thy Group
+        - generic [ref=e9]: ENTERPRISE CRM
+    - navigation [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: Workspace
+        - generic [ref=e13]:
+          - button "Home" [ref=e14]:
+            - generic [ref=e15]:
+              - img [ref=e17]
+              - generic [ref=e20]: Home
+          - button "My Work" [ref=e21]:
+            - generic [ref=e22]:
+              - img [ref=e24]
+              - generic [ref=e29]: My Work
+          - button "Inbox" [ref=e30]:
+            - generic [ref=e31]:
+              - img [ref=e33]
+              - generic [ref=e37]: Inbox
+          - button "Approvals" [ref=e38]:
+            - generic [ref=e39]:
+              - img [ref=e41]
+              - generic [ref=e45]: Approvals
+          - button "Dự án" [ref=e46]:
+            - generic [ref=e47]:
+              - img [ref=e49]
+              - generic [ref=e52]: Dự án
+          - button "Công việc" [ref=e53]:
+            - generic [ref=e54]:
+              - img [ref=e56]
+              - generic [ref=e60]: Công việc
+          - button "Đơn ERP" [ref=e61]:
+            - generic [ref=e62]:
+              - img [ref=e64]
+              - generic [ref=e67]: Đơn ERP
+        - generic [ref=e68]:
+          - generic [ref=e69]: Maintenance only
+          - button "Tổng quan vận hành Bảo trì" [ref=e70]:
+            - generic [ref=e71]:
+              - img [ref=e73]
+              - generic [ref=e76]:
+                - generic [ref=e77]: Tổng quan vận hành
+                - generic [ref=e78]: Bảo trì
+          - button "Gantt Bảo trì" [ref=e79]:
+            - generic [ref=e80]:
+              - img [ref=e82]
+              - generic [ref=e84]:
+                - generic [ref=e85]: Gantt
+                - generic [ref=e86]: Bảo trì
+          - button "Nhân sự Bảo trì" [ref=e87]:
+            - generic [ref=e88]:
+              - img [ref=e90]
+              - generic [ref=e94]:
+                - generic [ref=e95]: Nhân sự
+                - generic [ref=e96]: Bảo trì
+          - button "Chat Bảo trì" [ref=e97]:
+            - generic [ref=e98]:
+              - img [ref=e100]
+              - generic [ref=e102]:
+                - generic [ref=e103]: Chat
+                - generic [ref=e104]: Bảo trì
+          - button "Báo cáo Bảo trì" [ref=e105]:
+            - generic [ref=e106]:
+              - img [ref=e108]
+              - generic [ref=e110]:
+                - generic [ref=e111]: Báo cáo
+                - generic [ref=e112]: Bảo trì
+      - generic [ref=e113]:
+        - generic [ref=e114]: Master data
+        - generic [ref=e115]:
+          - generic [ref=e116]: COMMERCIAL
+          - button "Báo giá" [ref=e117]:
+            - generic [ref=e118]:
+              - img [ref=e120]
+              - generic [ref=e123]: Báo giá
+          - button "Leads" [ref=e124]:
+            - generic [ref=e125]:
+              - img [ref=e127]
+              - generic [ref=e132]: Leads
+          - button "Khách hàng" [ref=e133]:
+            - generic [ref=e134]:
+              - img [ref=e136]
+              - generic [ref=e141]: Khách hàng
+          - button "Liên hệ" [ref=e142]:
+            - generic [ref=e143]:
+              - img [ref=e145]
+              - generic [ref=e149]: Liên hệ
+          - button "Sản phẩm" [ref=e150]:
+            - generic [ref=e151]:
+              - img [ref=e153]
+              - generic [ref=e158]: Sản phẩm
+        - generic [ref=e159]:
+          - generic [ref=e160]: Maintenance only
+          - button "Nhà cung cấp Bảo trì" [ref=e161]:
+            - generic [ref=e162]:
+              - img [ref=e164]
+              - generic [ref=e168]:
+                - generic [ref=e169]: Nhà cung cấp
+                - generic [ref=e170]: Bảo trì
+          - button "Đối tác Bảo trì" [ref=e171]:
+            - generic [ref=e172]:
+              - img [ref=e174]
+              - generic [ref=e178]:
+                - generic [ref=e179]: Đối tác
+                - generic [ref=e180]: Bảo trì
+      - generic [ref=e181]:
+        - generic [ref=e182]: Admin
+        - generic [ref=e183]:
+          - generic [ref=e184]: Quản trị hệ thống
+          - button "Người dùng" [ref=e185]:
+            - generic [ref=e186]:
+              - img [ref=e188]
+              - generic [ref=e193]: Người dùng
+        - generic [ref=e194]:
+          - generic [ref=e195]: Cài đặt
+          - button "Cài đặt" [ref=e196]:
+            - generic [ref=e197]:
+              - img [ref=e199]
+              - generic [ref=e203]: Cài đặt
+        - generic [ref=e204]:
+          - generic [ref=e205]: Maintenance only
+          - button "Nhật ký Bảo trì" [ref=e206]:
+            - generic [ref=e207]:
+              - img [ref=e209]
+              - generic [ref=e212]:
+                - generic [ref=e213]: Nhật ký
+                - generic [ref=e214]: Bảo trì
+          - button "Hỗ trợ Bảo trì" [ref=e215]:
+            - generic [ref=e216]:
+              - img [ref=e218]
+              - generic [ref=e220]:
+                - generic [ref=e221]: Hỗ trợ
+                - generic [ref=e222]: Bảo trì
+    - generic [ref=e223]:
+      - button "Tạo deal" [ref=e224] [cursor=pointer]:
+        - img [ref=e226]
+        - text: Tạo deal
+      - button "Đăng xuất" [ref=e227] [cursor=pointer]:
+        - img [ref=e229]
+        - generic [ref=e232]: Đăng xuất
+  - main [ref=e233]:
+    - generic [ref=e234]:
+      - generic [ref=e236]:
+        - textbox "Tìm kiếm toàn hệ thống..." [ref=e237]
+        - img [ref=e239]
+      - generic [ref=e242]:
+        - generic [ref=e243]:
+          - button "Chế độ tối" [ref=e244] [cursor=pointer]:
+            - img [ref=e245]
+          - button "Mở thông báo" [ref=e248] [cursor=pointer]:
+            - img [ref=e249]
+          - button "Chat vận hành" [ref=e252] [cursor=pointer]:
+            - img [ref=e253]
+        - generic [ref=e255]:
+          - generic [ref=e257]: QA
+          - generic [ref=e258]:
+            - generic [ref=e259]: QA Administrator
+            - generic [ref=e260]: Admin
+    - generic [ref=e261]:
+      - generic [ref=e262]:
+        - generic [ref=e263]:
+          - strong [ref=e264]: "Role preview controls:"
+          - text: bạn đang ở
+          - strong [ref=e265]: admin gốc
+          - text: . Chọn preset ngay trên banner để bật QA preview nhanh mà không cần mở Settings trước.
+        - generic [ref=e266]:
+          - button "Mở Settings" [ref=e267] [cursor=pointer]
+          - button "Quay lại admin" [ref=e268] [cursor=pointer]
+      - generic [ref=e269]:
+        - button "View as Sales" [ref=e270] [cursor=pointer]
+        - button "View as PM" [ref=e271] [cursor=pointer]
+        - button "View as Sales + PM" [ref=e272] [cursor=pointer]
+        - button "View as Procurement" [ref=e273] [cursor=pointer]
+        - button "View as Accounting" [ref=e274] [cursor=pointer]
+        - button "View as Legal" [ref=e275] [cursor=pointer]
+        - button "View as Director" [ref=e276] [cursor=pointer]
+        - button "View as Viewer" [ref=e277] [cursor=pointer]
+    - generic [ref=e279]:
+      - generic [ref=e281]:
+        - generic [ref=e282]:
+          - generic [ref=e283]: Admin
+          - generic [ref=e284]:
+            - heading "Cockpit theo vai trò" [level=1] [ref=e285]
+            - paragraph [ref=e286]: Theo dõi hoạt động liên phòng ban, phân quyền và những điểm nghẽn hệ thống.
+        - generic [ref=e287]:
+          - button "Quản lý Users" [ref=e288] [cursor=pointer]
+          - button "Mở Settings" [ref=e289] [cursor=pointer]
+      - generic [ref=e290]:
+        - button "Đang tải 0" [disabled] [ref=e291]:
+          - generic [ref=e292]:
+            - generic [ref=e293]: Đang tải
+            - generic [ref=e294]: "0"
+        - button "Đang tải 0" [disabled] [ref=e296]:
+          - generic [ref=e297]:
+            - generic [ref=e298]: Đang tải
+            - generic [ref=e299]: "0"
+        - button "Đang tải 0" [disabled] [ref=e301]:
+          - generic [ref=e302]:
+            - generic [ref=e303]: Đang tải
+            - generic [ref=e304]: "0"
+        - button "Đang tải 0" [disabled] [ref=e306]:
+          - generic [ref=e307]:
+            - generic [ref=e308]: Đang tải
+            - generic [ref=e309]: "0"
+      - generic [ref=e311]:
+        - generic [ref=e312]:
+          - generic [ref=e313]:
+            - heading "Giám sát hệ thống" [level=2] [ref=e314]
+            - paragraph [ref=e315]: Điểm nhìn toàn cục để hỗ trợ quy trình, kiểm tra phân quyền và xác định dự án đang cần can thiệp hệ thống.
+          - button "Mở Inbox" [ref=e316] [cursor=pointer]
+        - generic [ref=e317]: Đang tải highlights...
+      - generic [ref=e318]:
+        - button "Ưu tiên chính Theo dõi danh sách hệ thống Đi vào danh sách phê duyệt/inbox toàn cục." [ref=e319] [cursor=pointer]:
+          - generic [ref=e320]: Ưu tiên chính
+          - generic [ref=e321]: Theo dõi danh sách hệ thống
+          - generic [ref=e322]: Đi vào danh sách phê duyệt/inbox toàn cục.
+        - button "Bước kế tiếp Quản lý Users Rà quyền, trạng thái account và các persona kết hợp." [ref=e323] [cursor=pointer]:
+          - generic [ref=e324]: Bước kế tiếp
+          - generic [ref=e325]: Quản lý Users
+          - generic [ref=e326]: Rà quyền, trạng thái account và các persona kết hợp.
