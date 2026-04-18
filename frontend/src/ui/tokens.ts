@@ -107,6 +107,9 @@ export const tokens = {
     xxl: '28px',
     xxxl: '32px',
   },
+  shell: {
+    sectionGap: '24px',
+  },
   fontSize: {
     xxs: 'var(--font-size-xxs)',
     xs: 'var(--font-size-xs)',

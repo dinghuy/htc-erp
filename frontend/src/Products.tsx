@@ -91,7 +91,7 @@ function useSortableData(items: any[]) {
   return { items: filteredItems, requestSort: (key: string) => { const dir = sortConfig?.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'; setSortConfig({ key, direction: dir }); }, sortConfig, filters, setFilters };
 }
 
-export function Products({ isMobile, currentUser }: { isMobile?: boolean; currentUser?: any } = {}) {
+export function Products({ isMobile, currentUser }: { isMobile?: boolean; currentUser?: any; onNavigate?: (route: string) => void } = {}) {
   const sessionUser = currentUser ?? loadSession();
   const token = sessionUser?.token ?? '';
   const { t } = useI18n();

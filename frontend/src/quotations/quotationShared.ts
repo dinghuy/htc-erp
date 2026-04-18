@@ -238,3 +238,64 @@ export function createNewQuotationTerms() {
     ],
   };
 }
+
+export function buildQuotationReadiness(params: { selectedAccId?: string | null; lineItems?: unknown }) {
+  const blockers: string[] = [];
+
+  if (!params.selectedAccId) blockers.push('missing_account');
+  if (ensureArray(params.lineItems).length === 0) blockers.push('empty_line_items');
+
+  return {
+    canSave: blockers.length === 0,
+    blockers,
+  };
+}
+
+export function buildSaveQuotationGuard(params: { selectedAccId?: string | null; lineItems?: unknown }) {
+  const readiness = buildQuotationReadiness(params);
+  const firstBlocker = readiness.blockers[0];
+
+  const notifyMessage =
+    firstBlocker === 'missing_account'
+      ? 'Vui lòng chọn Khách hàng'
+      : firstBlocker === 'empty_line_items'
+        ? 'Vui lòng thêm ít nhất 1 sản phẩm'
+        : null;
+
+  return {
+    ...readiness,
+    notifyMessage,
+  };
+}
+
+export function resolveSubmissionContactId(params: {
+  selectedAccId?: string | null;
+  selectedContactId?: string | null;
+  contacts?: Array<{ id?: string | null; accountId?: string | null }>;
+}) {
+  const contact = ensureArray(params.contacts).find((item: any) => item?.id === params.selectedContactId);
+  if (!contact) return '';
+  return contact.accountId === params.selectedAccId ? params.selectedContactId || '' : '';
+}
+
+export function resetDependentSelections(params: {
+  previousAccountId?: string | null;
+  nextAccountId?: string | null;
+  selectedContactId?: string | null;
+  contacts?: Array<{ id?: string | null; accountId?: string | null }>;
+}) {
+  if (params.previousAccountId === params.nextAccountId) {
+    return { selectedContactId: params.selectedContactId || '' };
+  }
+
+  const nextContacts = ensureArray(params.contacts).filter(
+    (contact: any) => contact?.accountId === params.nextAccountId,
+  );
+  const isSelectedContactValid = nextContacts.some(
+    (contact: any) => contact?.id === params.selectedContactId,
+  );
+
+  return {
+    selectedContactId: isSelectedContactValid ? params.selectedContactId || '' : '',
+  };
+}

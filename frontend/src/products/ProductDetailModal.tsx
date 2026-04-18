@@ -358,28 +358,8 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
       placement="center"
       contentPadding="24px"
     >
-      <div style={{ display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)', gap: PRODUCT_DETAIL_UI.spacing.lgPlus, height: '100%', minHeight: 0 }}>
-        <div style={getProductFloatingTabShellStyle({ compact: isCompactDetail, sticky: true })}>
-          {PRODUCT_DETAIL_TABS.map((tab) => (
-            <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} style={getProductFloatingTabButtonStyle(activeTab === tab.id, isCompactDetail)}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ minHeight: 0, overflowY: 'auto', display: 'grid' }}>
-
-        <div style={{ display: activeTab === 'cost' ? 'block' : 'none' }}>
-          {typeof onEdit === 'function' ? (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
-              <button type="button" onClick={() => onEdit(product, { tab: 'qbu' })} style={S.btnPrimary}>
-                {PRODUCT_DETAIL_QUICK_ACTIONS.cost.label}
-              </button>
-            </div>
-          ) : null}
-          <ProductCostTab product={resolvedProduct} token={savedToken} onSaved={handleSaved} />
-        </div>
-
-        <div style={{ display: activeTab === 'overview' ? 'grid' : 'none', gap: PRODUCT_DETAIL_UI.spacing.lgPlus }}>
+      <div style={{ display: 'grid', gap: '24px', height: '100%', minHeight: 0 }}>
+        <div style={{ minHeight: 0, overflowY: 'auto', display: 'grid', gap: '24px' }}>
         <section
           style={{
             ...ui.card.base,
@@ -579,6 +559,7 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
           <button onClick={onClose} style={{ ...S.btnPrimary, padding: '10px 22px', minWidth: '110px' }}>Đóng</button>
         </div>
       </div>
+    </div>
     </OverlayModal>
   );
 }

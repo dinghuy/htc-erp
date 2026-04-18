@@ -15,6 +15,7 @@ import {
   PREVIEW_PAGE_HEIGHT,
   PREVIEW_PAGE_WIDTH,
   allowedTransitions,
+  buildSaveQuotationGuard,
   createInitialQuotationTerms,
   createNewQuotationTerms,
   ensureArray,
@@ -22,6 +23,7 @@ import {
   normalizeCommercialTerms,
   normalizeQuotationLineItems,
   quotationStyles,
+  resolveSubmissionContactId,
   statusBadgeStyle,
 } from './quotations/quotationShared';
 import type { QuotationRow } from './quotations/quotationShared';
@@ -303,15 +305,19 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   };
 
   const saveQuotation = async (status = 'draft') => {
-    if (!selectedAccId) return showNotify('Vui lòng chọn Khách hàng', 'error');
-    if (items.length === 0) return showNotify('Vui lòng thêm ít nhất 1 sản phẩm', 'error');
+    const guard = buildSaveQuotationGuard({ selectedAccId, lineItems: items });
+    if (!guard.canSave && guard.notifyMessage) return showNotify(guard.notifyMessage, 'error');
     setSavingQuote(true);
     const body = {
       quoteNumber: quoteNumber || `QT-${Date.now().toString().slice(-6)}`,
       quoteDate,
       projectId: selectedProjectId || null,
-      subject, accountId: selectedAccId, contactId: selectedContactId,
-      salesperson, salespersonPhone, currency,
+      subject,
+      accountId: selectedAccId,
+      contactId: resolveSubmissionContactId({ selectedAccId, selectedContactId, contacts }),
+      salesperson,
+      salespersonPhone,
+      currency,
       revisionNo,
       revisionLabel,
       changeReason,
