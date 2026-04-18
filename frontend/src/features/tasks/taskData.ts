@@ -95,7 +95,7 @@ export async function loadTaskWorkspaceData(apiBase: string, token: string): Pro
   const [taskRes, projectRes, userRes, accountRes, leadRes, quotationRes] = await Promise.all([
     fetch(`${apiBase}/tasks`),
     fetch(`${apiBase}/projects`),
-    fetchWithAuth(token, `${apiBase}/users`),
+    fetchWithAuth(token, `${apiBase}/users/directory`),
     fetch(`${apiBase}/accounts`),
     fetch(`${apiBase}/leads`),
     fetchWithAuth(token, `${apiBase}/quotations`),

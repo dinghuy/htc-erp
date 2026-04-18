@@ -138,7 +138,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
       const [qRes, sRes, aRes, pRes, prRes, cRes, spRes, uRes] = await Promise.all([
         fetchWithAuth(token, `${API}/quotations`), fetchWithAuth(token, `${API}/stats`), fetch(`${API}/accounts`),
         fetch(`${API}/products`), fetch(`${API}/projects`), fetch(`${API}/contacts`), fetchWithAuth(token, `${API}/salespersons`),
-        fetchWithAuth(token, `${API}/users`)
+        fetchWithAuth(token, `${API}/users/directory`)
       ]);
       const [quotationsPayload, statsPayload, accountsPayload, productsPayload, projectsPayload, contactsPayload, salespersonsPayload, usersPayload] = await Promise.all([
         qRes.json(),

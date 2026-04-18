@@ -86,6 +86,13 @@ describe('role access composition', () => {
     expect(buildRoleProfile(['admin']).personaMode).toBe('admin');
   });
 
+  it('keeps user management scoped to admin-only actions', () => {
+    expect(canPerformAction(['admin'], 'manage_users')).toBe(true);
+    expect(canPerformAction(['project_manager'], 'manage_users')).toBe(false);
+    expect(canPerformAction(['sales', 'project_manager'], 'manage_users')).toBe(false);
+    expect(canAccessModule(buildRoleProfile(['project_manager']), 'Users')).toBe(false);
+  });
+
   it('grants business approvals only to matching roles', () => {
     const financeApproval = {
       id: 'fin-1',

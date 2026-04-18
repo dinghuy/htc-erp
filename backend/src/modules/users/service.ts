@@ -85,6 +85,18 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
     return repository.findUserById(id);
   }
 
+  async function listUserDirectory() {
+    return repository.listUserDirectory();
+  }
+
+  async function getUserDirectoryById(id: string) {
+    return repository.findUserDirectoryById(id);
+  }
+
+  async function listUserDirectoryByIds(ids: string[]) {
+    return repository.findUsersDirectoryByIds(ids);
+  }
+
   async function createUser(payload: UserWritePayload) {
     const id = createId();
     const normalizedRoles = normalizeRoleCodes(payload.roleCodes, payload.systemRole);
@@ -276,6 +288,9 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
   return {
     listUsers,
     getUserById,
+    listUserDirectory,
+    getUserDirectoryById,
+    listUserDirectoryByIds,
     createUser,
     updateUser,
     deleteUser,
