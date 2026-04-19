@@ -95,6 +95,7 @@ export function ProjectWorkspaceHubModal({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<ProjectWorkspaceTabKey>(initialTab || 'overview');
   const [activityStream, setActivityStream] = useState<any[]>([]);
+  const [pendingOpenThreadIntent, setPendingOpenThreadIntent] = useState(openDocumentThreadOnMount);
   const uiController = useProjectWorkspaceUiController();
 
   const loadWorkspace = async () => {
@@ -137,13 +138,30 @@ export function ProjectWorkspaceHubModal({
   }, [initialTab, projectId]);
 
   useEffect(() => {
-    if (!workspace || !focusDocumentId || !openDocumentThreadOnMount) return;
+    setPendingOpenThreadIntent(openDocumentThreadOnMount);
+  }, [openDocumentThreadOnMount, projectId]);
+
+  useEffect(() => {
+    if (!workspace || !pendingOpenThreadIntent) return;
+    if (!focusDocumentId) {
+      void openProjectThreadInTimeline();
+      setPendingOpenThreadIntent(false);
+      return;
+    }
     const documents = ensureArray(workspace.documents);
     const target = documents.find((document: any) => document.id === focusDocumentId);
     if (!target) return;
     setTab('documents');
     void openDocumentThread(target);
-  }, [workspace, focusDocumentId, openDocumentThreadOnMount]);
+    setPendingOpenThreadIntent(false);
+  }, [workspace, focusDocumentId, pendingOpenThreadIntent]);
+
+  useEffect(() => {
+    if (!workspace || !pendingOpenThreadIntent || !focusDocumentId) return;
+    const documents = ensureArray(workspace.documents);
+    if (documents.some((document: any) => document.id === focusDocumentId)) return;
+    setPendingOpenThreadIntent(false);
+  }, [workspace, focusDocumentId, pendingOpenThreadIntent]);
 
   const visibleTabs = getProjectWorkspaceTabsForRoles(currentUser.roleCodes, currentUser.systemRole);
   const workspaceActionAccess = buildWorkspaceActionAccess(currentUser.roleCodes, currentUser.systemRole);
@@ -215,7 +233,9 @@ export function ProjectWorkspaceHubModal({
     requestDeliveryCompletionApproval,
     finalizeDeliveryCompletion,
     openDocumentThread,
+    openProjectThreadInTimeline,
     sendDocumentThreadMessage,
+    sendProjectThreadMessage,
     runHeroAction,
     quickReviewDocument: performQuickReviewDocument,
   } = createProjectWorkspaceAsyncActions({
@@ -420,6 +440,7 @@ export function ProjectWorkspaceHubModal({
         saveMilestone={saveMilestone}
         saveDocumentChecklist={saveDocumentChecklist}
         sendDocumentThreadMessage={sendDocumentThreadMessage}
+        sendProjectThreadMessage={sendProjectThreadMessage}
         saveBlocker={saveBlocker}
       />
     </Modal>

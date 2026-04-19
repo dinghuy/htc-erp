@@ -276,12 +276,12 @@ export function DocumentChecklistEditorModal({ value, onChange, onClose, onSave,
   );
 }
 
-export function DocumentThreadModal({ document, threadSummary, messages, draft, onDraftChange, onSend, onClose, sending }: any) {
+function ThreadModal({ title, reviewBadge, threadSummary, messages, draft, onDraftChange, onSend, onClose, sending }: any) {
   return (
-    <Modal title={`Thread hồ sơ: ${document?.documentName || document?.documentCode || document?.id || 'Document'}`} onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <div style={{ display: 'grid', gap: '14px' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <span style={ui.badge.neutral}>Review {document?.reviewStatus || 'draft'}</span>
+          {reviewBadge ? <span style={ui.badge.neutral}>{reviewBadge}</span> : null}
           <span style={threadSummary?.hasActiveThread ? ui.badge.info : ui.badge.warning}>
             {threadSummary?.hasActiveThread ? 'Thread active' : 'Chưa có thread'}
           </span>
@@ -305,6 +305,37 @@ export function DocumentThreadModal({ document, threadSummary, messages, draft, 
         <button onClick={onSend} style={S.btnPrimary}>{sending ? 'Đang gửi...' : 'Gửi vào thread'}</button>
       </div>
     </Modal>
+  );
+}
+
+export function DocumentThreadModal({ document, threadSummary, messages, draft, onDraftChange, onSend, onClose, sending }: any) {
+  return (
+    <ThreadModal
+      title={`Thread hồ sơ: ${document?.documentName || document?.documentCode || document?.id || 'Document'}`}
+      reviewBadge={`Review ${document?.reviewStatus || 'draft'}`}
+      threadSummary={threadSummary}
+      messages={messages}
+      draft={draft}
+      onDraftChange={onDraftChange}
+      onSend={onSend}
+      onClose={onClose}
+      sending={sending}
+    />
+  );
+}
+
+export function ProjectThreadModal({ project, threadSummary, messages, draft, onDraftChange, onSend, onClose, sending }: any) {
+  return (
+    <ThreadModal
+      title={`Thread dự án: ${project?.name || project?.code || project?.id || 'Project'}`}
+      threadSummary={threadSummary}
+      messages={messages}
+      draft={draft}
+      onDraftChange={onDraftChange}
+      onSend={onSend}
+      onClose={onClose}
+      sending={sending}
+    />
   );
 }
 

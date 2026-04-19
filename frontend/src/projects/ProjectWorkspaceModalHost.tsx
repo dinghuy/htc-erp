@@ -7,6 +7,7 @@ import {
   MilestoneEditorModal,
   MoveLineEditorModal,
   ProcurementEditorModal,
+  ProjectThreadModal,
 } from './ProjectWorkspaceModals';
 
 export function ProjectWorkspaceModalHost(props: any) {
@@ -23,6 +24,7 @@ export function ProjectWorkspaceModalHost(props: any) {
     saveMilestone,
     saveDocumentChecklist,
     sendDocumentThreadMessage,
+    sendProjectThreadMessage,
     saveBlocker,
   } = props;
 
@@ -44,7 +46,19 @@ export function ProjectWorkspaceModalHost(props: any) {
           onDraftChange={ui.setDocumentThreadDraft}
           onSend={sendDocumentThreadMessage}
           onClose={ui.resetDocumentThread}
-          saving={busy === 'document-thread-send'}
+          sending={busy === 'document-thread-send'}
+        />
+      ) : null}
+      {ui.projectThread ? (
+        <ProjectThreadModal
+          project={ui.projectThread.project}
+          threadSummary={ui.projectThread.threadSummary}
+          messages={ui.projectThreadMessages}
+          draft={ui.projectThreadDraft}
+          onDraftChange={ui.setProjectThreadDraft}
+          onSend={sendProjectThreadMessage}
+          onClose={ui.resetProjectThread}
+          sending={busy === 'project-thread-send'}
         />
       ) : null}
       {ui.blockerEditor ? <BlockerEditorModal value={ui.blockerEditor} onChange={ui.setBlockerEditor} onClose={() => ui.setBlockerEditor(null)} onSave={saveBlocker} saving={busy === 'blocker-save'} /> : null}

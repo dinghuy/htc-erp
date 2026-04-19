@@ -11,6 +11,9 @@ export type ProjectWorkspaceUiState = {
   documentThread: any | null;
   documentThreadMessages: any[];
   documentThreadDraft: string;
+  projectThread: any | null;
+  projectThreadMessages: any[];
+  projectThreadDraft: string;
   blockerEditor: any | null;
   auditTrailItem: any | null;
 };
@@ -19,7 +22,8 @@ type ProjectWorkspaceUiField = keyof ProjectWorkspaceUiState;
 
 export type ProjectWorkspaceUiAction =
   | { type: 'set'; field: ProjectWorkspaceUiField; value: any }
-  | { type: 'resetDocumentThread' };
+  | { type: 'resetDocumentThread' }
+  | { type: 'resetProjectThread' };
 
 export const initialProjectWorkspaceUiState: ProjectWorkspaceUiState = {
   contractEditor: null,
@@ -32,6 +36,9 @@ export const initialProjectWorkspaceUiState: ProjectWorkspaceUiState = {
   documentThread: null,
   documentThreadMessages: [],
   documentThreadDraft: '',
+  projectThread: null,
+  projectThreadMessages: [],
+  projectThreadDraft: '',
   blockerEditor: null,
   auditTrailItem: null,
 };
@@ -43,6 +50,15 @@ export function projectWorkspaceUiReducer(state: ProjectWorkspaceUiState, action
       documentThread: null,
       documentThreadMessages: [],
       documentThreadDraft: '',
+    };
+  }
+
+  if (action.type === 'resetProjectThread') {
+    return {
+      ...state,
+      projectThread: null,
+      projectThreadMessages: [],
+      projectThreadDraft: '',
     };
   }
 
@@ -71,8 +87,12 @@ export function useProjectWorkspaceUiController() {
     setDocumentThread: (value: any) => setField('documentThread', value),
     setDocumentThreadMessages: (value: any[]) => setField('documentThreadMessages', value),
     setDocumentThreadDraft: (value: string) => setField('documentThreadDraft', value),
+    setProjectThread: (value: any) => setField('projectThread', value),
+    setProjectThreadMessages: (value: any[]) => setField('projectThreadMessages', value),
+    setProjectThreadDraft: (value: string) => setField('projectThreadDraft', value),
     setBlockerEditor: (value: any) => setField('blockerEditor', value),
     setAuditTrailItem: (value: any) => setField('auditTrailItem', value),
     resetDocumentThread: () => dispatch({ type: 'resetDocumentThread' }),
+    resetProjectThread: () => dispatch({ type: 'resetProjectThread' }),
   };
 }

@@ -17,6 +17,24 @@ type ProjectWorkspaceAsyncActionsDeps = {
   goToRoute: (route: string, filters?: any, entityType?: any, entityId?: string) => void;
 };
 
+async function loadThread(token: string, entityType: 'Project' | 'ProjectDocument', entityId: string, loadErrorMessage: string) {
+  const threadPayload = await requestJsonWithAuth<any>(
+    token,
+    `${API}/v1/threads?entityType=${entityType}&entityId=${entityId}`,
+    {},
+    loadErrorMessage,
+  );
+  const threadId = threadPayload?.items?.[0]?.id;
+  const messagesPayload = threadId
+    ? await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, {}, 'Không thể tải messages thread')
+    : { items: [] };
+
+  return {
+    threadSummary: buildDocumentThreadSummary({ threadPayload, messagesPayload }),
+    messages: Array.isArray(messagesPayload?.items) ? messagesPayload.items : [],
+  };
+}
+
 export function createProjectWorkspaceAsyncActions({
   token,
   projectId,
@@ -113,19 +131,57 @@ export function createProjectWorkspaceAsyncActions({
 
   const openDocumentThread = async (document: any) => {
     try {
-      const threadPayload = await requestJsonWithAuth<any>(token, `${API}/v1/threads?entityType=ProjectDocument&entityId=${document.id}`, {}, 'Không thể tải thread hồ sơ');
-      const threadId = threadPayload?.items?.[0]?.id;
-      const messagesPayload = threadId
-        ? await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, {}, 'Không thể tải messages thread')
-        : { items: [] };
-      ui.setDocumentThread({
-        document,
-        threadSummary: buildDocumentThreadSummary({ threadPayload, messagesPayload }),
-      });
-      ui.setDocumentThreadMessages(Array.isArray(messagesPayload?.items) ? messagesPayload.items : []);
+      const { threadSummary, messages } = await loadThread(token, 'ProjectDocument', document.id, 'Không thể tải thread hồ sơ');
+      ui.setDocumentThread({ document, threadSummary });
+      ui.setDocumentThreadMessages(messages);
       ui.setDocumentThreadDraft('');
     } catch (error: any) {
       showNotify(error?.message || 'Không thể tải thread hồ sơ', 'error');
+    }
+  };
+
+  const openProjectThread = async () => {
+    try {
+      const { threadSummary, messages } = await loadThread(token, 'Project', projectId, 'Không thể tải thread dự án');
+      ui.setProjectThread({ project: workspace, threadSummary });
+      ui.setProjectThreadMessages(messages);
+      ui.setProjectThreadDraft('');
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể tải thread dự án', 'error');
+    }
+  };
+
+  const openProjectThreadInTimeline = async () => {
+    setTab('timeline');
+    await openProjectThread();
+  };
+
+  const sendProjectThreadMessage = async () => {
+    const content = String(ui.projectThreadDraft || '').trim();
+    if (!content) return showNotify('Thiếu nội dung thread', 'error');
+    setBusy('project-thread-send');
+    try {
+      let threadId = ui.projectThread?.threadSummary?.threadId;
+      if (!threadId) {
+        const createdThread = await requestJsonWithAuth<any>(token, `${API}/v1/threads`, {
+          method: 'POST',
+          body: JSON.stringify({
+            entityType: 'Project',
+            entityId: projectId,
+            title: workspace?.name || workspace?.code || 'Project thread',
+          }),
+        }, 'Không thể tạo thread dự án');
+        threadId = createdThread.id;
+      }
+      await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      }, 'Không thể gửi message thread dự án');
+      await openProjectThread();
+    } catch (error: any) {
+      showNotify(error?.message || 'Không thể gửi message thread dự án', 'error');
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -206,7 +262,10 @@ export function createProjectWorkspaceAsyncActions({
     requestDeliveryCompletionApproval,
     finalizeDeliveryCompletion,
     openDocumentThread,
+    openProjectThread,
+    openProjectThreadInTimeline,
     sendDocumentThreadMessage,
+    sendProjectThreadMessage,
     runHeroAction,
     quickReviewDocument,
   };

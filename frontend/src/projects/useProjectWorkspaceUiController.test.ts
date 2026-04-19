@@ -34,4 +34,21 @@ describe('projectWorkspaceUiReducer', () => {
     expect(nextState.documentThreadMessages).toEqual([]);
     expect(nextState.documentThreadDraft).toBe('');
   });
+
+  it('resets project thread state together', () => {
+    const seededState = {
+      ...initialProjectWorkspaceUiState,
+      projectThread: { id: 'thread-2' },
+      projectThreadMessages: [{ id: 'message-2' }],
+      projectThreadDraft: 'project draft',
+    };
+
+    const nextState = projectWorkspaceUiReducer(seededState, {
+      type: 'resetProjectThread',
+    });
+
+    expect(nextState.projectThread).toBeNull();
+    expect(nextState.projectThreadMessages).toEqual([]);
+    expect(nextState.projectThreadDraft).toBe('');
+  });
 });
