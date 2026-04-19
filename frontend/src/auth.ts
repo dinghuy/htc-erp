@@ -35,6 +35,7 @@ export interface CurrentUser {
   employeeCode?: string;
   avatar?: string;
   language?: 'vi' | 'en';
+  runtimeSettings?: Record<string, unknown>;
 }
 
 export { ROLE_LABELS, canEdit, canDelete, canManageUsers, canAccessSettings, normalizeRoleCodes, buildRoleProfile };

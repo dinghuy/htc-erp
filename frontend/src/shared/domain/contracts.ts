@@ -118,7 +118,7 @@ export const APP_MODULE_PHASE_ONE_EXPOSURE: Record<AppModule, AppModulePhaseOneE
 );
 
 APP_MODULE_PHASE_ONE_EXPOSURE.Users = 'admin';
-APP_MODULE_PHASE_ONE_EXPOSURE.Settings = 'admin';
+APP_MODULE_PHASE_ONE_EXPOSURE.Settings = 'core';
 
 export type RolePersonaMode =
   | 'sales'
@@ -172,14 +172,14 @@ const BUSINESS_ROLE_LABELS: Partial<Record<SystemRole, string>> = {
 
 export const ROLE_MODULE_ACCESS: Record<SystemRole, AppModule[]> = {
   admin: [...APP_MODULES],
-  sales: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Leads', 'Accounts', 'Contacts', 'Equipment', 'Partners', 'Sales'],
-  project_manager: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'ERP Orders', 'Ops Overview', 'Gantt', 'Ops Staff'],
-  procurement: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'ERP Orders', 'Suppliers', 'Equipment', 'Reports'],
-  accounting: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'ERP Orders', 'Reports'],
-  legal: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Reports'],
-  director: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Reports', 'EventLog'],
-  manager: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'Reports'],
-  viewer: ['Home', 'My Work', 'Inbox', 'Projects', 'Reports', 'Support'],
+  sales: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Leads', 'Accounts', 'Contacts', 'Equipment', 'Partners', 'Sales', 'Settings'],
+  project_manager: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'ERP Orders', 'Ops Overview', 'Gantt', 'Ops Staff', 'Settings'],
+  procurement: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'ERP Orders', 'Suppliers', 'Equipment', 'Reports', 'Settings'],
+  accounting: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'ERP Orders', 'Reports', 'Settings'],
+  legal: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Reports', 'Settings'],
+  director: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Reports', 'EventLog', 'Settings'],
+  manager: ['Home', 'My Work', 'Inbox', 'Approvals', 'Projects', 'Tasks', 'Reports', 'Settings'],
+  viewer: ['Home', 'My Work', 'Inbox', 'Projects', 'Reports', 'Support', 'Settings'],
 };
 
 const WORKSPACE_TAB_META: Array<{ key: ProjectWorkspaceTabKey; label: string; roles: SystemRole[] }> = [
@@ -333,7 +333,7 @@ export function canManageUsers(roleCodes: unknown, legacyRole?: unknown) {
 }
 
 export function canAccessSettings(roleCodes: unknown, legacyRole?: unknown) {
-  return hasAnyRole(roleCodes, ['admin'], legacyRole);
+  return canAccessModule(roleCodes, 'Settings', legacyRole);
 }
 
 export function getProjectWorkspaceTabsForRoles(roleCodes: unknown, legacyRole?: unknown) {

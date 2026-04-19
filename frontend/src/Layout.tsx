@@ -3,15 +3,14 @@ import { useState, useEffect, useRef } from 'preact/hooks';
 import { API_BASE } from './config';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
-import { type CurrentUser, ROLE_LABELS, buildRoleProfile, type SystemRole } from './auth';
-import { getRolePreviewPresetNavigation, isRolePreviewPresetActive, normalizePreviewRoleCodes, ROLE_PREVIEW_PRESETS, type RolePreviewNavigation } from './authRolePreview';
+import { type CurrentUser, ROLE_LABELS, buildRoleProfile } from './auth';
 import { useNotifications } from './ops/useNotifications';
 import { NotificationBell } from './ops/NotificationBell';
 import { useI18n } from './i18n';
 import { getShellNavigationGroups } from './layoutNavigation';
 import { setNavContext, type NavEntityType } from './navContext';
 import { isMaintenanceOnlyModule, type AppModule } from './shared/domain/contracts';
-import { QA_TEST_IDS, navItemTestId, previewPresetTestId } from './testing/testIds';
+import { QA_TEST_IDS, navItemTestId } from './testing/testIds';
 import {
   ChatIcon,
   CloseIcon,
@@ -153,7 +152,6 @@ export const Layout = ({
   toggleDarkMode,
   isMobile,
   currentUser,
-  onRolePreviewChange,
   contentTestId,
 }: {
   children: any;
@@ -163,7 +161,6 @@ export const Layout = ({
   toggleDarkMode?: () => void;
   isMobile?: boolean;
   currentUser?: CurrentUser | null;
-  onRolePreviewChange?: (previewRoleCodes?: SystemRole[], navigation?: RolePreviewNavigation) => void;
   contentTestId?: string;
 }) => {
   const { t } = useI18n();
@@ -428,15 +425,6 @@ export const Layout = ({
   const roleSummary = roleProfile
     ? Array.from(new Set(roleProfile.roleCodes.map((roleCode) => ROLE_LABELS[roleCode]).filter(Boolean))).join(', ')
     : '';
-  const canManageRolePreview = Boolean(
-    currentUser?.baseRoleCodes?.includes('admin')
-      || currentUser?.roleCodes?.includes?.('admin')
-      || currentUser?.systemRole === 'admin'
-      || currentUser?.baseSystemRole === 'admin',
-  );
-  const isRolePreviewActive = Boolean(currentUser?.isRolePreviewActive && currentUser?.previewRoleCodes?.length);
-  const previewRoleCodes = normalizePreviewRoleCodes(currentUser?.previewRoleCodes);
-  const previewLabel = previewRoleCodes.map((roleCode) => ROLE_LABELS[roleCode]).join(' + ') || 'Admin';
   const avatarInitials = getAvatarInitials(currentUser?.fullName);
 
   return (
@@ -839,60 +827,6 @@ export const Layout = ({
 
         </header>
 
-        {canManageRolePreview ? (
-          <div data-testid={QA_TEST_IDS.layout.previewBanner} style={{ padding: isMobile ? '10px 12px' : '10px 16px', borderBottom: `1px solid ${tokens.colors.border}`, background: `linear-gradient(135deg, ${tokens.colors.warningTint} 0%, ${tokens.colors.warningBg} 100%)`, display: 'grid', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ fontSize: '13px', color: tokens.colors.textPrimary, lineHeight: 1.5 }}>
-                {isRolePreviewActive ? (
-                  <>
-                    <strong>Role preview:</strong> đang xem hệ thống như <strong>{previewLabel}</strong>. {previewRoleCodes.length === 1 && previewRoleCodes[0] === 'viewer' ? 'Viewer preview chỉ mở bề mặt read-only và không dùng chung với trạng thái admin gốc.' : 'Base admin identity vẫn được giữ để thoát preview hoặc quay lại kiểm tra hệ thống.'}
-                  </>
-                ) : (
-                  <>
-                    <strong>Role preview controls:</strong> bạn đang ở <strong>admin gốc</strong>. Chọn preset ngay trên banner để bật QA preview nhanh mà không cần mở Settings trước.
-                  </>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  data-testid={QA_TEST_IDS.layout.previewOpenSettings}
-                  onClick={() => onRolePreviewChange?.(previewRoleCodes, { route: 'Settings' })}
-                  style={ui.btn.outline as any}
-                >
-                  Mở Settings
-                </button>
-                <button type="button" data-testid={QA_TEST_IDS.layout.previewBackToAdmin} onClick={() => onRolePreviewChange?.(undefined)} style={ui.btn.primary as any}>Quay lại admin</button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {ROLE_PREVIEW_PRESETS.map((preset) => {
-                const nextRoles = normalizePreviewRoleCodes(preset.roleCodes);
-                const active = isRolePreviewPresetActive(previewRoleCodes, preset.roleCodes);
-                return (
-                  <button
-                    key={preset.key}
-                    type="button"
-                    data-testid={previewPresetTestId(preset.key)}
-                    onClick={() => onRolePreviewChange?.(nextRoles.length > 0 ? nextRoles : undefined, getRolePreviewPresetNavigation(preset.key))}
-                    style={{
-                      ...ui.btn.outline,
-                      padding: isMobile ? '8px 10px' : '8px 12px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      background: active ? tokens.colors.primary : tokens.colors.surface,
-                      color: active ? tokens.colors.textOnPrimary : tokens.colors.textPrimary,
-                      borderColor: active ? tokens.colors.primary : tokens.colors.border,
-                    }}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
 
         {/* Dynamic Page Content */}
         <div ref={contentScrollRef} data-testid={contentTestId || QA_TEST_IDS.appContent} style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: isMobile ? tokens.spacing.md : tokens.spacing.lg }}>
