@@ -7,6 +7,11 @@ describe('resolveApiBase', () => {
     expect(resolveApiBase('http://api.internal:9999/custom')).toBe('http://api.internal:9999/custom');
   });
 
+  it('normalizes loopback env URLs to the current browser hostname for local QA', () => {
+    expect(resolveApiBase('http://localhost:3001/api', '127.0.0.1')).toBe('http://127.0.0.1:3001/api');
+    expect(resolveApiBase('http://127.0.0.1:3001/api', 'localhost')).toBe('http://localhost:3001/api');
+  });
+
   it('falls back to the current browser hostname for local QA', () => {
     expect(resolveApiBase(undefined, '127.0.0.1')).toBe('http://127.0.0.1:3001/api');
     expect(resolveApiBase(undefined, 'localhost')).toBe('http://localhost:3001/api');

@@ -1,8 +1,26 @@
 import { fetchWithSessionAuth } from '../../core/session';
 
+function isLoopbackHostname(hostname?: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+function normalizeLoopbackApiUrl(explicitApiUrl: string, browserHostname?: string) {
+  const trimmedHostname = browserHostname?.trim();
+  if (!trimmedHostname || !isLoopbackHostname(trimmedHostname)) return explicitApiUrl;
+
+  try {
+    const url = new URL(explicitApiUrl);
+    if (!isLoopbackHostname(url.hostname)) return explicitApiUrl;
+    url.hostname = trimmedHostname;
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return explicitApiUrl;
+  }
+}
+
 export function resolveApiBase(explicitApiUrl?: string, browserHostname?: string) {
   const trimmedUrl = explicitApiUrl?.trim();
-  if (trimmedUrl) return trimmedUrl;
+  if (trimmedUrl) return normalizeLoopbackApiUrl(trimmedUrl, browserHostname);
 
   const trimmedHostname = browserHostname?.trim();
   const hostname = trimmedHostname && trimmedHostname.length > 0 ? trimmedHostname : 'localhost';

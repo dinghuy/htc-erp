@@ -25,7 +25,7 @@ export function EventLog({ onNavigate, isMobile, currentUser: _currentUser }: { 
   };
 
   return (
-    <div style={{ ...ui.page.shell, padding: 0, maxWidth: '1000px' }}>
+    <div style={{ ...ui.page.shell, padding: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <button onClick={() => navigate('Home')} style={{ background: 'none', border: 'none', color: tokens.colors.primary, cursor: 'pointer', fontSize: '13px', fontWeight: 700, padding: 0, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>← Quay lại Home</button>
