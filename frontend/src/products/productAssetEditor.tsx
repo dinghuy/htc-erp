@@ -37,7 +37,32 @@ type UploadFeedback = {
   message: string;
   stage?: 'reading-metadata' | 'loading-engine' | 'transcoding' | 'uploading' | 'fallback' | 'completed' | 'deleting';
   progress?: number;
+  recoverable?: boolean;
 };
+
+function resolveUploadFeedbackLabel(feedback: UploadFeedback) {
+  if (feedback.tone === 'success') return 'Upload thành công';
+  if (feedback.stage === 'fallback') return 'Đang chuyển sang luồng dự phòng';
+  if (feedback.tone === 'error') return 'Upload lỗi';
+  if (feedback.stage === 'reading-metadata') return 'Đang đọc metadata';
+  if (feedback.stage === 'loading-engine') return 'Đang tải engine xử lý';
+  if (feedback.stage === 'transcoding') return 'Đang chuẩn hoá media';
+  if (feedback.stage === 'uploading') return 'Đang gửi file';
+  if (feedback.stage === 'deleting') return 'Đang gỡ asset';
+  return 'Đang xử lý';
+}
+
+function resolveUploadFeedbackHint(feedback: UploadFeedback, kind: 'image' | 'video' | 'document') {
+  if (feedback.stage === 'fallback') {
+    return 'Trình duyệt không thể chuẩn hoá đầy đủ nên hệ thống tự chuyển sang luồng dự phòng và tiếp tục upload.';
+  }
+  if (feedback.tone === 'error') {
+    return kind === 'video'
+      ? 'Bạn có thể thử lại bằng file MP4 nhẹ hơn hoặc cắt ngắn clip.'
+      : 'Bạn có thể kiểm tra file rồi thử upload lại.';
+  }
+  return '';
+}
 
 type PendingImageUploadPreview = {
   key: string;
@@ -96,6 +121,7 @@ function CompactAssetStrip({
               key={item.id || `${item.url}-${index}`}
               asset={item as ProductImageAsset}
               apiOrigin={apiOrigin}
+              selected={Boolean((item as ProductImageAsset).isPrimary)}
             />
           ) : kind === 'video' ? (
             <ProductVideoPreviewCard
@@ -323,7 +349,7 @@ export function AssetListEditor({
         if (!res.ok) throw new Error(payload?.error || 'Không thể xóa asset');
       } catch (error: any) {
         const message = error?.message || 'Không thể xóa asset';
-        setUploadFeedback({ tone: 'error', message, stage: 'deleting' });
+        setUploadFeedback({ tone: 'error', message, stage: 'deleting', recoverable: true });
         showNotify(message, 'error');
         setBusyAssetId(null);
         return;
@@ -359,12 +385,12 @@ export function AssetListEditor({
 
   const uploadFile = async (file: File, options?: { isPrimary?: boolean; replaceAssetId?: string }) => {
     if (!productId) {
-      setUploadFeedback({ tone: 'error', message: 'Tạo sản phẩm trước để dùng upload trực tiếp.' });
+      setUploadFeedback({ tone: 'error', message: 'Tạo sản phẩm trước để dùng upload trực tiếp.', recoverable: true });
       showNotify('Lưu sản phẩm trước rồi mới upload file trực tiếp.', 'error');
       return;
     }
     if (!resolvedToken) {
-      setUploadFeedback({ tone: 'error', message: 'Phiên đăng nhập đã hết. Vui lòng tải lại trang rồi thử lại.' });
+      setUploadFeedback({ tone: 'error', message: 'Phiên đăng nhập đã hết. Vui lòng tải lại trang rồi thử lại.', recoverable: true });
       showNotify('Phiên đăng nhập đã hết. Vui lòng tải lại trang rồi thử lại.', 'error');
       return;
     }
@@ -387,10 +413,11 @@ export function AssetListEditor({
           onStatusChange: (status) => {
             const message = status.message || 'Đang chuẩn bị video...';
             setUploadFeedback({
-              tone: status.stage === 'fallback' ? 'error' : 'info',
+              tone: 'info',
               stage: status.stage === 'ready' ? 'completed' : status.stage,
               message,
               progress: 'progress' in status ? (status as any).progress : undefined,
+              recoverable: status.stage === 'fallback',
             });
           },
         });
@@ -460,7 +487,7 @@ export function AssetListEditor({
       showNotify(kind === 'image' ? 'Đã upload hình ảnh' : kind === 'video' ? 'Đã upload video' : 'Đã upload tài liệu', 'success');
     } catch (error: any) {
       const message = error?.message || 'Không thể upload asset. Vui lòng thử lại.';
-      setUploadFeedback({ tone: 'error', message, progress: undefined });
+      setUploadFeedback({ tone: 'error', message, progress: undefined, recoverable: true });
       showNotify(message, 'error');
     } finally {
       setUploading(false);
@@ -566,11 +593,16 @@ export function AssetListEditor({
             </div>
             <div style={{ fontSize: '11px', lineHeight: 1.55, color: tokens.colors.textMuted }}>
               {kind === 'image'
-                ? 'Dùng cho ảnh thực tế, brochure visual hoặc asset render. Tối đa 20MB mỗi file.'
+                ? 'Dùng cho ảnh thực tế, brochure visual hoặc asset render. Tối đa 20MB mỗi file; ảnh đại diện luôn hiển thị đầu danh sách.'
                 : kind === 'video'
                   ? 'Trình duyệt sẽ ưu tiên chuẩn hoá video về MP4 H.264/AAC trước khi gửi lên để clip nhẹ và dễ share. Tối đa 200MB mỗi file.'
                   : 'Dùng cho brochure, datasheet, catalogue hoặc hướng dẫn sử dụng. Tối đa 20MB mỗi file.'}
             </div>
+            {kind === 'image' ? (
+              <div style={{ fontSize: '11px', lineHeight: 1.55, color: tokens.colors.textMuted }}>
+                Mẹo: dùng mũi tên để sắp xếp gallery, biểu tượng sao để đặt ảnh đại diện, và icon crop để thay khung đại diện nhanh.
+              </div>
+            ) : null}
           </div>
           {kind === 'image' ? (
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -694,7 +726,7 @@ export function AssetListEditor({
           <div
             style={{
               display: 'grid',
-              gap: '4px',
+              gap: '6px',
               padding: '12px 14px',
               borderRadius: '14px',
               border: `1px solid ${
@@ -712,25 +744,33 @@ export function AssetListEditor({
                     : tokens.colors.infoAccentBg,
             }}
           >
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                color:
-                  uploadFeedback.tone === 'error'
-                    ? tokens.colors.error
-                    : uploadFeedback.tone === 'success'
-                      ? tokens.colors.success
-                      : tokens.colors.primary,
-              }}
-            >
-              {uploadFeedback.tone === 'error' ? 'Upload lỗi' : uploadFeedback.tone === 'success' ? 'Upload thành công' : 'Đang xử lý'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color:
+                    uploadFeedback.tone === 'error'
+                      ? tokens.colors.error
+                      : uploadFeedback.tone === 'success'
+                        ? tokens.colors.success
+                        : tokens.colors.primary,
+                }}
+              >
+                {resolveUploadFeedbackLabel(uploadFeedback)}
+              </span>
+              {uploadFeedback.recoverable ? <span style={ui.badge.warning}>Có thể thử lại</span> : null}
+            </div>
             <span style={{ fontSize: '12px', lineHeight: 1.5, color: tokens.colors.textSecondary }}>
               {uploadFeedback.message}
             </span>
+            {resolveUploadFeedbackHint(uploadFeedback, kind) ? (
+              <span style={{ fontSize: '11px', lineHeight: 1.5, color: tokens.colors.textMuted }}>
+                {resolveUploadFeedbackHint(uploadFeedback, kind)}
+              </span>
+            ) : null}
             {typeof uploadFeedback.progress === 'number' ? (
               <div style={{ display: 'grid', gap: '6px' }}>
                 <div
@@ -861,7 +901,7 @@ export function AssetListEditor({
                     </button>
                     <button
                       type="button"
-                      title="Đưa lên"
+                      title={isPrimaryImage ? 'Ảnh đại diện luôn giữ ở vị trí đầu' : 'Đưa lên'}
                       onClick={() => moveImageItem(index, -1)}
                       disabled={!canMoveUp || uploading || Boolean(isBusy)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '8px', color: tokens.colors.textMuted, display: 'flex', opacity: !canMoveUp || uploading || Boolean(isBusy) ? 0.4 : 1 }}
@@ -870,7 +910,7 @@ export function AssetListEditor({
                     </button>
                     <button
                       type="button"
-                      title="Đưa xuống"
+                      title={isPrimaryImage ? 'Ảnh đại diện luôn giữ ở vị trí đầu' : 'Đưa xuống'}
                       onClick={() => moveImageItem(index, 1)}
                       disabled={!canMoveDown || uploading || Boolean(isBusy)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '8px', color: tokens.colors.textMuted, display: 'flex', opacity: !canMoveDown || uploading || Boolean(isBusy) ? 0.4 : 1 }}
@@ -898,7 +938,7 @@ export function AssetListEditor({
         <EmptyAssetState
           title={`Chưa có ${kind === 'image' ? 'hình ảnh' : kind === 'video' ? 'video' : 'tài liệu'}`}
           description={kind === 'image'
-            ? 'Thêm link ảnh hoặc upload ảnh thật từ máy để build gallery.'
+            ? 'Thêm link ảnh hoặc upload ảnh thật từ máy để build gallery. Dùng nút tải ảnh đại diện nếu cần ưu tiên hình cover.'
             : kind === 'video'
               ? 'Thêm clip demo để trình duyệt chuẩn hoá MP4 trước khi upload và hiển thị poster thumbnail ngay trong giao diện.'
               : 'Thêm brochure, catalogue hoặc hướng dẫn sử dụng để hiện trong hồ sơ sản phẩm.'}

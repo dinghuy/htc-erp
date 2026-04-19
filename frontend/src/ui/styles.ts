@@ -8,13 +8,13 @@ export const ui = {
       fontSize: tokens.fontSize.base,
       fontWeight: 700,
       cursor: 'pointer',
-      border: 'none',
+      border: '1px solid transparent',
       color: tokens.colors.textOnPrimary,
       background: tokens.colors.primary,
       display: 'flex',
       alignItems: 'center',
       gap: tokens.spacing.sm,
-      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease'
+      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease'
     },
     outline: {
       padding: `${tokens.spacing.md} ${tokens.spacing.xl}`,
@@ -28,7 +28,7 @@ export const ui = {
       display: 'flex',
       alignItems: 'center',
       gap: tokens.spacing.sm,
-      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease'
+      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease'
     },
     danger: {
       padding: `${tokens.spacing.xs} ${tokens.spacing.lg}`,
@@ -47,13 +47,13 @@ export const ui = {
       fontSize: tokens.fontSize.base,
       fontWeight: 600,
       cursor: 'pointer',
-      border: 'none',
+      border: '1px solid transparent',
       color: tokens.colors.primary,
       background: 'transparent',
       display: 'flex',
       alignItems: 'center',
       gap: tokens.spacing.sm,
-      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease'
+      transition: 'background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease'
     }
   },
   card: {
@@ -121,7 +121,7 @@ export const ui = {
       borderRadius: tokens.radius.lg,
       border: `1px solid ${tokens.colors.border}`,
       fontSize: tokens.fontSize.base,
-      background: tokens.colors.background,
+      background: tokens.colors.inputSurface,
       color: tokens.colors.textPrimary
     }
   },
@@ -137,16 +137,16 @@ export const ui = {
     warning: {
       padding: `${tokens.spacing.xs} ${tokens.spacing.md}`,
       borderRadius: tokens.radius.md,
-      background: tokens.colors.badgeBgInfo,
-      color: tokens.colors.warning,
+      background: tokens.colors.warningBg,
+      color: tokens.colors.warningText,
       fontSize: tokens.fontSize.xs,
       fontWeight: 800
     },
     info: {
       padding: `${tokens.spacing.xs} ${tokens.spacing.md}`,
       borderRadius: tokens.radius.md,
-      background: tokens.colors.badgeBgInfo,
-      color: tokens.colors.info,
+      background: tokens.colors.infoBg,
+      color: tokens.colors.infoText,
       fontSize: tokens.fontSize.xs,
       fontWeight: 800
     },
@@ -161,7 +161,7 @@ export const ui = {
     neutral: {
       padding: `${tokens.spacing.xs} ${tokens.spacing.md}`,
       borderRadius: tokens.radius.md,
-      background: tokens.colors.surface,
+      background: tokens.colors.surfaceSubtle,
       color: tokens.colors.textMuted,
       fontSize: tokens.fontSize.xs,
       fontWeight: 800
@@ -204,14 +204,14 @@ export const ui = {
       maxWidth: '1400px',
       margin: '0 auto',
       display: 'grid',
-      gap: tokens.shell.sectionGap,
+      gap: tokens.spacing.xl,
     } as const,
   },
   modal: {
     shell: {
       background: tokens.colors.surface,
       borderRadius: tokens.radius.xl,
-      boxShadow: tokens.shadow.md,
+      boxShadow: tokens.overlay.modalShadow,
       border: `1px solid ${tokens.colors.border}`,
       overflow: 'hidden'
     }

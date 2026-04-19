@@ -334,6 +334,7 @@ export function ProductDocumentPreviewCard({ asset }: { asset: ProductDocumentAs
 
 export function ProductAssetGallery({ images, apiOrigin }: { images: ProductImageAsset[]; apiOrigin: string }) {
   const orderedImages = normalizePrimaryImageAssets(images);
+  const primaryImage = orderedImages[0];
   const [isCompactGallery, setIsCompactGallery] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 720 : false));
 
   useEffect(() => {
@@ -350,10 +351,20 @@ export function ProductAssetGallery({ images, apiOrigin }: { images: ProductImag
 
   return (
     <div style={{ display: 'grid', gap: '12px' }}>
+      {primaryImage ? (
+        <div style={{ display: 'grid', gap: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: tokens.colors.textMuted }}>
+            Ảnh đại diện hiện tại
+          </span>
+          <ProductImagePreviewCard asset={primaryImage} apiOrigin={apiOrigin} selected />
+        </div>
+      ) : null}
       <div style={{ display: 'grid', gridTemplateColumns: isCompactGallery ? 'repeat(3, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))', gap: '10px' }}>
-        {orderedImages.map((asset, index) => (
-          <ProductImagePreviewCard key={asset.id || `${asset.url}-${index}`} asset={asset} apiOrigin={apiOrigin} selected={Boolean(asset.isPrimary)} />
-        ))}
+        {orderedImages
+          .filter((_, index) => (primaryImage ? index > 0 : true))
+          .map((asset, index) => (
+            <ProductImagePreviewCard key={asset.id || `${asset.url}-${index}`} asset={asset} apiOrigin={apiOrigin} selected={Boolean(asset.isPrimary)} />
+          ))}
       </div>
     </div>
   );
