@@ -4,7 +4,7 @@ import { expectFilesToAvoidLiterals } from './qa/themeAuditContracts';
 describe('auth and auxiliary theme contracts', () => {
   it('keeps auth and supporting product surfaces on semantic tokens instead of theme drift literals', () => {
     expectFilesToAvoidLiterals([
-      'Settings.tsx',
+      'features/settings/SettingsScreen.tsx',
       'Login.tsx',
       'ForceChangePassword.tsx',
       'products/ProductFormModal.tsx',

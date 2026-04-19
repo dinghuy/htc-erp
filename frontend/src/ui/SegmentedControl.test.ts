@@ -31,7 +31,7 @@ describe('SegmentedControl helpers', () => {
 
   it('uses a calmer badge treatment for inactive pills', () => {
     expect(getSegmentedControlBadgeStyle(false)).toMatchObject({
-      background: 'var(--bg-surface)',
+      background: 'var(--ht-surface-subtle)',
       color: 'var(--text-secondary)',
     });
   });
