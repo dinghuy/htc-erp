@@ -16,6 +16,7 @@ import { CompassIcon, EditIcon, EyeIcon, TrashIcon } from './ui/icons';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { SegmentedControl } from './ui/SegmentedControl';
 import { buildProjectRoleView } from './projects/projectRoleViews';
+import { buildProjectWorkspaceNavigationState } from './projects/projectWorkspaceNavigationState';
 const ProjectWorkspaceHubModal = lazy(async () => {
   const module = await import('./projects/ProjectWorkspaceHub');
   return { default: module.ProjectWorkspaceHubModal };
@@ -693,11 +694,18 @@ export function Projects({
   const canDeleteProject = canPerformAction(currentUser.roleCodes, 'edit_project_shell', currentUser.systemRole)
     && currentUser.roleCodes?.includes('admin');
 
-  const openProjectWorkspace = (project: any, fallbackTab?: ProjectWorkspaceTabKey) => {
+  const openProjectWorkspace = (
+    project: any,
+    fallbackTab?: ProjectWorkspaceTabKey,
+    navigationState?: { initialTab?: ProjectWorkspaceTabKey; focusDocumentId?: string; openThread: boolean },
+  ) => {
+    const nextState = navigationState ?? buildProjectWorkspaceNavigationState(
+      fallbackTab || resolveProjectActionAvailability(project).workspaceTab,
+    );
     setWorkspaceProjectId(project.id);
-    setWorkspaceInitialTab(fallbackTab || resolveProjectActionAvailability(project).workspaceTab);
-    setWorkspaceFocusDocumentId(undefined);
-    setWorkspaceOpenThread(false);
+    setWorkspaceInitialTab(nextState.initialTab);
+    setWorkspaceFocusDocumentId(nextState.focusDocumentId);
+    setWorkspaceOpenThread(nextState.openThread);
   };
 
   const loadData = async () => {
@@ -719,9 +727,6 @@ export function Projects({
         if (navCtx.filters?.projectStage) setStageFilter(navCtx.filters.projectStage);
         if (navCtx.filters?.accountId) setAccountFilter(navCtx.filters.accountId);
         if (typeof navCtx.filters?.overdue === 'boolean') setOverdueOnly(navCtx.filters.overdue);
-        if (navCtx.filters?.workspaceTab) setWorkspaceInitialTab(navCtx.filters.workspaceTab as ProjectWorkspaceTabKey);
-        if (navCtx.filters?.documentId) setWorkspaceFocusDocumentId(navCtx.filters.documentId);
-        setWorkspaceOpenThread(Boolean(navCtx.filters?.openThread));
         if (navCtx.filters?.status && STATUS_TABS.some((tab) => tab.key === navCtx.filters?.status)) {
           setStatusFilter(navCtx.filters.status as 'all' | ProjectStatus);
         }
@@ -734,7 +739,7 @@ export function Projects({
               if (navCtx.autoOpenEdit && !canManageProjectShell) {
                 showNotify('Bạn không có quyền mở editor dự án, đang chuyển sang workspace read-only.', 'info');
               }
-              openProjectWorkspace(matched, navCtx.filters?.workspaceTab as ProjectWorkspaceTabKey | undefined);
+              openProjectWorkspace(matched, undefined, buildProjectWorkspaceNavigationState(undefined, navCtx.filters));
             }
           }
         } else if (navCtx.filters?.openRepresentative) {
@@ -745,7 +750,7 @@ export function Projects({
             return true;
           });
           if (matchingProject?.id) {
-            openProjectWorkspace(matchingProject, navCtx.filters?.workspaceTab as ProjectWorkspaceTabKey | undefined);
+            openProjectWorkspace(matchingProject, undefined, buildProjectWorkspaceNavigationState(undefined, navCtx.filters));
           } else {
             setWorkspaceInitialTab(undefined);
             showNotify('Không tìm thấy workspace mẫu phù hợp với role đang preview', 'error');

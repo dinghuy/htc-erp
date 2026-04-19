@@ -151,7 +151,7 @@ export function App() {
         {resolvedRoute === 'Accounts' && <CustomersRoute route="Accounts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Contacts' && <CustomersRoute route="Contacts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Partners' && <CustomersRoute route="Partners" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
-        {resolvedRoute === 'Equipment' && <EquipmentRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
+        {resolvedRoute === 'Equipment' && <EquipmentRoute isMobile={isMobile} currentUser={currentUser} />}
         {resolvedRoute === 'Suppliers' && <CustomersRoute route="Suppliers" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Sales' && (
           <QuotationsRoute
