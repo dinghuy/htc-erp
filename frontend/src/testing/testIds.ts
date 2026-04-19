@@ -63,19 +63,11 @@ export const QA_TEST_IDS = {
   },
   layout: {
     searchInput: 'global-search-input',
-    previewBanner: 'role-preview-banner',
-    previewOpenSettings: 'role-preview-open-settings',
-    previewBackToAdmin: 'role-preview-back-to-admin',
     sidebar: 'app-sidebar',
     topTabs: 'app-top-tabs',
   },
   settings: {
-    previewPanel: 'settings-role-preview-panel',
-    previewApply: 'settings-role-preview-apply',
-    previewReset: 'settings-role-preview-reset',
-    previewOpenWorkspace: 'settings-role-preview-open-workspace',
-    checklist: 'settings-role-preview-checklist',
-    qaSessionLog: 'settings-role-preview-session-log',
+    laneNav: 'settings-lane-nav',
   },
   myWork: {
     focusBadge: 'my-work-focus-badge',

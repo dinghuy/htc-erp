@@ -10,15 +10,13 @@ const EquipmentScreen = lazy(async () => {
 export function EquipmentRoute({
   isMobile,
   currentUser,
-  onNavigate,
 }: {
   isMobile?: boolean;
   currentUser: CurrentUser;
-  onNavigate?: (route: string) => void;
 }) {
   return (
     <FeatureRouteShell fallbackMessage="Đang tải danh mục sản phẩm...">
-      <EquipmentScreen isMobile={isMobile} currentUser={currentUser} onNavigate={onNavigate} />
+      <EquipmentScreen isMobile={isMobile} currentUser={currentUser} />
     </FeatureRouteShell>
   );
 }

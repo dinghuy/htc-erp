@@ -4,11 +4,10 @@ import { NotificationContainer, showNotify } from './Notification';
 import { Login } from './Login';
 import { ForceChangePassword } from './ForceChangePassword';
 import { tokens } from './ui/tokens';
-import { type CurrentUser, type SystemRole, buildRoleProfile, loadSession, saveSession, clearSession } from './auth';
-import type { RolePreviewNavigation } from './authRolePreview';
+import { type CurrentUser, buildRoleProfile, loadSession, saveSession, clearSession } from './auth';
 import { I18nContext, type Locale, translate } from './i18n';
 import { isKnownRoute, resolveProtectedRoute } from './core/routes';
-import { clearNavContext, setNavContext } from './navContext';
+import { clearNavContext } from './navContext';
 import type { AppModule } from './shared/domain/contracts';
 import { routeTestId } from './testing/testIds';
 import { Home } from './Home';
@@ -99,22 +98,25 @@ export function App() {
     );
   } else {
     const roleProfile = buildRoleProfile(currentUser.roleCodes, currentUser.systemRole);
-    const allowedModules = roleProfile.allowedModules;
-    const previewAdminRoutes: AppModule[] = currentUser.baseRoleCodes?.includes('admin')
-      ? ['Settings', 'Users']
-      : [];
-    const routeGuardModules = Array.from(new Set([...allowedModules, ...previewAdminRoutes]));
+    const routeGuardModules = roleProfile.allowedModules;
     const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
-    const handleRolePreviewChange = (previewRoleCodes?: SystemRole[], navigation?: RolePreviewNavigation) => {
-      if (!currentUser) return;
+
+    const handleSettingsRouteUserUpdated = (partial: Partial<CurrentUser>) => {
+      persistAndSetUser({ ...currentUser, ...partial });
+    };
+
+    const handleSettingsShellFlagUpdated = (partial: Record<string, unknown>) => {
+      if (partial.hide_phase_one_maintenance_modules === undefined) {
+        return;
+      }
+
       persistAndSetUser({
         ...currentUser,
-        previewRoleCodes: previewRoleCodes && previewRoleCodes.length > 0 ? previewRoleCodes : undefined,
-      });
-      if (navigation?.navContext) {
-        setNavContext(navigation.navContext);
-      }
-      setCurrentRoute(navigation?.route || 'Home');
+        runtimeSettings: {
+          ...(currentUser.runtimeSettings ?? {}),
+          hide_phase_one_maintenance_modules: partial.hide_phase_one_maintenance_modules,
+        },
+      } as CurrentUser);
     };
 
     const handleNavigate = (route: string) => {
@@ -142,7 +144,7 @@ export function App() {
     const contentTestId = routeTestId(resolvedRoute);
 
     content = (
-      <Layout currentRoute={resolvedRoute} onNavigate={handleNavigate} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} isMobile={isMobile} currentUser={currentUser} onRolePreviewChange={handleRolePreviewChange} contentTestId={contentTestId}>
+      <Layout currentRoute={resolvedRoute} onNavigate={handleNavigate} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} isMobile={isMobile} currentUser={currentUser} contentTestId={contentTestId}>
         {resolvedRoute === 'Home' && <Home currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'My Work' && <MyWork currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Inbox' && <Inbox currentUser={currentUser} />}
@@ -151,7 +153,7 @@ export function App() {
         {resolvedRoute === 'Accounts' && <CustomersRoute route="Accounts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Contacts' && <CustomersRoute route="Contacts" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Partners' && <CustomersRoute route="Partners" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
-        {resolvedRoute === 'Equipment' && <EquipmentRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
+        {resolvedRoute === 'Equipment' && <EquipmentRoute isMobile={isMobile} currentUser={currentUser} />}
         {resolvedRoute === 'Suppliers' && <CustomersRoute route="Suppliers" isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}
         {resolvedRoute === 'Sales' && (
           <QuotationsRoute
@@ -177,11 +179,8 @@ export function App() {
             toggleDarkMode={toggleDarkMode}
             isMobile={isMobile}
             currentUser={currentUser}
-            onRolePreviewChange={handleRolePreviewChange}
-            onUserUpdated={(partial: Partial<CurrentUser>) => {
-              const merged: CurrentUser = { ...currentUser, ...partial };
-              persistAndSetUser(merged);
-            }}
+            onUserUpdated={handleSettingsRouteUserUpdated}
+            onSystemSettingsUpdated={handleSettingsShellFlagUpdated}
           />
         )}
         {resolvedRoute === 'Support' && <SupportRoute isMobile={isMobile} currentUser={currentUser} />}

@@ -26,17 +26,17 @@ describe('app shell composition', () => {
     const source = readFileSync(appPath, 'utf8');
 
     expect(source).toContain("import { EquipmentRoute, ProjectsRoute } from './features/projects';");
-    expect(source).toContain("{resolvedRoute === 'Equipment' && <EquipmentRoute isMobile={isMobile} currentUser={currentUser} onNavigate={handleNavigate} />}");
+    expect(source).toContain("{resolvedRoute === 'Equipment' && <EquipmentRoute isMobile={isMobile} currentUser={currentUser} />}");
     expect(source).not.toContain("import { Products } from './Products';");
   });
 
-  it('keeps the role preview banner available to base admin sessions even before a preview is active', () => {
+  it('removes the deprecated role preview banner from the shared shell', () => {
     const layoutPath = path.resolve(__dirname, 'Layout.tsx');
     const source = readFileSync(layoutPath, 'utf8');
 
-    expect(source).toContain('const canManageRolePreview = Boolean(');
-    expect(source).toContain('{canManageRolePreview ? (');
-    expect(source).toContain('Role preview controls:');
+    expect(source).not.toContain('const canManageRolePreview = Boolean(');
+    expect(source).not.toContain('Role preview controls:');
+    expect(source).not.toContain('previewBanner');
   });
 
   it('renders an explicit maintenance badge for non-core Phase 1 navigation entries', () => {
@@ -48,12 +48,14 @@ describe('app shell composition', () => {
     expect(source).toContain("'MAINTENANCE ONLY': 'nav.section.maintenance_only'");
   });
 
-  it('preserves direct Settings and Users routing for base admin preview sessions without reopening sidebar access', () => {
+  it('keeps settings access tied to real allowed modules and threads settings shell handlers through the route adapter', () => {
     const appPath = path.resolve(__dirname, 'app.tsx');
     const source = readFileSync(appPath, 'utf8');
 
-    expect(source).toContain("const previewAdminRoutes: AppModule[] = currentUser.baseRoleCodes?.includes('admin')");
-    expect(source).toContain("['Settings', 'Users']");
-    expect(source).toContain('const routeGuardModules = Array.from(new Set([...allowedModules, ...previewAdminRoutes]));');
+    expect(source).toContain('const routeGuardModules = roleProfile.allowedModules;');
+    expect(source).not.toContain('previewAdminRoutes');
+    expect(source).toContain('onUserUpdated={handleSettingsRouteUserUpdated}');
+    expect(source).toContain('onSystemSettingsUpdated={handleSettingsShellFlagUpdated}');
+    expect(source).not.toContain('onOpenUsers={handleSettingsOpenUsers}');
   });
 });
