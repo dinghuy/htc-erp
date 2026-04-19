@@ -2,10 +2,10 @@
 
 ## Setup
 
-1. Install dependencies in `backend/` and `frontend/`.
+1. Run `pnpm install` at the repo root.
 2. Copy `.env.example` to `.env` where needed.
-3. Run backend tests.
-4. Run frontend tests and typecheck.
+3. Run `pnpm --dir backend test:core`.
+4. Run `pnpm --dir frontend test:core` and `pnpm --dir frontend typecheck`.
 
 ## Before Editing
 

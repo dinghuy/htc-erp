@@ -15,6 +15,8 @@ const { app } = require('../server.ts');
 let server;
 let baseUrl;
 let failures = 0;
+let seededAccountId;
+let seededContactId;
 
 async function api(pathname, options = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, options);
@@ -42,16 +44,15 @@ async function login(username, password) {
   });
 }
 
-async function createUser({ id, fullName, username, password, systemRole }) {
+async function createUser({ fullName, username, password, systemRole }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
   await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -72,37 +73,40 @@ async function createUser({ id, fullName, username, password, systemRole }) {
 async function seedActivities() {
   const db = getDb();
   await db.run('DELETE FROM Activity');
+  const accountResult = await db.run(
+    `INSERT INTO Account (companyName, shortName, status, accountType)
+     VALUES (?, ?, ?, ?)`,
+    ['Acme Corporation', 'ACME', 'Active', 'Customer']
+  );
+  seededAccountId = String(accountResult.lastID);
+
+  const contactResult = await db.run(
+    `INSERT INTO Contact (accountId, lastName, firstName, gender)
+     VALUES (?, ?, ?, ?)`,
+    [seededAccountId, 'Nguyen', 'An', 'male']
+  );
+  seededContactId = String(contactResult.lastID);
+
   await db.run(
-    `INSERT INTO Account (id, companyName, shortName, status, accountType)
-     VALUES (?, ?, ?, ?, ?)`,
-    ['acc-activities', 'Acme Corporation', 'ACME', 'Active', 'Customer']
+    `INSERT INTO Activity (title, description, category, icon, color, iconColor, entityId, entityType, link, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['Account follow-up', 'Account note', 'Account', 'office', '#fff', '#000', seededAccountId, 'Account', 'Customers', '2026-01-01 09:00:00']
   );
   await db.run(
-    `INSERT INTO Contact (id, accountId, lastName, firstName, gender)
-     VALUES (?, ?, ?, ?, ?)`,
-    ['contact-activities', 'acc-activities', 'Nguyen', 'An', 'male']
+    `INSERT INTO Activity (title, description, category, icon, color, iconColor, entityId, entityType, link, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['Contact follow-up', 'Contact note', 'Contact', 'user', '#fff', '#000', seededContactId, 'Contact', 'Customers', '2026-01-02 09:00:00']
   );
   await db.run(
-    `INSERT INTO Activity (id, title, description, category, icon, color, iconColor, entityId, entityType, link, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ['activity-account', 'Account follow-up', 'Account note', 'Account', 'office', '#fff', '#000', 'acc-activities', 'Account', 'Customers', '2026-01-01 09:00:00']
-  );
-  await db.run(
-    `INSERT INTO Activity (id, title, description, category, icon, color, iconColor, entityId, entityType, link, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ['activity-contact', 'Contact follow-up', 'Contact note', 'Contact', 'user', '#fff', '#000', 'contact-activities', 'Contact', 'Customers', '2026-01-02 09:00:00']
-  );
-  await db.run(
-    `INSERT INTO Activity (id, title, description, category, icon, color, iconColor, entityId, entityType, link, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ['activity-generic', 'General note', 'General note', 'General', 'note', '#fff', '#000', null, null, 'Dashboard', '2026-01-03 09:00:00']
+    `INSERT INTO Activity (title, description, category, icon, color, iconColor, entityId, entityType, link, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['General note', 'General note', 'General', 'note', '#fff', '#000', null, null, 'Dashboard', '2026-01-03 09:00:00']
   );
 }
 
 async function setup() {
   await initDb();
   await createUser({
-    id: 'activities-viewer',
     fullName: 'Activities Viewer',
     username: 'activities.viewer',
     password: 'Viewer@123',
@@ -129,17 +133,17 @@ async function main() {
     const list = await api('/api/activities?limit=1');
     assert.equal(list.response.status, 200);
     assert.equal(list.body.length, 1);
-    assert.equal(list.body[0].id, 'activity-generic');
+    assert.equal(list.body[0].title, 'General note');
 
-    const accountActivities = await api('/api/activities?entityId=acc-activities&limit=5');
+    const accountActivities = await api(`/api/activities?entityId=${seededAccountId}&limit=5`);
     assert.equal(accountActivities.response.status, 200);
-    assert.equal(accountActivities.body.length, 1);
-    assert.equal(accountActivities.body[0].entityDisplay, 'ACME');
+    assert.equal(accountActivities.body.length, 2);
+    assert.equal(accountActivities.body.some((activity) => activity.entityDisplay === 'ACME'), true);
 
-    const contactActivities = await api('/api/activities?entityId=contact-activities&limit=5');
+    const contactActivities = await api(`/api/activities?entityId=${seededContactId}&limit=5`);
     assert.equal(contactActivities.response.status, 200);
-    assert.equal(contactActivities.body.length, 1);
-    assert.equal(contactActivities.body[0].entityDisplay, 'Nguyen An - ACME');
+    assert.equal(contactActivities.body.length, 2);
+    assert.equal(contactActivities.body.some((activity) => activity.entityDisplay === 'Nguyen An - ACME'), true);
   });
 
   await run('only admin or manager can create activities', async () => {

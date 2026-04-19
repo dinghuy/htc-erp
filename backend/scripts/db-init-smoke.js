@@ -7,8 +7,8 @@ const { initDb, getDb } = require('../sqlite-db');
 (async () => {
   await initDb();
   const db = getDb();
-  const testId = `test-${Date.now()}`;
-  await db.run("INSERT INTO Account (id, companyName) VALUES (?, ?)", [testId, 'Test Co']);
+  const insertResult = await db.run("INSERT INTO Account (companyName) VALUES (?)", ['Test Co']);
+  const testId = insertResult.lastID;
 
   // Re-init: should NOT drop tables or lose data
   await initDb();

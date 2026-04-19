@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { createCollaborationRepository } from './repository';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
@@ -53,6 +52,12 @@ function decorateSupportTicketRow(ticket: any, options: { isPrivileged: boolean 
 
 function getSingleParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function normalizeIdentifier(value: unknown) {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
 }
 
 function mapThreadRow(row: any) {
@@ -130,7 +135,7 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
     const userId = getCurrentUserId(req);
     const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
     if (!content) return res.status(400).json({ error: 'content is required' });
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     await collaborationRepository.createChatMessage({ id, userId, content });
     res.status(201).json(await collaborationRepository.findChatMessageById(id));
   }));
@@ -170,7 +175,7 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
     }
 
     const createdBy = getCurrentUserId(req);
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     await collaborationRepository.createSupportTicket({
       id,
       category: category.toLowerCase(),
@@ -284,20 +289,20 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
 
   app.post('/api/v1/threads', requireAuth, ah(async (req: Request, res: Response) => {
     const entityType = typeof req.body?.entityType === 'string' ? req.body.entityType.trim() : '';
-    const entityId = typeof req.body?.entityId === 'string' ? req.body.entityId.trim() : '';
+    const entityId = normalizeIdentifier(req.body?.entityId);
     const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
     if (!entityType) return res.status(400).json({ error: 'entityType is required' });
     if (!entityId) return res.status(400).json({ error: 'entityId is required' });
 
-    const id = uuidv4();
-    await collaborationRepository.createEntityThread({
-      id,
-      entityType,
-      entityId,
-      title: title || null,
-      status: 'active',
-      createdBy: getCurrentUserId(req),
-    });
+    const id = String(
+      await collaborationRepository.createEntityThread({
+        entityType,
+        entityId,
+        title: title || null,
+        status: 'active',
+        createdBy: getCurrentUserId(req),
+      })
+    );
     res.status(201).json(mapThreadRow(await collaborationRepository.findEntityThreadById(id)));
   }));
 
@@ -319,14 +324,14 @@ export function registerCollaborationRoutes(app: Express, deps: RegisterCollabor
     const thread = await collaborationRepository.findEntityThreadById(id);
     if (!thread) return res.status(404).json({ error: 'Thread not found' });
 
-    const messageId = uuidv4();
-    await collaborationRepository.createEntityThreadMessage({
-      id: messageId,
-      threadId: id,
-      authorUserId: getCurrentUserId(req),
-      content,
-      contentType: typeof req.body?.contentType === 'string' ? req.body.contentType.trim() : 'text/plain',
-    });
+    const messageId = String(
+      await collaborationRepository.createEntityThreadMessage({
+        threadId: id,
+        authorUserId: getCurrentUserId(req),
+        content,
+        contentType: typeof req.body?.contentType === 'string' ? req.body.contentType.trim() : 'text/plain',
+      })
+    );
     res.status(201).json(mapThreadMessageRow(await collaborationRepository.findEntityThreadMessageById(messageId)));
   }));
 }

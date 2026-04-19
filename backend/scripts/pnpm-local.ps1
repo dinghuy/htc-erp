@@ -13,9 +13,5 @@ if (-not (Test-Path $corepackCmd)) {
   throw "Cannot find corepack.cmd at $corepackCmd"
 }
 
-if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-  throw 'LOCALAPPDATA is not set; cannot configure pnpm cache path.'
-}
-
 & $corepackCmd pnpm --dir $projectRoot @Args
 exit $LASTEXITCODE

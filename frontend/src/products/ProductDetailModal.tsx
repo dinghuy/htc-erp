@@ -360,17 +360,17 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
     >
       <div style={{ display: 'grid', minHeight: 0 }}>
         <div style={{ minHeight: 0, overflowY: 'auto', display: 'grid' }}>
-        <div style={{ display: 'grid', gap: tokens.spacing.lgPlus }}>
-        <section
-          style={{
-            ...ui.card.base,
-            background: PRODUCT_DETAIL_HERO_BG,
-            boxShadow: 'none',
-            padding: '20px 20px 18px',
-            display: 'grid',
-            gap: '18px',
-          }}
-        >
+          <div style={{ display: 'grid', gap: tokens.spacing.lgPlus }}>
+            <section
+              style={{
+                ...ui.card.base,
+                background: PRODUCT_DETAIL_HERO_BG,
+                boxShadow: 'none',
+                padding: '20px 20px 18px',
+                display: 'grid',
+                gap: '18px',
+              }}
+            >
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) 280px', gap: '18px', alignItems: 'stretch' }}>
             <div style={{ display: 'grid', gap: '10px' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
@@ -562,6 +562,8 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
         </div>
         </div>
       </div>
+    </div>
+  </div>
     </OverlayModal>
   );
 }

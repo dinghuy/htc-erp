@@ -1,0 +1,7 @@
+packages:
+  - frontend
+  - backend
+allowBuilds:
+  core-js: true
+  esbuild: true
+  sqlite3: true

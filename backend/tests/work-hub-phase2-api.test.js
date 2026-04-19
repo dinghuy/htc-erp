@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-work-hub-phase2-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-work-hub-phase2.db');
@@ -44,14 +43,12 @@ async function seedUser({
 }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'unknown',
       `${username}@example.com`,
@@ -66,9 +63,9 @@ async function seedUser({
       'active',
       0,
       'vi',
-    ]
+    ],
   );
-  return id;
+  return result.lastID;
 }
 
 async function login(username, password) {
@@ -113,23 +110,23 @@ async function main() {
       fullName: 'Thread Author',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const documentId = uuidv4();
+    const accountResult = await db.run(
+      `INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`,
+      ['Thread Customer'],
+    );
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['THR-001', 'Thread Project', authorUserId, accountId, 'delivery_active', 'active'],
+    );
+    const projectId = projectResult.lastID;
+    const documentResult = await db.run(
+      `INSERT INTO ProjectDocument (projectId, documentCode, documentName, category, department, status, requiredAtStage)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'DOC-001', 'Delivery checklist', 'Delivery', 'Operations', 'missing', 'delivery'],
+    );
+    const documentId = documentResult.lastID;
 
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
-      'Thread Customer',
-    ]);
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'THR-001', 'Thread Project', authorUserId, accountId, 'delivery_active', 'active'],
-    );
-    await db.run(
-      `INSERT INTO ProjectDocument (id, projectId, documentCode, documentName, category, department, status, requiredAtStage)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [documentId, projectId, 'DOC-001', 'Delivery checklist', 'Delivery', 'Operations', 'missing', 'delivery'],
-    );
 
     const auth = await login('thread.author', 'Author@123');
     assert.equal(auth.response.status, 200);
@@ -191,23 +188,23 @@ async function main() {
       fullName: 'Legal Reviewer',
     });
 
-    const accountId = uuidv4();
-    const projectId = uuidv4();
-    const documentId = uuidv4();
+    const accountResult = await db.run(
+      `INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`,
+      ['Review Customer'],
+    );
+    const accountId = accountResult.lastID;
+    const projectResult = await db.run(
+      `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['REV-001', 'Review Project', managerUserId, accountId, 'internal-review', 'active'],
+    );
+    const projectId = projectResult.lastID;
+    const documentResult = await db.run(
+      `INSERT INTO ProjectDocument (projectId, documentCode, documentName, category, department, status, requiredAtStage)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [projectId, 'DOC-REVIEW', 'Contract appendix', 'Contract', 'Legal', 'requested', 'legal_review'],
+    );
+    const documentId = documentResult.lastID;
 
-    await db.run(`INSERT INTO Account (id, companyName, accountType, status) VALUES (?, ?, 'Customer', 'active')`, [
-      accountId,
-      'Review Customer',
-    ]);
-    await db.run(
-      `INSERT INTO Project (id, code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [projectId, 'REV-001', 'Review Project', managerUserId, accountId, 'internal-review', 'active'],
-    );
-    await db.run(
-      `INSERT INTO ProjectDocument (id, projectId, documentCode, documentName, category, department, status, requiredAtStage)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [documentId, projectId, 'DOC-REVIEW', 'Contract appendix', 'Contract', 'Legal', 'requested', 'legal_review'],
-    );
 
     const auth = await login('review.manager', 'Manager@123');
     assert.equal(auth.response.status, 200);

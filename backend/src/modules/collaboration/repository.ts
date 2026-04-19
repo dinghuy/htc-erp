@@ -167,18 +167,18 @@ export function createCollaborationRepository() {
   }
 
   async function createEntityThread(input: {
-    id: string;
     entityType: string;
     entityId: string;
     title?: string | null;
     status?: string | null;
     createdBy?: string | null;
   }) {
-    await getDb().run(
-      `INSERT INTO EntityThread (id, entityType, entityId, title, status, createdBy, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [input.id, input.entityType, input.entityId, input.title ?? null, input.status ?? 'active', input.createdBy ?? null]
+    const result = await getDb().run(
+      `INSERT INTO EntityThread (entityType, entityId, title, status, createdBy, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [input.entityType, input.entityId, input.title ?? null, input.status ?? 'active', input.createdBy ?? null]
     );
+    return result.lastID;
   }
 
   function findEntityThreadById(id: string) {
@@ -207,18 +207,18 @@ export function createCollaborationRepository() {
   }
 
   async function createEntityThreadMessage(input: {
-    id: string;
     threadId: string;
     authorUserId?: string | null;
     content: string;
     contentType?: string | null;
   }) {
-    await getDb().run(
-      `INSERT INTO EntityThreadMessage (id, threadId, authorUserId, content, contentType, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-      [input.id, input.threadId, input.authorUserId ?? null, input.content, input.contentType ?? 'text/plain']
+    const result = await getDb().run(
+      `INSERT INTO EntityThreadMessage (threadId, authorUserId, content, contentType, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [input.threadId, input.authorUserId ?? null, input.content, input.contentType ?? 'text/plain']
     );
     await getDb().run(`UPDATE EntityThread SET updatedAt = datetime('now') WHERE id = ?`, [input.threadId]);
+    return result.lastID;
   }
 
   function findEntityThreadMessageById(id: string) {
