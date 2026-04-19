@@ -1,5 +1,6 @@
 import { API_BASE } from './config';
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
+import type { JSX } from 'preact';
 import { showNotify } from './Notification';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
@@ -8,6 +9,7 @@ import type { SystemRole } from './shared/domain/contracts';
 import { useI18n } from './i18n';
 import { GENDER_OPTIONS, normalizeGender } from './gender';
 import { normalizeImportReport, buildImportSummary } from './shared/imports/importReport';
+import { cloneUpdatedViewingUser, supportsUserBulkFileActions, type UserRecord } from './userCrudHelpers';
 import { buildTabularFileUrl } from './shared/imports/tabularFiles';
 import { compressImageForUpload } from './shared/uploads/imageCompression';
 import { ConfirmDialog } from './ui/ConfirmDialog';
@@ -527,8 +529,9 @@ function EditUserModal({ user, onClose, onSaved, token }: any) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Lỗi server');
       }
+      const updatedUser = await res.json();
       showNotify('Đã lưu thay đổi!', 'success');
-      onSaved();
+      onSaved(updatedUser);
       onClose();
     } catch (err: any) {
       showNotify('Lỗi: ' + err.message, 'error');
@@ -926,7 +929,7 @@ function TableActionButton({
   );
 }
 
-function DetailField({ label, value }: { label: string; value?: any }) {
+function DetailField({ label, value }: { label: string; value?: JSX.Element | string | number | null | undefined }) {
   return (
     <div style={{ display: 'grid', gap: '6px' }}>
       <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
@@ -1021,6 +1024,7 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
   const userCanEdit = currentUser ? canEdit(currentUser.roleCodes, currentUser.systemRole) : false;
   const userCanManage = currentUser ? canManageUsers(currentUser.roleCodes, currentUser.systemRole) : false;
   const userCanEditUsers = userCanManage;
+  const userSupportsBulkFileActions = supportsUserBulkFileActions(userCanManage);
   const hasSupplementalCapabilities = directoryData.items.some((item: any) => getSupplementalRoles(item.roleCodes, item.systemRole).length > 0);
   const loadData = async () => {
     setLoading(true);
@@ -1219,19 +1223,21 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
                   flexWrap: 'wrap',
                 }}
               >
-                <FormatActionButton label="Xuất file" buttonStyle={{ ...S.btnOutline, padding: '12px 18px', borderRadius: '14px' }} menuAlign="right" onSelect={exportData} />
                 <button style={{ ...S.btnPrimary, padding: '12px 18px', borderRadius: '14px', justifyContent: 'center' }} onClick={() => setShowAdd(true)}>
                   + Thêm
                 </button>
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <FormatActionButton label={t('common.import_template')} buttonStyle={{ ...ui.btn.ghost, padding: '6px 10px', fontSize: '13px' }} onSelect={downloadTemplate} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} style={{ ...ui.btn.ghost, padding: '6px 10px', fontSize: '13px' }}>
-              {t('common.import_file')}
-            </button>
-          </div>
+          {userSupportsBulkFileActions ? (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <FormatActionButton label="Xuất file" buttonStyle={{ ...S.btnOutline, padding: '12px 18px', borderRadius: '14px' }} menuAlign="right" onSelect={exportData} />
+              <FormatActionButton label={t('common.import_template')} buttonStyle={{ ...ui.btn.ghost, padding: '6px 10px', fontSize: '13px' }} onSelect={downloadTemplate} />
+              <button type="button" onClick={() => fileInputRef.current?.click()} style={{ ...ui.btn.ghost, padding: '6px 10px', fontSize: '13px' }}>
+                {t('common.import_file')}
+              </button>
+            </div>
+          ) : null}
         </div>
       );
     }
@@ -1389,7 +1395,21 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} variant="warning" confirmLabel="Xác nhận" />}
       {showAdd && <AddUserModal onClose={() => setShowAdd(false)} onSaved={loadData} token={token} />}
-      {editingUser && <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSaved={loadData} token={token} />}
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSaved={(updatedUser: UserRecord) => {
+            setUsers((current) => current.map((item: any) => item.id === updatedUser.id ? {
+              ...updatedUser,
+              roleCodes: normalizeRoleCodes(updatedUser.roleCodes, updatedUser.systemRole),
+            } : item));
+            setEditingUser((current: UserRecord | null) => current?.id === updatedUser.id ? updatedUser : current);
+            setViewingUser((current: UserRecord | null) => cloneUpdatedViewingUser(current, updatedUser));
+          }}
+          token={token}
+        />
+      )}
       <SidePanel open={!!viewingUser} title={viewingUser?.fullName || ''} subtitle={userCanManage ? 'Employee record & access profile' : 'Employee directory profile'} onClose={() => setViewingUser(null)}>
         {viewingUser ? <div style={{ display: 'grid', gap: '20px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><UserAvatar avatar={viewingUser.avatar} fullName={viewingUser.fullName} size={56} /><div style={{ display: 'grid', gap: '6px' }}><div style={{ fontSize: '18px', fontWeight: 900, color: tokens.colors.textPrimary }}>{viewingUser.fullName}</div><div style={{ fontSize: '13px', color: tokens.colors.textSecondary }}>{viewingUser.role || ROLE_LABELS[buildRoleProfile(viewingUser.roleCodes, viewingUser.systemRole).primaryRole]}</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}><EmploymentStatusBadge status={viewingUser.status} />{userCanManage ? <AccountStatusBadge status={viewingUser.accountStatus} /> : null}{userCanManage ? <PasswordStateBadge mustChangePassword={viewingUser.mustChangePassword} /> : null}</div></div></div>{userCanManage ? <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', borderBottom: `1px solid ${tokens.colors.border}`, paddingBottom: '12px' }}>{[{ key: 'profile', label: 'Profile' }, { key: 'access', label: 'Access' }, { key: 'security', label: 'Security' }, { key: 'activity', label: 'Activity' }].map((tab) => <button key={tab.key} onClick={() => setPanelTab(tab.key as any)} style={{ ...ui.btn.outline, padding: '8px 12px', background: panelTab === tab.key ? tokens.colors.primary : tokens.colors.surface, color: panelTab === tab.key ? tokens.colors.textOnPrimary : tokens.colors.textSecondary, borderColor: panelTab === tab.key ? tokens.colors.primary : tokens.colors.border }}>{tab.label}</button>)}</div> : null}{!userCanManage || panelTab === 'profile' ? <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}><DetailField label="Mã nhân sự" value={viewingUser.employeeCode} /><DetailField label="Phòng ban" value={viewingUser.department} /><DetailField label="Chức vụ" value={viewingUser.role} /><DetailField label="Email" value={viewingUser.email} /><DetailField label="Điện thoại" value={viewingUser.phone} /><DetailField label="Ngày vào công ty" value={viewingUser.startDate ? formatDate(viewingUser.startDate) : '-'} /><div style={{ gridColumn: '1 / -1' }}><DetailField label="Địa chỉ" value={viewingUser.address} /></div></div> : null}{userCanManage && panelTab === 'access' ? <div style={{ display: 'grid', gap: '18px' }}><DetailField label="Username" value={viewingUser.username} /><DetailField label="Primary role" value={ROLE_LABELS[buildRoleProfile(viewingUser.roleCodes, viewingUser.systemRole).primaryRole]} /><div style={{ display: 'grid', gap: '8px' }}><div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Capability roles</div><CapabilitySummary roleCodes={normalizeRoleCodes(viewingUser.roleCodes, viewingUser.systemRole)} systemRole={viewingUser.systemRole} emptyLabel="No extra capabilities" /></div></div> : null}{userCanManage && panelTab === 'security' ? <div style={{ display: 'grid', gap: '16px' }}><div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}><DetailField label="Account status" value={<AccountStatusBadge status={viewingUser.accountStatus} />} /><DetailField label="Password state" value={<PasswordStateBadge mustChangePassword={viewingUser.mustChangePassword} />} /><DetailField label="Last login" value={formatDate(viewingUser.lastLoginAt)} /><DetailField label="Employment status" value={<EmploymentStatusBadge status={viewingUser.status} />} /></div><div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>{userCanManage ? <button onClick={() => handleLockToggle(viewingUser)} style={ui.btn.outline}>{viewingUser.accountStatus === 'locked' || viewingUser.accountStatus === 'suspended' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}</button> : null}{userCanEditUsers ? <button onClick={() => { setEditingUser(viewingUser); setViewingUser(null); }} style={ui.btn.primary}>Chỉnh username / mật khẩu tạm / force reset</button> : null}</div></div> : null}{userCanManage && panelTab === 'activity' ? <div style={{ display: 'grid', gap: '12px' }}><DetailField label="Last login" value={formatDate(viewingUser.lastLoginAt)} /><DetailField label="Language" value={viewingUser.language || 'vi'} /></div> : null}</div> : null}
       </SidePanel>

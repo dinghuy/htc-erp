@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { normalizeGender } from '../../../gender';
 import { normalizeRoleCodes, resolvePrimaryRole, roleCodesToJson } from '../../shared/auth/roles';
 import { createImportReport, type ParsedImportRow } from '../../shared/imports/tabular';
+import { normalizeCreateMustChangePassword } from './createPayload';
 import { createUsersRepository, usersRepository } from './repository';
 
 type CreateUsersServiceDeps = {
@@ -126,7 +127,7 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
       address: payload.address ? String(payload.address) : null,
       startDate: payload.startDate ? String(payload.startDate) : null,
       accountStatus: payload.accountStatus || 'active',
-      mustChangePassword: 1,
+      mustChangePassword: normalizeCreateMustChangePassword(payload.mustChangePassword),
       language: normalizeCreateLanguage(payload.language),
     });
 
