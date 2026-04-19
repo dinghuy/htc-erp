@@ -706,7 +706,7 @@ export function Projects({
     try {
       const [projectsData, usersData, accountsData] = await Promise.all([
         requestJsonWithAuth(currentUser.token, `${API}/projects`, {}, 'Không thể tải danh sách dự án'),
-        requestJsonWithAuth(currentUser.token, `${API}/users`, {}, 'Không thể tải danh sách người dùng'),
+        requestJsonWithAuth(currentUser.token, `${API}/users/directory`, {}, 'Không thể tải danh sách người dùng'),
         requestJsonWithAuth(currentUser.token, `${API}/accounts`, {}, 'Không thể tải danh sách account'),
       ]);
       const normalizedProjects = ensureArray(projectsData);

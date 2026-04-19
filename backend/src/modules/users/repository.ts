@@ -101,6 +101,26 @@ type UserRoleNormalizationRecord = {
   roleCodes: string | null;
 };
 
+export type UserDirectoryRecord = {
+  id: string;
+  fullName: string;
+  email?: string | null;
+  phone?: string | null;
+  username?: string | null;
+  systemRole?: string | null;
+  department?: string | null;
+  employeeCode?: string | null;
+  role?: string | null;
+  status?: string | null;
+  avatar?: string | null;
+  lastLoginAt?: string | null;
+};
+
+const USER_DIRECTORY_SELECT = `
+  SELECT id, fullName, email, phone, username, systemRole, department, employeeCode, role, status, avatar, lastLoginAt
+  FROM User
+`;
+
 export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
   const getDbInstance = deps.getDb ?? getDb;
 
@@ -110,6 +130,22 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
 
   function findUserById(id: string) {
     return getDbInstance().get(`${USER_ROUTE_SELECT} WHERE id = ?`, [id]) as Promise<UserRouteRecord | undefined>;
+  }
+
+  function listUserDirectory() {
+    return getDbInstance().all(`${USER_DIRECTORY_SELECT} ORDER BY fullName`) as Promise<UserDirectoryRecord[]>;
+  }
+
+  function findUserDirectoryById(id: string) {
+    return getDbInstance().get(`${USER_DIRECTORY_SELECT} WHERE id = ?`, [id]) as Promise<UserDirectoryRecord | undefined>;
+  }
+
+  function findUsersDirectoryByIds(ids: string[]) {
+    if (ids.length === 0) {
+      return Promise.resolve([] as UserDirectoryRecord[]);
+    }
+    const placeholders = ids.map(() => '?').join(', ');
+    return getDbInstance().all(`${USER_DIRECTORY_SELECT} WHERE id IN (${placeholders}) ORDER BY fullName`, ids) as Promise<UserDirectoryRecord[]>;
   }
 
   function findUserPasswordHashById(id: string) {
@@ -234,6 +270,9 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
   return {
     listUsers,
     findUserById,
+    listUserDirectory,
+    findUserDirectoryById,
+    findUsersDirectoryByIds,
     findUserPasswordHashById,
     findUserIdentityById,
     createUser,

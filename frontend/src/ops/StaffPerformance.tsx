@@ -258,7 +258,7 @@ export function StaffPerformance({ currentUser, isMobile, onNavigate, token }: P
       try {
         setLoading(true);
         setError(null);
-        const [summaryRes, usersRes, tasksRes] = await Promise.allSettled([apiGet(`${API}/ops/summary`), apiGet(`${API}/users`), apiGet(`${API}/tasks`)]);
+        const [summaryRes, usersRes, tasksRes] = await Promise.allSettled([apiGet(`${API}/ops/summary`), apiGet(`${API}/users/directory`), apiGet(`${API}/tasks`)]);
         if (cancelled) return;
         if (summaryRes.status === 'fulfilled') setSummary(summaryRes.value || {});
         if (usersRes.status === 'fulfilled') setUsers(Array.isArray(usersRes.value) ? usersRes.value : []);

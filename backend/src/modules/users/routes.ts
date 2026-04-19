@@ -33,24 +33,51 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
     mapGenderRecords,
   } = deps;
 
-  app.get('/api/users', requireAuth, ah(async (_req: Request, res: Response) => {
+  app.get('/api/users', requireAuth, requireRole('admin'), ah(async (_req: Request, res: Response) => {
     const rows = await usersService.listUsers();
     res.json(mapGenderRecords(rows));
   }));
 
+  app.get('/api/users/directory', requireAuth, ah(async (_req: Request, res: Response) => {
+    const rows = await usersService.listUserDirectory();
+    res.json(rows);
+  }));
+
   app.get('/api/users/:id', requireAuth, ah(async (req: Request, res: Response) => {
     const userId = routeParam(req.params.id);
+    const currentUser = (req as any).user;
+    const isSelf = String(currentUser?.id || '') === userId;
+    const isAdmin = Array.isArray(currentUser?.baseRoleCodes)
+      ? currentUser.baseRoleCodes.includes('admin')
+      : false;
+    if (!isSelf && !isAdmin) {
+      return res.status(403).json({ error: 'Không có quyền thực hiện thao tác này' });
+    }
     const row = await usersService.getUserById(userId);
     if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(mapGenderRecord(row));
   }));
 
-  app.post('/api/users', requireAuth, requireRole('admin', 'manager'), ah(async (req: Request, res: Response) => {
+  app.get('/api/users/:id/directory', requireAuth, ah(async (req: Request, res: Response) => {
+    const userId = routeParam(req.params.id);
+    const row = await usersService.getUserDirectoryById(userId);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
+  }));
+
+  app.get('/api/users/directory/by-ids', requireAuth, ah(async (req: Request, res: Response) => {
+    const rawIds = String(req.query.ids || '').trim();
+    const ids = rawIds.split(',').map((value) => value.trim()).filter(Boolean);
+    const rows = await usersService.listUserDirectoryByIds(Array.from(new Set(ids)));
+    res.json(rows);
+  }));
+
+  app.post('/api/users', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
     const row = await usersService.createUser(req.body ?? {});
     res.status(201).json(mapGenderRecord(row));
   }));
 
-  app.put('/api/users/:id', requireAuth, requireRole('admin', 'manager'), ah(async (req: Request, res: Response) => {
+  app.put('/api/users/:id', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
     const userId = routeParam(req.params.id);
     const row = await usersService.updateUser(userId, req.body ?? {});
     if (!row) return res.status(404).json({ error: 'Not found' });
@@ -68,6 +95,14 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
   app.post('/api/users/:id/avatar', requireAuth, upload.single('avatar'), ah(async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const userId = routeParam(req.params.id);
+    const currentUser = (req as any).user;
+    const isSelf = String(currentUser?.id || '') === userId;
+    const isAdmin = Array.isArray(currentUser?.baseRoleCodes)
+      ? currentUser.baseRoleCodes.includes('admin')
+      : false;
+    if (!isSelf && !isAdmin) {
+      return res.status(403).json({ error: 'Không có quyền thực hiện thao tác này' });
+    }
     const existing = await usersService.getUserById(userId);
     if (!existing) return res.status(404).json({ error: 'Not found' });
     if (!String(req.file.mimetype || '').startsWith('image/')) {

@@ -211,6 +211,69 @@ async function main() {
     assert.equal(relogin.body.user.mustChangePassword, false);
   });
 
+  await run('user management endpoints require admin role for list and create', async () => {
+    const pmUserId = await seedUser({
+      username: 'pm-user',
+      password: 'Pm@123456',
+      systemRole: 'project_manager',
+      fullName: 'Project Manager User',
+    });
+
+    const pmLogin = await login('pm-user', 'Pm@123456');
+    assert.equal(pmLogin.response.status, 200);
+
+    const listAttempt = await api('/api/users', {
+      headers: { Authorization: `Bearer ${pmLogin.body.token}` },
+    });
+    assert.equal(listAttempt.response.status, 403);
+
+    const directoryAttempt = await api('/api/users/directory', {
+      headers: { Authorization: `Bearer ${pmLogin.body.token}` },
+    });
+    assert.equal(directoryAttempt.response.status, 200);
+    assert.ok(Array.isArray(directoryAttempt.body));
+    assert.equal(directoryAttempt.body.some((user) => Object.prototype.hasOwnProperty.call(user, 'accountStatus')), false);
+    assert.equal(directoryAttempt.body.some((user) => Object.prototype.hasOwnProperty.call(user, 'roleCodes')), false);
+
+    const selfReadAttempt = await api(`/api/users/${pmUserId}`, {
+      headers: { Authorization: `Bearer ${pmLogin.body.token}` },
+    });
+    assert.equal(selfReadAttempt.response.status, 200);
+
+    const adminReadAttempt = await api('/api/users/1', {
+      headers: { Authorization: `Bearer ${pmLogin.body.token}` },
+    });
+    assert.equal(adminReadAttempt.response.status, 403);
+
+    const createAttempt = await api('/api/users', {
+      method: 'POST',
+      headers: bearer(pmLogin.body.token),
+      body: JSON.stringify({
+        fullName: 'Unauthorized Create',
+        username: 'unauthorized.create',
+        password: 'Pass@123',
+        systemRole: 'viewer',
+      }),
+    });
+    assert.equal(createAttempt.response.status, 403);
+
+    const updateAttempt = await api(`/api/users/${pmUserId}`, {
+      method: 'PUT',
+      headers: bearer(pmLogin.body.token),
+      body: JSON.stringify({
+        fullName: 'Unauthorized Update',
+        systemRole: 'viewer',
+      }),
+    });
+    assert.equal(updateAttempt.response.status, 403);
+
+    const avatarAttempt = await api('/api/users/1/avatar', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${pmLogin.body.token}` },
+    });
+    assert.equal(avatarAttempt.response.status, 400);
+  });
+
   await run('locked accounts cannot log in', async () => {
     const db = getDb();
     await db.run("UPDATE User SET accountStatus = 'locked' WHERE username = ?", ['admin']);
