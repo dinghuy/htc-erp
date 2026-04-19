@@ -4,7 +4,12 @@ import { FeatureRouteShell } from '../shared/FeatureRouteShell';
 
 const EquipmentScreen = lazy(async () => {
   const module = await import('../../Products');
-  return { default: module.Products };
+  return {
+    default: (props: {
+      isMobile?: boolean;
+      currentUser?: CurrentUser;
+    }) => <module.Products {...props} />,
+  };
 });
 
 export function EquipmentRoute({
