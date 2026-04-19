@@ -493,20 +493,6 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
     }
   };
 
-  const createSalesOrderFromQuotation = async (quotation: QuotationRow) => {
-    try {
-      const res = await fetchWithAuth(token, `${API}/sales-orders/from-quotation/${quotation.id}`, { method: 'POST' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Không thể tạo sales order');
-      }
-      showNotify('Đã tạo sales order', 'success');
-      await loadData();
-    } catch (error: any) {
-      showNotify(error?.message || 'Không thể tạo sales order', 'error');
-    }
-  };
-
   // Deep link support: open a quotation by id when navigated from Tasks/Notifications.
   useEffect(() => {
     const ctx = consumeNavContext();
@@ -569,8 +555,8 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
         quoteDate={quoteDate}
         setQuoteDate={setQuoteDate}
         projects={projOptions}
-        selectedScopeId={selectedScopeId}
-        setSelectedScopeId={setSelectedScopeId}
+        selectedProjectId={selectedScopeId}
+        setSelectedProjectId={setSelectedScopeId}
         revisionNo={revisionNo}
         setRevisionNo={setRevisionNo}
         revisionLabel={revisionLabel}
@@ -579,7 +565,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
         setChangeReason={setChangeReason}
         subject={subject}
         setSubject={setSubject}
-        {...{ ['selected' + String.fromCharCode(80, 114, 111, 106, 101, 99, 116)]: selectedScope }}
+        selectedProject={selectedScope}
         accounts={accounts}
         selectedAccId={selectedAccId}
         setSelectedAccId={setSelectedAccId}

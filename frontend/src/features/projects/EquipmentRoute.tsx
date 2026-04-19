@@ -16,9 +16,10 @@ export function EquipmentRoute({
   currentUser: CurrentUser;
   onNavigate?: (route: string) => void;
 }) {
+  void onNavigate;
   return (
     <FeatureRouteShell fallbackMessage="Đang tải danh mục sản phẩm...">
-      <EquipmentScreen isMobile={isMobile} currentUser={currentUser} onNavigate={onNavigate} />
+      <EquipmentScreen isMobile={isMobile} currentUser={currentUser} />
     </FeatureRouteShell>
   );
 }

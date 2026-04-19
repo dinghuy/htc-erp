@@ -12,6 +12,7 @@ import {
   PREVIEW_PAGE_HEIGHT,
   PREVIEW_PAGE_WIDTH,
   PREVIEW_SCALE,
+  allowedTransitions,
   getQuotationVatLabel,
   quotationStyles,
 } from './quotationShared';

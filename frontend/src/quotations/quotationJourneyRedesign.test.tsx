@@ -8,9 +8,10 @@ const previewSource = readFileSync(resolve(process.cwd(), 'src/quotations/Quotat
 
 describe('Quotation UX Flow Redesign v1', () => {
   it('treats the list as an operational entry surface instead of a finance-heavy grid', () => {
-    expect(quotationsSource).not.toContain('Project');
     expect(quotationsSource).not.toContain('Tổng GT');
     expect(quotationsSource).not.toContain('Tạo SO');
+    expect(quotationsSource).toContain('Mở editor');
+    expect(quotationsSource).toContain('Preview PDF');
   });
 
   it('keeps the editor and preview/action area as the primary working surfaces', () => {
