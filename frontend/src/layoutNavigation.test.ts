@@ -12,6 +12,7 @@ describe('layout navigation', () => {
     expect(getAppModulePhaseOneExposure('Reports')).toBe('maintenance');
     expect(getAppModulePhaseOneExposure('Ops Chat')).toBe('maintenance');
     expect(getAppModulePhaseOneExposure('Users')).toBe('admin');
+    expect(getAppModulePhaseOneExposure('Settings')).toBe('core');
     expect(getAppModulePhaseOneExposure('Sales')).toBe('core');
     expect(isMaintenanceOnlyModule('Support')).toBe(true);
     expect(isMaintenanceOnlyModule('Projects')).toBe(false);

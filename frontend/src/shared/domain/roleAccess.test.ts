@@ -4,6 +4,7 @@ import {
   APPROVAL_PERMISSION_MAP,
   buildRoleProfile,
   canAccessModule,
+  canAccessSettings,
   canApproveRequest,
   canPerformAction,
   getProjectWorkspaceTabsForRoles,
@@ -57,9 +58,16 @@ describe('role access composition', () => {
     expect(ROLE_MODULE_ACCESS.project_manager).not.toContain('Pricing');
     expect(ROLE_MODULE_ACCESS.sales).not.toContain('Users');
     expect(ROLE_MODULE_ACCESS.sales).not.toContain('Support');
+    expect(ROLE_MODULE_ACCESS.sales).toContain('Settings');
+    expect(canAccessSettings(['sales'])).toBe(true);
+    expect(canAccessSettings(['viewer'])).toBe(true);
+    expect(canAccessSettings(['admin'])).toBe(true);
     expect(ROLE_MODULE_ACCESS.project_manager).not.toContain('Leads');
+    expect(ROLE_MODULE_ACCESS.project_manager).toContain('Settings');
     expect(ROLE_MODULE_ACCESS.director).not.toContain('Users');
+    expect(ROLE_MODULE_ACCESS.director).toContain('Settings');
     expect(ROLE_MODULE_ACCESS.viewer).toContain('Support');
+    expect(ROLE_MODULE_ACCESS.viewer).toContain('Settings');
     expect(ROLE_WORKSPACE_TABS.accounting).toContain('finance');
     expect(ROLE_WORKSPACE_TABS.legal).toContain('legal');
     expect(ROLE_ACTION_PERMISSIONS.admin).toContain('manage_settings');
