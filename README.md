@@ -56,6 +56,8 @@ One-click local startup from repo root:
 .\khoi-chay.bat
 ```
 
+The startup script prefers backend `3001` and frontend `4173`, then falls back to the next free loopback port when another worktree is already using those defaults. It prints the selected URLs before opening the backend and frontend terminals.
+
 ### Frontend
 
 ```powershell
