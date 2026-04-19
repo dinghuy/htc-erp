@@ -126,7 +126,7 @@ async function loadPlaywright() {
     return await import('playwright');
   } catch (error) {
     throw new Error(
-      `Thiếu package "playwright". Chạy "npm install --save-dev playwright" trong frontend trước khi chạy suite này. Gốc lỗi: ${error instanceof Error ? error.message : String(error)}`,
+      `Thiếu package "playwright". Chạy "pnpm --dir frontend install" trước khi chạy suite này. Gốc lỗi: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -246,7 +246,7 @@ async function launchBrowser(playwright) {
     }
   }
 
-  throw new Error(`Không thể khởi chạy browser cho UX audit. Hãy cài browser bằng "npx playwright install chromium", đặt QA_BROWSER_CHANNEL, hoặc mở Chromium/Chrome với remote debugging rồi đặt QA_CDP_URL. Chi tiết: ${launchErrors.join(' | ')}`);
+  throw new Error(`Không thể khởi chạy browser cho UX audit. Hãy cài browser bằng "pnpm --dir frontend exec playwright install chromium", đặt QA_BROWSER_CHANNEL, hoặc mở Chromium/Chrome với remote debugging rồi đặt QA_CDP_URL. Chi tiết: ${launchErrors.join(' | ')}`);
 }
 
 async function expectVisible(page, selector, message, timeout = 12000) {

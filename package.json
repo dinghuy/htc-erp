@@ -1,0 +1,14 @@
+{
+  "name": "htc-erp-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "install:all": "pnpm install",
+    "dev:frontend": "pnpm --dir frontend dev",
+    "dev:backend": "pnpm --dir backend dev",
+    "typecheck:frontend": "pnpm --dir frontend typecheck",
+    "typecheck:backend": "pnpm --dir backend typecheck",
+    "test:frontend": "pnpm --dir frontend test:core",
+    "test:backend": "pnpm --dir backend test:core"
+  }
+}

@@ -80,58 +80,58 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Run commands from the package directory unless noted otherwise.
 
-- No `lint` script is currently defined in the backend or frontend package scripts. Do not assume `npm run lint`; use the listed typecheck/test/build commands instead.
+- No `lint` script is currently defined in the backend or frontend package scripts. Do not assume `pnpm lint`; use the listed typecheck/test/build commands instead.
 
 ### Backend (`backend/`)
 
-- Install: `npm install`
-- Dev server: `npm run dev`
-- Build: `npm run build`
-- Start built server: `npm run start`
-- Typecheck: `npm run typecheck`
-- Core tests: `npm test` or `npm run test:core`
-- Full tests: `npm run test:all`
+- Install: `pnpm install`
+- Dev server: `pnpm --dir backend dev`
+- Build: `pnpm --dir backend build`
+- Start built server: `pnpm --dir backend start`
+- Typecheck: `pnpm --dir backend typecheck`
+- Core tests: `pnpm --dir backend test:core`
+- Full tests: `pnpm --dir backend test:all`
 - Single focused suites:
-  - Auth API: `npm run test:auth`
-  - QA seed API: `npm run test:qa-seed`
+  - Auth API: `pnpm --dir backend test:auth`
+  - QA seed API: `pnpm --dir backend test:qa-seed`
 - DB verification:
-  - Init smoke: `npm run smoke:db-init`
-  - Migration smoke: `npm run smoke:migration`
-  - Seed local DB: `npm run db:seed`
-- Media runtime verification: `npm run verify:media-runtime`
+  - Init smoke: `pnpm --dir backend smoke:db-init`
+  - Migration smoke: `pnpm --dir backend smoke:migration`
+  - Seed local DB: `pnpm --dir backend db:seed`
+- Media runtime verification: `pnpm --dir backend verify:media-runtime`
 - One-off single test file pattern: `node -r ./tests/bootstrap-test-env.js tests/<file>.test.js`
 
 ### Frontend (`frontend/`)
 
-- Install: `npm install`
-- Dev server: `npm run dev`
-- QA dev server on fixed port `4173`: `npm run dev:qa`
-- Build: `npm run build`
-- Preview build: `npm run preview`
-- Typecheck: `npm run typecheck`
-- Contract sync from backend: `npm run sync:contracts`
-- Core tests: `npm test` or `npm run test:core`
-- Full tests: `npm run test:all`
+- Install: `pnpm install`
+- Dev server: `pnpm --dir frontend dev`
+- QA dev server on fixed port `4173`: `pnpm --dir frontend dev:qa`
+- Build: `pnpm --dir frontend build`
+- Preview build: `pnpm --dir frontend preview`
+- Typecheck: `pnpm --dir frontend typecheck`
+- Contract sync from backend: `pnpm --dir frontend sync:contracts`
+- Core tests: `pnpm --dir frontend test:core`
+- Full tests: `pnpm --dir frontend test:all`
 - Targeted suites:
-  - UX contract tests: `npm run test:ux:contracts`
-  - UX audit (PowerShell wrapper): `npm run test:ux:audit`
-  - UX audit headed: `npm run test:ux:audit:headed`
-  - Node entrypoint version: `npm run test:ux:audit:node`
+  - UX contract tests: `pnpm --dir frontend test:ux:contracts`
+  - UX audit (PowerShell wrapper): `pnpm --dir frontend test:ux:audit`
+  - UX audit headed: `pnpm --dir frontend test:ux:audit:headed`
+  - Node entrypoint version: `pnpm --dir frontend test:ux:audit:node`
 - One-off single test file pattern: `node ./scripts/run-vitest-sandbox.mjs src/path/to/test.test.ts`
 
 ### Cross-surface verification order
 
-- Shared contract changes: run `backend/npm run typecheck`, then `frontend/npm run sync:contracts`, then frontend typecheck/tests/build.
-- Backend delivery gate from docs: `npm run typecheck && npm run build && npm run smoke:db-init && npm run smoke:migration && npm run test:core`
-- Frontend delivery gate from docs: `npm run sync:contracts && npm run typecheck && npm run build && npm run test:core`
+- Shared contract changes: run `pnpm --dir backend typecheck`, then `pnpm --dir frontend sync:contracts`, then frontend typecheck/tests/build.
+- Backend delivery gate from docs: `pnpm --dir backend typecheck && pnpm --dir backend build && pnpm --dir backend smoke:db-init && pnpm --dir backend smoke:migration && pnpm --dir backend test:core`
+- Frontend delivery gate from docs: `pnpm --dir frontend sync:contracts && pnpm --dir frontend typecheck && pnpm --dir frontend build && pnpm --dir frontend test:core`
 
 ### Quick verification matrix
 
-- UI-only change: `frontend/npm run typecheck && npm run test:core && npm run build`
-- API/backend-only change: `backend/npm run typecheck && npm run build && npm run test:core`
-- Shared contract change: `backend/npm run typecheck && frontend/npm run sync:contracts && npm run typecheck && npm run test:core && npm run build`
-- DB/bootstrap/migration change: `backend/npm run typecheck && npm run build && npm run smoke:db-init && npm run smoke:migration && npm run test:core`
-- User-facing UI regression-sensitive change: start with the UI-only gate, then add `frontend/npm run test:ux:contracts` and browser/UX audit when the change affects shell/layout/overlay behavior
+- UI-only change: `pnpm --dir frontend typecheck && pnpm --dir frontend test:core && pnpm --dir frontend build`
+- API/backend-only change: `pnpm --dir backend typecheck && pnpm --dir backend build && pnpm --dir backend test:core`
+- Shared contract change: `pnpm --dir backend typecheck && pnpm --dir frontend sync:contracts && pnpm --dir frontend typecheck && pnpm --dir frontend test:core && pnpm --dir frontend build`
+- DB/bootstrap/migration change: `pnpm --dir backend typecheck && pnpm --dir backend build && pnpm --dir backend smoke:db-init && pnpm --dir backend smoke:migration && pnpm --dir backend test:core`
+- User-facing UI regression-sensitive change: start with the UI-only gate, then add `pnpm --dir frontend test:ux:contracts` and browser/UX audit when the change affects shell/layout/overlay behavior
 
 ## Architecture Snapshot
 

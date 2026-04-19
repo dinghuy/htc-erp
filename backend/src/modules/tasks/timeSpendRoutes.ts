@@ -14,6 +14,11 @@ export function registerTimeSpendRoutes(app: Express, deps: RegisterTimeSpendRou
   const repo = timeSpendRepository;
 
   const getSingleParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
+  const parseNumericId = (value: string | undefined) => {
+    if (!value) return null;
+    const numericId = Number(value);
+    return Number.isInteger(numericId) ? numericId : null;
+  };
   const mapWorklogRow = (row: any) => ({
     id: row.id,
     projectId: row.projectId ?? null,
@@ -46,8 +51,8 @@ export function registerTimeSpendRoutes(app: Express, deps: RegisterTimeSpendRou
 
   // Get single time report
   app.get('/api/time-reports/:id', ah(async (req: Request, res: Response) => {
-    const id = getSingleParam(req.params.id);
-    if (!id) return res.status(400).json({ error: 'id is required' });
+    const id = parseNumericId(getSingleParam(req.params.id));
+    if (id == null) return res.status(400).json({ error: 'id is required' });
     const row = await repo.findById(id);
     if (!row) return res.status(404).json({ error: 'Time report not found' });
     res.json(row);
@@ -73,8 +78,8 @@ export function registerTimeSpendRoutes(app: Express, deps: RegisterTimeSpendRou
 
   // Update time report
   app.put('/api/time-reports/:id', ah(async (req: Request, res: Response) => {
-    const id = getSingleParam(req.params.id);
-    if (!id) return res.status(400).json({ error: 'id is required' });
+    const id = parseNumericId(getSingleParam(req.params.id));
+    if (id == null) return res.status(400).json({ error: 'id is required' });
     const { reportDate, hours, description } = req.body;
     const row = await repo.updateById(id, {
       reportDate: reportDate != null ? String(reportDate) : undefined,
@@ -87,8 +92,8 @@ export function registerTimeSpendRoutes(app: Express, deps: RegisterTimeSpendRou
 
   // Delete time report
   app.delete('/api/time-reports/:id', ah(async (req: Request, res: Response) => {
-    const id = getSingleParam(req.params.id);
-    if (!id) return res.status(400).json({ error: 'id is required' });
+    const id = parseNumericId(getSingleParam(req.params.id));
+    if (id == null) return res.status(400).json({ error: 'id is required' });
     await repo.deleteById(id);
     res.json({ success: true });
   }));

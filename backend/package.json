@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run test:core",
-    "test:all": "npm run test:core && npm run test:noncore",
+    "test": "pnpm run test:core",
+    "test:all": "pnpm run test:core && pnpm run test:noncore",
     "test:core": "node -r ./tests/bootstrap-test-env.js tests/auth-api.test.js && node -r ./tests/bootstrap-test-env.js tests/auth-local-admin-id-repair.test.js && node -r ./tests/bootstrap-test-env.js tests/security-hardening-api.test.js && node -r ./tests/bootstrap-test-env.js tests/workspace-api.test.js && node -r ./tests/bootstrap-test-env.js tests/qa-seed-api.test.js && node -r ./tests/bootstrap-test-env.js tests/api-v1-alias.test.js && node -r ./tests/bootstrap-test-env.js tests/pricing-api.test.js && node -r ./tests/bootstrap-test-env.js tests/pricing-compute.test.js && node -r ./tests/bootstrap-test-env.js tests/activities-api.test.js && node -r ./tests/bootstrap-test-env.js tests/db-init.test.js && node -r ./tests/bootstrap-test-env.js tests/cors-api.test.js && node -r ./tests/bootstrap-test-env.js tests/quotation-create-flow.test.js && node -r ./tests/bootstrap-test-env.js tests/revenue-flow-contracts.test.js && node -r ./tests/bootstrap-test-env.js tests/route-boundary-guard.test.js && node -r ./tests/bootstrap-test-env.js tests/work-hub-api.test.js && node -r ./tests/bootstrap-test-env.js tests/work-hub-phase2-api.test.js && node -r ./tests/bootstrap-test-env.js tests/task-view-presets-api.test.js && node -r ./tests/bootstrap-test-env.js tests/project-activity-stream-api.test.js && node -r ./tests/bootstrap-test-env.js tests/task-checklist-api.test.js && node -r ./tests/bootstrap-test-env.js tests/task-subtasks-api.test.js && node -r ./tests/bootstrap-test-env.js tests/task-bulk-actions-api.test.js && node -r ./tests/bootstrap-test-env.js tests/task-reorder-api.test.js && node -r ./tests/bootstrap-test-env.js tests/project-task-reorder-api.test.js",
     "test:noncore": "node -r ./tests/bootstrap-test-env.js tests/gender-api.test.js && node -r ./tests/bootstrap-test-env.js tests/support-api.test.js && node -r ./tests/bootstrap-test-env.js tests/products-api.test.js && node -r ./tests/bootstrap-test-env.js tests/tabular-import-api.test.js",
     "test:auth": "node -r ./tests/bootstrap-test-env.js tests/auth-api.test.js",
@@ -18,7 +18,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "sync:contracts": "node ../scripts/sync-shared-contracts.mjs",
-    "verify:media-runtime": "npm run build && node -r ./tests/bootstrap-test-env.js scripts/verify-product-media-runtime.js"
+    "verify:media-runtime": "pnpm run build && node -r ./tests/bootstrap-test-env.js scripts/verify-product-media-runtime.js"
   },
   "keywords": [],
   "author": "",

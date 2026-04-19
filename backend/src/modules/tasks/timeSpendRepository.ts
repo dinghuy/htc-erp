@@ -1,8 +1,7 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../../sqlite-db';
 
 export type TimeSpendReportRow = {
-  id: string;
+  id: number;
   taskId: string;
   userId: string;
   reportDate: string;
@@ -36,21 +35,20 @@ export function createTimeSpendRepository() {
       );
     },
 
-    findById(id: string) {
+    findById(id: number) {
       return getDb().get<TimeSpendReportRow>('SELECT * FROM TimeSpendReport WHERE id = ?', [id]);
     },
 
     async create(input: { taskId: string; userId: string; reportDate: string; hours: number; description?: string | null }) {
-      const id = uuidv4();
-      await getDb().run(
-        `INSERT INTO TimeSpendReport (id, taskId, userId, reportDate, hours, description, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-        [id, input.taskId, input.userId, input.reportDate, input.hours, input.description ?? null]
+      const result = await getDb().run(
+        `INSERT INTO TimeSpendReport (taskId, userId, reportDate, hours, description, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        [input.taskId, input.userId, input.reportDate, input.hours, input.description ?? null]
       );
-      return this.findById(id);
+      return this.findById(Number(result.lastID));
     },
 
-    async updateById(id: string, input: Partial<Pick<TimeSpendReportRow, 'reportDate' | 'hours' | 'description'>>) {
+    async updateById(id: number, input: Partial<Pick<TimeSpendReportRow, 'reportDate' | 'hours' | 'description'>>) {
       const existing = await this.findById(id);
       if (!existing) return null;
       await getDb().run(
@@ -66,7 +64,7 @@ export function createTimeSpendRepository() {
       return this.findById(id);
     },
 
-    deleteById(id: string) {
+    deleteById(id: number) {
       return getDb().run('DELETE FROM TimeSpendReport WHERE id = ?', [id]);
     },
 

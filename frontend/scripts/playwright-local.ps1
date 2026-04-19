@@ -10,7 +10,7 @@ $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $playwrightCmd = Join-Path $projectRoot 'node_modules\.bin\playwright.cmd'
 
 if (-not (Test-Path $playwrightCmd)) {
-  throw "Cannot find Playwright at $playwrightCmd. Run .\scripts\npm-local.ps1 install first."
+  throw "Cannot find Playwright at $playwrightCmd. Run pnpm --dir frontend install first."
 }
 
 # Keep browser downloads inside the project to avoid AppData permission issues.

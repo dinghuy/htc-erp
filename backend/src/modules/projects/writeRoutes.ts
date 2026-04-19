@@ -18,7 +18,9 @@ const PROJECT_BLOCKER_STATUSES = ['open', 'watch', 'resolved'] as const;
 const PROJECT_BLOCKER_TONES = ['warning', 'danger', 'info'] as const;
 
 function stringValue(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
 }
 
 function optionalString(value: unknown) {
