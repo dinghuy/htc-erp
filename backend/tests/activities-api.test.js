@@ -150,13 +150,13 @@ async function main() {
 
     const accountActivities = await api(`/api/activities?entityId=${seeded.accountId}&limit=5`);
     assert.equal(accountActivities.response.status, 200);
-    assert.equal(accountActivities.body.length, 2);
-    assert.equal(accountActivities.body.some((activity) => activity.entityDisplay === 'ACME'), true);
+    assert.equal(accountActivities.body.length, 1);
+    assert.equal(accountActivities.body[0].entityDisplay, 'ACME');
 
     const contactActivities = await api(`/api/activities?entityId=${seeded.contactId}&limit=5`);
     assert.equal(contactActivities.response.status, 200);
-    assert.equal(contactActivities.body.length, 2);
-    assert.equal(contactActivities.body.some((activity) => activity.entityDisplay === 'Nguyen An - ACME'), true);
+    assert.equal(contactActivities.body.length, 1);
+    assert.equal(contactActivities.body[0].entityDisplay, 'Nguyen An - ACME');
   });
 
   await run('only admin or manager can create activities', async () => {

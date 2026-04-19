@@ -4,7 +4,7 @@ import type { JSX } from 'preact';
 import { showNotify } from './Notification';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
-import { buildRoleProfile, type CurrentUser, canEdit, canManageUsers, fetchWithAuth, normalizeRoleCodes, ROLE_LABELS } from './auth';
+import { buildRoleProfile, type CurrentUser, canManageUsers, fetchWithAuth, normalizeRoleCodes, ROLE_LABELS } from './auth';
 import type { SystemRole } from './shared/domain/contracts';
 import { useI18n } from './i18n';
 import { GENDER_OPTIONS, normalizeGender } from './gender';
@@ -1021,7 +1021,6 @@ export function Users({ isMobile, currentUser }: { isMobile?: boolean; currentUs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const directoryData = useUserDirectoryData(users);
   const token = currentUser?.token ?? '';
-  const userCanEdit = currentUser ? canEdit(currentUser.roleCodes, currentUser.systemRole) : false;
   const userCanManage = currentUser ? canManageUsers(currentUser.roleCodes, currentUser.systemRole) : false;
   const userCanEditUsers = userCanManage;
   const userSupportsBulkFileActions = supportsUserBulkFileActions(userCanManage);

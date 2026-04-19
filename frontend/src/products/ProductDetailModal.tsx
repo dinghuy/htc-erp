@@ -562,7 +562,6 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
         </div>
         </div>
       </div>
-    </div>
     </OverlayModal>
   );
 }

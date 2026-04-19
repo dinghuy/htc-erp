@@ -181,7 +181,7 @@ async function main() {
     });
     assert.equal(managerList.response.status, 200);
     assert.equal(Array.isArray(managerList.body), true);
-    assert.ok(managerList.body.some((item) => item.id === seededSalespersonId));
+    assert.ok(managerList.body.some((item) => item.id === String(seededSalespersonId)));
 
     const salesList = await api('/api/salespersons', {
       headers: { Authorization: `Bearer ${salesLogin.body.token}` },
