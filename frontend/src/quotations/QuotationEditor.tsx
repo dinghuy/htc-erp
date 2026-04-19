@@ -167,8 +167,17 @@ export function QuotationEditor(props: QuotationEditorProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <fieldset disabled={isReadOnly} style={{ border: 'none', padding: 0, margin: 0 }}>
         <div style={{ ...S.card, padding: '24px' }}>
-          <div style={S.sectionTitle}>0. Tiêu đề & Ngày Báo giá</div>
+          <div style={S.sectionTitle}>0. Nội dung báo giá</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <FormField label="Subject / Nội dung báo giá" span={2}>
+              <input
+                type="text"
+                placeholder="VD: Báo giá xe nâng Reach Stacker cho Cảng Hải Phòng"
+                style={S.input}
+                value={subject}
+                onInput={(event: any) => setSubject(event.target.value)}
+              />
+            </FormField>
             <FormField label="Số báo giá (Nhập thủ công)">
               <input
                 type="text"
@@ -183,7 +192,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
             </FormField>
             <FormField label="Project / Deal Workspace" span={2}>
               <select style={S.select} value={selectedProjectId} onChange={(event: any) => setSelectedProjectId(event.target.value)}>
-                <option value="">-- Chưa chọn project (hệ thống sẽ tự tạo nếu lưu mới) --</option>
+                <option value="">-- Liên kết project khi cần theo dõi tiếp --</option>
                 {projects.map((project: any) => (
                   <option key={project.id} value={project.id}>
                     {project.code ? `${project.code} · ` : ''}
@@ -192,6 +201,82 @@ export function QuotationEditor(props: QuotationEditorProps) {
                 ))}
               </select>
             </FormField>
+            {(selectedProject || revisionNo > 1 || revisionLabel || changeReason) && (
+              <div
+                style={{
+                  gridColumn: '1/-1',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  alignItems: 'center',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  background: tokens.colors.background,
+                  border: `1px solid ${tokens.colors.border}`,
+                  fontSize: '12px',
+                  color: tokens.colors.textSecondary,
+                }}
+              >
+                {selectedProject && (
+                  <span>
+                    Dự án: <strong>{selectedProject.name}</strong>
+                    {selectedProject.projectStage ? ` · stage ${selectedProject.projectStage}` : ''}
+                  </span>
+                )}
+                <span>
+                  Revision {revisionNo}
+                  {revisionLabel ? ` · ${revisionLabel}` : ''}
+                  {changeReason ? ` · ${changeReason}` : ''}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ ...S.card, padding: '24px' }}>
+          <div style={S.sectionTitle}>0.5. Kiểm soát giá & Tổng tiền</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <FormField label="Có cần tính toán tổng giá">
+              <select
+                style={S.select}
+                value={terms?.isTotalPriceRequired === false ? 'no' : 'yes'}
+                onChange={(event: any) => setTerms({ ...terms, isTotalPriceRequired: event.target.value !== 'no' })}
+              >
+                <option value="yes">Có, hiển thị và tính tổng giá</option>
+                <option value="no">Không, chỉ thể hiện đơn giá từng dòng</option>
+              </select>
+            </FormField>
+            <FormField label="VAT %">
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={terms?.taxRate ?? 8}
+                onInput={(event: any) => setTerms({ ...terms, taxRate: Number(event.currentTarget.value || 0) })}
+                style={S.input}
+              />
+            </FormField>
+            <div
+              style={{
+                gridColumn: '1/-1',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gap: '12px',
+              }}
+            >
+              <div style={{ background: tokens.colors.background, border: `1px solid ${tokens.colors.border}`, borderRadius: '8px', padding: '12px' }}>
+                <div style={{ ...S.label, marginBottom: '4px' }}>Tạm tính</div>
+                <div style={{ fontWeight: 800, color: tokens.colors.primary }}>{totals.subtotal.toLocaleString()} {currency}</div>
+              </div>
+              <div style={{ background: tokens.colors.background, border: `1px solid ${tokens.colors.border}`, borderRadius: '8px', padding: '12px' }}>
+                <div style={{ ...S.label, marginBottom: '4px' }}>VAT</div>
+                <div style={{ fontWeight: 800, color: tokens.colors.primary }}>{totals.taxTotal.toLocaleString()} {currency}</div>
+              </div>
+              <div style={{ background: tokens.colors.background, border: `1px solid ${tokens.colors.border}`, borderRadius: '8px', padding: '12px' }}>
+                <div style={{ ...S.label, marginBottom: '4px' }}>Tổng cộng</div>
+                <div style={{ fontWeight: 800, color: tokens.colors.primary }}>{totals.grandTotal.toLocaleString()} {currency}</div>
+              </div>
+            </div>
             <FormField label="Revision" span={2}>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 160px 1fr', gap: '12px' }}>
                 <input
@@ -211,33 +296,9 @@ export function QuotationEditor(props: QuotationEditorProps) {
                 />
               </div>
             </FormField>
-            <FormField label="Subject / Nội dung báo giá" span={2}>
-              <input
-                type="text"
-                placeholder="VD: Báo giá xe nâng Reach Stacker cho Cảng Hải Phòng"
-                style={S.input}
-                value={subject}
-                onInput={(event: any) => setSubject(event.target.value)}
-              />
-            </FormField>
-            {selectedProject && (
-              <div
-                style={{
-                  gridColumn: '1/-1',
-                  background: tokens.colors.background,
-                  padding: '12px',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                  color: tokens.colors.textSecondary,
-                  border: `1px solid ${tokens.colors.border}`,
-                }}
-              >
-                Workspace hiện tại: <strong>{selectedProject.name}</strong>{' '}
-                {selectedProject.projectStage ? `· stage ${selectedProject.projectStage}` : ''}
-              </div>
-            )}
           </div>
         </div>
+
 
         <div style={{ ...S.card, padding: '24px' }}>
           <div style={S.sectionTitle}>1. Thông tin Khách hàng</div>
@@ -739,7 +800,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
       <PageHeader
         icon={<QuoteIcon size={22} />}
         title="Trình tạo Báo giá"
-        subtitle="Sales Kit — nhập đầy đủ để đồng bộ với template PDF"
+        subtitle="Soạn nội dung, khách hàng, sản phẩm và điều khoản trước khi xem preview hoặc gửi duyệt"
         actions={
           <button
             onClick={() => {
@@ -752,6 +813,21 @@ export function QuotationEditor(props: QuotationEditorProps) {
           </button>
         }
       />
+
+      <div
+        style={{
+          ...S.card,
+          padding: '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        <div style={{ ...S.sectionTitle, marginBottom: 0 }}>Luồng soạn báo giá</div>
+        <div style={{ fontSize: '13px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>
+          Điền nội dung báo giá, chọn khách hàng, thêm sản phẩm và hoàn thiện điều khoản trước. Khu vực preview và hành động giữ nguyên ở cột bên phải để kiểm tra lần cuối.
+        </div>
+      </div>
 
       {isMobile && (
         <div style={{ display: 'flex', gap: '8px', borderBottom: `1px solid ${tokens.colors.border}`, paddingBottom: '8px' }}>

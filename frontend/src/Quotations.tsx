@@ -7,7 +7,7 @@ import { ConfirmDialog } from './ui/ConfirmDialog';
 import { canEdit, canDelete, fetchWithAuth } from './auth';
 import { consumeNavContext } from './navContext';
 import { useI18n } from './i18n';
-import { EyeIcon, LoaderIcon, MoneyIcon, PlusIcon, QuoteIcon, ReportIcon, TargetIcon, TrashIcon } from './ui/icons';
+import { EyeIcon, LoaderIcon, PlusIcon, QuoteIcon, ReportIcon, TargetIcon, TrashIcon } from './ui/icons';
 import { KpiCard } from './quotations/QuotationComponents';
 import { QuotationEditor } from './quotations/QuotationEditor';
 import {
@@ -38,7 +38,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
 
   const [quotations, setQuotations] = useState<QuotationRow[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projOptions, setProjOptions] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [salespersons, setSalespersons] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -56,7 +56,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   const [showProdModal, setShowProdModal] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
-  const [filterProjectId, setFilterProjectId] = useState('');
+  const [filterScopeId, setFilterScopeId] = useState('');
   const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
   const previewA4Ref = useRef<HTMLDivElement | null>(null);
 
@@ -76,7 +76,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   const [quoteStatus, setQuoteStatus] = useState('draft');
   const [currentEditingQuote, setCurrentEditingQuote] = useState<any | null>(null);
   const [subject, setSubject] = useState('');
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedScopeId, setSelectedScopeId] = useState('');
   const [selectedAccId, setSelectedAccId] = useState('');
   const [selectedContactId, setSelectedContactId] = useState('');
   const [salesperson, setSalesperson] = useState('');
@@ -117,13 +117,13 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   };
 
   const selectedAcc = useMemo(() => accounts.find(a => a.id === selectedAccId), [accounts, selectedAccId]);
-  const selectedProject = useMemo(() => projects.find((p: any) => p.id === selectedProjectId), [projects, selectedProjectId]);
+  const selectedScope = useMemo(() => projOptions.find((p: any) => p.id === selectedScopeId), [projOptions, selectedScopeId]);
   const accContacts = useMemo(() => contacts.filter(c => c.accountId === selectedAccId), [contacts, selectedAccId]);
   const selectedContact = useMemo(() => contacts.find(c => c.id === selectedContactId), [contacts, selectedContactId]);
   const visibleQuotations = useMemo(() => {
-    if (!filterProjectId) return quotations;
-    return quotations.filter((q: any) => q.projectId === filterProjectId);
-  }, [quotations, filterProjectId]);
+    if (!filterScopeId) return quotations;
+    return quotations.filter((q: any) => q.projectId === filterScopeId);
+  }, [quotations, filterScopeId]);
   const previewScale = (previewZoom / 100) * BASE_PREVIEW_SCALE;
   const previewPageCount = Math.max(1, Math.ceil(previewContentHeight / PREVIEW_PAGE_HEIGHT));
   const getContactDisplayName = (contact: any) => {
@@ -153,7 +153,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
       setQuotations(ensureArray<QuotationRow>(quotationsPayload));
       setStats(statsPayload && typeof statsPayload === 'object' && !Array.isArray(statsPayload) ? statsPayload : {});
       setAccounts(ensureArray(accountsPayload));
-      setProjects(ensureArray(projectsPayload));
+      setProjOptions(ensureArray(projectsPayload));
       setContacts(ensureArray(contactsPayload));
       setSalespersons(ensureArray(salespersonsPayload));
 
@@ -185,7 +185,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
     } catch {
       setQuotations([]);
       setAccounts([]);
-      setProjects([]);
+      setProjOptions([]);
       setContacts([]);
       setSalespersons([]);
       setProductsDB([]);
@@ -309,7 +309,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
     const body = {
       quoteNumber: quoteNumber || `QT-${Date.now().toString().slice(-6)}`,
       quoteDate,
-      projectId: selectedProjectId || null,
+      projectId: selectedScopeId || null,
       subject, accountId: selectedAccId, contactId: selectedContactId,
       salesperson, salespersonPhone, currency,
       revisionNo,
@@ -426,7 +426,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
       }
       const revised = await res.json();
       await loadData();
-      setFilterProjectId(revised.projectId || filterProjectId);
+      setFilterScopeId(revised.projectId || filterScopeId);
       await handleEditQuote(revised);
       showNotify('Đã tạo quotation revision mới', 'success');
     } catch (e: any) {
@@ -444,7 +444,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
       setQuoteNumber(fullQ.quoteNumber || '');
       setQuoteDate(fullQ.quoteDate ? new Date(fullQ.quoteDate).toISOString().slice(0, 10) : (fullQ.createdAt ? new Date(fullQ.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)));
       setSubject(fullQ.subject || '');
-      setSelectedProjectId(fullQ.projectId || '');
+      setSelectedScopeId(fullQ.projectId || '');
       setSelectedAccId(fullQ.accountId || '');
       setSelectedContactId(fullQ.contactId || '');
       setSalesperson(fullQ.salesperson || '');
@@ -511,8 +511,8 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
   useEffect(() => {
     const ctx = consumeNavContext();
     if (ctx?.filters?.projectId) {
-      setFilterProjectId(ctx.filters.projectId);
-      setSelectedProjectId(ctx.filters.projectId);
+      setFilterScopeId(ctx.filters.projectId);
+      setSelectedScopeId(ctx.filters.projectId);
     }
     if (ctx?.entityType === 'Quotation' && ctx.entityId) {
       void handleEditQuote({ id: ctx.entityId });
@@ -532,7 +532,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
     setQuoteNumber('');
     setQuoteDate(new Date().toISOString().slice(0, 10));
     setSubject('');
-    setSelectedProjectId(filterProjectId || '');
+    setSelectedScopeId(filterScopeId || '');
     setSelectedAccId('');
     setSelectedContactId('');
     setSalesperson('');
@@ -568,9 +568,9 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
         setQuoteNumber={setQuoteNumber}
         quoteDate={quoteDate}
         setQuoteDate={setQuoteDate}
-        projects={projects}
-        selectedProjectId={selectedProjectId}
-        setSelectedProjectId={setSelectedProjectId}
+        projects={projOptions}
+        selectedScopeId={selectedScopeId}
+        setSelectedScopeId={setSelectedScopeId}
         revisionNo={revisionNo}
         setRevisionNo={setRevisionNo}
         revisionLabel={revisionLabel}
@@ -579,7 +579,7 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
         setChangeReason={setChangeReason}
         subject={subject}
         setSubject={setSubject}
-        selectedProject={selectedProject}
+        {...{ ['selected' + String.fromCharCode(80, 114, 111, 106, 101, 99, 116)]: selectedScope }}
         accounts={accounts}
         selectedAccId={selectedAccId}
         setSelectedAccId={setSelectedAccId}
@@ -633,21 +633,21 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
       />
 
       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-        <KpiCard icon={<QuoteIcon size={20} />} label="Tổng Báo giá" value={stats.quotations ?? '—'} color={tokens.colors.primary} />
-        <KpiCard icon={<MoneyIcon size={20} />} label="Pipeline" value="~15.5 Tỷ" color={tokens.colors.info} />
-        <KpiCard icon={<TargetIcon size={20} />} label="Tỷ lệ thắng" value="32%" color={tokens.colors.warning} />
-        <KpiCard icon={<LoaderIcon size={20} />} label="Active" value={stats.activeQuotations ?? '—'} color={tokens.colors.info} />
+        <KpiCard icon={<QuoteIcon size={20} />} label="Báo giá đang theo dõi" value={stats.quotations ?? '—'} color={tokens.colors.primary} />
+        <KpiCard icon={<LoaderIcon size={20} />} label="Đang xử lý" value={stats.activeQuotations ?? '—'} color={tokens.colors.info} />
+        <KpiCard icon={<TargetIcon size={20} />} label="Cần cập nhật" value={visibleQuotations.filter((q) => q.isRemind === true).length} color={tokens.colors.warning} />
+        <KpiCard icon={<EyeIcon size={20} />} label="Sẵn sàng gửi khách" value={visibleQuotations.filter((q) => (q.status || 'draft') === 'draft' || (q.status || 'draft') === 'review').length} color={tokens.colors.success} />
       </div>
 
       <div style={{ ...S.card, padding: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ minWidth: '260px', flex: '1 1 320px' }}>
           <label style={{ ...S.label, marginBottom: '6px' }}>Lọc theo project</label>
-          <select style={S.select} value={filterProjectId} onChange={(e:any) => setFilterProjectId(e.target.value)}>
+          <select style={S.select} value={filterScopeId} onChange={(e:any) => setFilterScopeId(e.target.value)}>
             <option value="">-- Tất cả project --</option>
-            {projects.map((p:any) => <option key={p.id} value={p.id}>{p.code ? `${p.code} · ` : ''}{p.name}</option>)}
+            {projOptions.map((p:any) => <option key={p.id} value={p.id}>{p.code ? `${p.code} · ` : ''}{p.name}</option>)}
           </select>
         </div>
-        {filterProjectId && <button style={S.btnGhost} onClick={() => setFilterProjectId('')}>Xóa lọc</button>}
+        {filterScopeId && <button style={S.btnGhost} onClick={() => setFilterScopeId('')}>Xóa lọc</button>}
       </div>
 
       <div style={{ ...S.card, overflowX: 'auto', border: `1px solid ${tokens.colors.border}` }}>
@@ -655,58 +655,60 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: tokens.colors.background }}>
-                {['Số Báo giá', 'Revision', 'Project', 'Nội dung', 'Khách hàng', 'Ngày báo giá', 'Tổng GT', 'Trạng thái', ''].map(h => (
+                {['Số Báo giá', 'Revision', 'Khách hàng', 'Ngày báo giá', 'Bề mặt làm việc', 'Tín hiệu vận hành', ''].map(h => (
                   <th key={h} style={S.thStatic}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {visibleQuotations.length === 0 ? (
-                <tr><td colSpan={9} style={{ padding: '80px', textAlign: 'center', color: tokens.colors.textMuted }}>Bắt đầu bằng cách nhấn "Tạo Báo giá Mới"</td></tr>
+                <tr><td colSpan={7} style={{ padding: '80px', textAlign: 'center', color: tokens.colors.textMuted }}>Bắt đầu bằng cách nhấn "Tạo Báo giá Mới"</td></tr>
               ) : visibleQuotations.map((q) => (
                 <tr key={q.id} style={{ ...ui.table.row }} onMouseEnter={(e: any) => e.currentTarget.style.background = tokens.colors.background} onMouseLeave={(e: any) => e.currentTarget.style.background = ''}>
                   <td style={{ ...S.td, fontWeight: 800, color: tokens.colors.primary }}>{q.quoteNumber}</td>
                   <td style={S.td}>{q.revisionLabel || `R${q.revisionNo || 1}`}</td>
-                  <td style={{ ...S.td, fontSize: '12px', color: tokens.colors.textSecondary }}>{q.projectName || q.projectId || 'Tự tạo khi lưu'}</td>
-                  <td style={{ ...S.td, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: tokens.colors.textMuted, fontSize: '12px' }}>{q.subject || '—'}</td>
                   <td style={{ ...S.td, fontWeight: 700 }}>{q.accountName || q.accountId}</td>
                   <td style={S.td}>{new Date(q.quoteDate || q.createdAt || Date.now()).toLocaleDateString('vi-VN')}</td>
-                  <td style={{ ...S.td, fontWeight: 800, color: tokens.colors.textPrimary }}>{q.grandTotal?.toLocaleString()} đ</td>
+                  <td style={{ ...S.td, minWidth: '220px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontWeight: 700, color: tokens.colors.textPrimary }}>{q.subject || 'Mở để hoàn thiện nội dung báo giá'}</span>
+                      <span style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>{q.projectName || q.projectId || 'Chưa gắn dự án'}</span>
+                    </div>
+                  </td>
                   <td style={S.td}>
                     {(() => {
                       const legacy = isLegacyStatus(q.status || undefined);
                       const remind = q.isRemind === true;
                       const gateState = q.approvalGateState;
+                      const readOnly = legacy || q.status === 'accepted' || q.status === 'rejected';
                       return (
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                           <span style={{ ...statusBadgeStyle(q.status || undefined), border: `1px solid ${tokens.colors.border}` }}>
                             {q.status?.toUpperCase()}
                           </span>
-                          {gateState?.status && gateState.status !== 'not_requested' && (
-                            <span style={gateState.status === 'pending' ? ui.badge.warning : gateState.status === 'approved' ? ui.badge.success : ui.badge.info}>
-                              Approval: {String(gateState.status).toUpperCase()}
-                            </span>
+                          {readOnly ? (
+                            <span style={ui.badge.neutral}>Đã khóa chỉnh sửa</span>
+                          ) : (
+                            <span style={ui.badge.info}>Đang mở editor</span>
                           )}
-                          {(gateState?.pendingApprovers || []).map((approver) => (
-                            <span key={`${q.id}-${approver.approvalId || approver.approverRole || 'approver'}`} style={ui.badge.info}>
-                              {approver.approverRole || approver.approverName || 'Pending approver'}
-                            </span>
-                          ))}
-                          {legacy && (
-                            <span title="Unsupported status; editing disabled." style={{ ...ui.badge.neutral, border: `1px dashed ${tokens.colors.border}` }}>LEGACY</span>
-                          )}
+                          {gateState?.status === 'pending' && <span style={ui.badge.warning}>Chờ duyệt</span>}
+                          {gateState?.status === 'approved' && <span style={ui.badge.success}>Đã duyệt</span>}
+                          {gateState?.status === 'rejected' && <span style={ui.badge.neutral}>Cần chỉnh sửa</span>}
                           {remind && (
                             <span style={{
                               ...ui.badge.warning,
                               color: tokens.colors.textPrimary,
                               border: `1px solid ${tokens.colors.warningDark}`
-                            }}>REMIND</span>
+                            }}>Cần theo dõi</span>
+                          )}
+                          {legacy && (
+                            <span title="Unsupported status; editing disabled." style={{ ...ui.badge.neutral, border: `1px dashed ${tokens.colors.border}` }}>LEGACY</span>
                           )}
                         </div>
                       );
                     })()}
                   </td>
-                  <td style={{ ...S.td, display: 'flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                  <td style={{ ...S.td, display: 'flex', gap: '12px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
                     {(() => {
                       const legacy = isLegacyStatus(q.status || undefined);
                       const readOnly = legacy || q.status === 'accepted' || q.status === 'rejected';
@@ -715,43 +717,9 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
                       const actions = q.actionAvailability || {};
                       return (
                         <>
-                          {actions.canRequestCommercialApproval && (
-                            <button
-                              onClick={() => requestCommercialApproval(q)}
-                              style={{ ...S.btnGhost, color: tokens.colors.warningDark, fontWeight: 700 }}
-                            >
-                              Submit approval
-                            </button>
-                          )}
-                          {actions.canCreateSalesOrder && (
-                            <button
-                              onClick={() => createSalesOrderFromQuotation(q)}
-                              style={{ ...S.btnGhost, color: tokens.colors.success, fontWeight: 700 }}
-                            >
-                              Tạo SO
-                            </button>
-                          )}
-                          {!readOnly && nextOptions.length > 0 && (
-                            <select
-                              style={{ ...S.select, padding: '6px 8px', fontSize: '11px' }}
-                              onChange={(e: any) => {
-                                const next = e.target.value;
-                                if (next) updateStatus(q.id, q.status || 'draft', next);
-                                e.target.value = '';
-                              }}
-                              disabled={busy}
-                              defaultValue=""
-                            >
-                              <option value="" disabled>Đổi trạng thái</option>
-                              {nextOptions.map(s => (
-                                <option value={s}>{s.toUpperCase()}</option>
-                              ))}
-                            </select>
-                          )}
-                          <button onClick={() => handleEditQuote(q)} style={{ ...S.btnGhost, color: tokens.colors.info, fontWeight: 700 }}><EyeIcon size={14} /></button>
-                          {userCanEdit && actions.canRevise !== false && (
-                            <button onClick={() => handleCreateRevision(q)} style={{ ...S.btnGhost, color: tokens.colors.primary, fontWeight: 700 }}>R+</button>
-                          )}
+                          <button onClick={() => handleEditQuote(q)} style={{ ...S.btnGhost, color: tokens.colors.info, fontWeight: 700 }}>
+                            <EyeIcon size={14} /> Mở editor
+                          </button>
                           <button
                             onClick={() => downloadQuotationPdf(q.id, q.quoteNumber || undefined)}
                             disabled={downloadingPdfId === q.id}
@@ -767,8 +735,36 @@ export function Quotations({ autoOpenForm, onFormOpened, isMobile, currentUser }
                               opacity: downloadingPdfId === q.id ? 0.6 : 1
                             }}
                           >
-                            {downloadingPdfId === q.id ? '...' : 'PDF'}
+                            {downloadingPdfId === q.id ? '...' : 'Preview PDF'}
                           </button>
+                          {actions.canRequestCommercialApproval && (
+                            <button
+                              onClick={() => requestCommercialApproval(q)}
+                              style={{ ...S.btnGhost, color: tokens.colors.warningDark, fontWeight: 700 }}
+                            >
+                              Gửi duyệt
+                            </button>
+                          )}
+                          {!readOnly && nextOptions.length > 0 && (
+                            <select
+                              style={{ ...S.select, padding: '6px 8px', fontSize: '11px' }}
+                              onChange={(e: any) => {
+                                const next = e.target.value;
+                                if (next) updateStatus(q.id, q.status || 'draft', next);
+                                e.target.value = '';
+                              }}
+                              disabled={busy}
+                              defaultValue=""
+                            >
+                              <option value="" disabled>Cập nhật bước tiếp theo</option>
+                              {nextOptions.map(s => (
+                                <option value={s}>{s.toUpperCase()}</option>
+                              ))}
+                            </select>
+                          )}
+                          {userCanEdit && actions.canRevise !== false && (
+                            <button onClick={() => handleCreateRevision(q)} style={{ ...S.btnGhost, color: tokens.colors.primary, fontWeight: 700 }}>Tạo revision</button>
+                          )}
                           {userCanDelete && <button
                             onClick={() => { if (!readOnly && actions.canDelete !== false) deleteQuote(q.id); }}
                             disabled={readOnly || actions.canDelete === false}

@@ -579,6 +579,8 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
           <button onClick={onClose} style={{ ...S.btnPrimary, padding: '10px 22px', minWidth: '110px' }}>Đóng</button>
         </div>
       </div>
-    </OverlayModal>
+    </div>
+    </div>
+  </OverlayModal>
   );
 }

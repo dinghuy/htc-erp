@@ -12,7 +12,7 @@ import {
   PREVIEW_PAGE_HEIGHT,
   PREVIEW_PAGE_WIDTH,
   PREVIEW_SCALE,
-  allowedTransitions,
+  getQuotationVatLabel,
   quotationStyles,
 } from './quotationShared';
 
@@ -285,12 +285,27 @@ export function QuotationPreviewPanel({
                       <strong>{totals.subtotal.toLocaleString()} {currency}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                      <span>{t('sales.quotations.preview.tax', { rate: 8 })}:</span>
+                      <span>{t('sales.quotations.preview.tax', getQuotationVatLabel(terms?.taxRate))}:</span>
                       <strong>{totals.taxTotal.toLocaleString()} {currency}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: '#003F85', color: '#fff', marginTop: '8px' }}>
                       <span style={{ fontWeight: 700 }}>{t('sales.quotations.preview.grand_total').toUpperCase()}:</span>
                       <strong>{totals.grandTotal.toLocaleString()} {currency}</strong>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: '24px',
+                      padding: '12px 14px',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: '10px',
+                      background: '#F8FAFC',
+                    }}
+                  >
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#003F85', marginBottom: '4px' }}>Review before submit</div>
+                    <div style={{ fontSize: '11px', color: '#64748B', lineHeight: 1.5 }}>
+                      Confirm customer details, line items, VAT label, totals, and commercial terms before sending this quotation for approval.
                     </div>
                   </div>
 
@@ -357,31 +372,32 @@ export function QuotationPreviewPanel({
   );
 }
 
-export function QuotationActionButtons({ isReadOnly, showRemind, editingQuoteId, quoteStatus, updateStatus, saveQuotation, savingQuote }: any) {
+export function QuotationActionButtons({ isReadOnly, showRemind, quoteStatus, saveQuotation, savingQuote }: any) {
   const { t } = useI18n();
+  const nextStatuses = allowedTransitions(quoteStatus);
+  const approvalActionLabel = quoteStatus === 'revision_required' ? 'Gửi duyệt lại' : 'Gửi duyệt';
+  const canSubmitForApproval = !isReadOnly && nextStatuses.includes('submitted_for_approval');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px', position: 'relative', zIndex: 1, background: 'var(--bg-primary)' }}>
-      {isReadOnly && <div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>{t('sales.quotations.read_only')}</div>}
-      {showRemind && <div style={{ fontSize: '12px', color: tokens.colors.warning }}>{t('sales.quotations.reminder')}</div>}
-      {editingQuoteId && !isReadOnly && allowedTransitions(quoteStatus).length > 0 && (
-        <select
-          style={{ ...S.select, padding: '6px 8px', fontSize: '12px' }}
-          onChange={(event: any) => {
-            const nextStatus = event.target.value;
-            if (nextStatus) updateStatus(editingQuoteId, quoteStatus, nextStatus);
-            event.target.value = '';
-          }}
-          defaultValue=""
-        >
-          <option value="" disabled>
-            {t('sales.quotations.change_status')}
-          </option>
-          {allowedTransitions(quoteStatus).map((status) => (
-            <option value={status}>{status.toUpperCase()}</option>
-          ))}
-        </select>
-      )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', position: 'relative', zIndex: 1, background: 'var(--bg-primary)' }}>
+      <div
+        style={{
+          border: `1px solid ${tokens.colors.border}`,
+          borderRadius: '10px',
+          padding: '14px',
+          background: tokens.colors.background,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        <div style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.primary }}>Review before submit</div>
+        <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.5 }}>
+          Save your latest edits, then send the quotation into approval once the preview is ready for customer-facing review.
+        </div>
+        {isReadOnly && <div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>{t('sales.quotations.read_only')}</div>}
+        {showRemind && <div style={{ fontSize: '12px', color: tokens.colors.warning }}>{t('sales.quotations.reminder')}</div>}
+      </div>
       <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '12px' }}>
         <button
           onClick={() => saveQuotation('draft')}
@@ -404,27 +420,29 @@ export function QuotationActionButtons({ isReadOnly, showRemind, editingQuoteId,
             </>
           )}
         </button>
-        <button
-          onClick={() => saveQuotation('sent')}
-          disabled={savingQuote || isReadOnly}
-          style={{
-            ...S.btnPrimary,
-            flex: '1 1 220px',
-            background: tokens.colors.primaryDark,
-            opacity: savingQuote || isReadOnly ? 0.7 : 1,
-            cursor: savingQuote || isReadOnly ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {savingQuote ? (
-            <>
-              <LoaderIcon size={14} /> {t('sales.quotations.exporting')}
-            </>
-          ) : (
-            <>
-              <ExportIcon size={14} /> {t('sales.quotations.export_pdf')}
-            </>
-          )}
-        </button>
+        {canSubmitForApproval ? (
+          <button
+            onClick={() => saveQuotation('submitted_for_approval')}
+            disabled={savingQuote}
+            style={{
+              ...S.btnPrimary,
+              flex: '1 1 220px',
+              background: tokens.colors.primaryDark,
+              opacity: savingQuote ? 0.7 : 1,
+              cursor: savingQuote ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {savingQuote ? (
+              <>
+                <LoaderIcon size={14} /> {t('sales.quotations.saving')}
+              </>
+            ) : (
+              <>
+                <ExportIcon size={14} /> {approvalActionLabel}
+              </>
+            )}
+          </button>
+        ) : null}
       </div>
     </div>
   );

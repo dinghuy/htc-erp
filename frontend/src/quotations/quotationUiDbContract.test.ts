@@ -9,12 +9,25 @@
  * Focus: fields that appear on the exported PDF (báo giá).
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../ui/styles', () => ({
+  ui: {
+    badge: { info: {}, success: {}, error: {}, neutral: {} },
+    card: { base: {} },
+    btn: { primary: {}, outline: {}, ghost: {} },
+    table: { thSortable: {}, thStatic: {}, td: {} },
+    input: { base: {} },
+    form: { label: {} },
+  },
+}));
 
 import {
   normalizeQuotationLineItems,
   UNITS,
   CURRENCIES,
+  VALID_STATUSES,
+  allowedTransitions,
 } from './quotationShared';
 
 // ── 1. Customer (Account) form → DB contract ─────────────────────────────────
@@ -277,7 +290,7 @@ describe('Quotation line item → PDF export field contract', () => {
 //   quoteNumber, quoteDate, subject, selectedAccId, selectedContactId,
 //   salesperson, salespersonPhone, currency, items (→ subtotal/taxTotal/grandTotal computed)
 
-describe('Quotation header → PDF export field contract', () => {
+describe('Quotation header → workflow contract', () => {
   it('quoteDate ISO string is parseable by Date and formats correctly for PDF', () => {
     const isoDate = '2026-04-13';
     const formatted = new Date(isoDate).toLocaleDateString('vi-VN');
@@ -299,12 +312,74 @@ describe('Quotation header → PDF export field contract', () => {
     expect(grandTotal).toBe(108_000_000);
   });
 
+  it('accepts a persisted vatRate value without assuming the UI label is hardcoded to 8%', () => {
+    const subtotal = 100_000_000;
+    const vatRatePercent = 10;
+    const taxTotal = Math.round(subtotal * (vatRatePercent / 100));
+    const grandTotal = subtotal + taxTotal;
+
+    expect(taxTotal).toBe(10_000_000);
+    expect(grandTotal).toBe(110_000_000);
+  });
+
   it('validUntil is stored as TEXT/DATETIME – UI sends ISO date string', () => {
-    // DB column: validUntil DATETIME — accepts ISO date string from date input
     const dateFromInput = '2026-05-13';
     const parsed = new Date(dateFromInput);
     expect(parsed).toBeInstanceOf(Date);
     expect(isNaN(parsed.getTime())).toBe(false);
+  });
+
+  it('uses the approval-gated quotation statuses instead of legacy sent/accepted flow', () => {
+    expect(VALID_STATUSES).toEqual([
+      'draft',
+      'submitted_for_approval',
+      'revision_required',
+      'approved',
+      'rejected',
+      'won',
+      'lost',
+    ]);
+  });
+
+  it('prevents sales-order release semantics before quotation approval and win state', () => {
+    expect(allowedTransitions('approved')).toEqual(['won', 'lost']);
+    expect(allowedTransitions('won')).toEqual([]);
+  });
+});
+
+describe('Quotation approval gate payload contract', () => {
+  it('expects approval metadata on quotation rows for the redesign list/detail surface', () => {
+    const quotationRow = {
+      id: 'Q-001',
+      status: 'submitted_for_approval',
+      approvalGateState: {
+        gateType: 'quotation_commercial',
+        status: 'pending',
+        latestApprovalId: 'APR-001',
+        pendingCount: 1,
+        pendingApprovers: [
+          {
+            approvalId: 'APR-001',
+            approverRole: 'director',
+            approverName: 'Director',
+          },
+        ],
+      },
+      actionAvailability: {
+        canEdit: false,
+        canDelete: false,
+        canRevise: true,
+        canRequestCommercialApproval: false,
+        canCreateSalesOrder: false,
+        blockers: ['Awaiting director approval'],
+        linkedSalesOrderId: null,
+        linkedSalesOrderStatus: null,
+      },
+    };
+
+    expect(quotationRow.approvalGateState.gateType).toBe('quotation_commercial');
+    expect(quotationRow.approvalGateState.pendingApprovers[0]?.approverRole).toBe('director');
+    expect(quotationRow.actionAvailability.canCreateSalesOrder).toBe(false);
   });
 });
 

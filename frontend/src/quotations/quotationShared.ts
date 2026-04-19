@@ -126,14 +126,21 @@ export const WARRANTY_PRESETS = [
 
 export const UNITS = ['Chiếc', 'Bộ', 'Cái', 'Cặp', 'Hộp', 'Thùng', 'Kg', 'Gói'];
 export const CURRENCIES = ['VND', 'USD', 'EUR', 'JPY', 'CNY'];
-export const VALID_STATUSES = ['draft', 'sent', 'accepted', 'rejected'];
+export const VALID_STATUSES = ['draft', 'submitted_for_approval', 'revision_required', 'approved', 'rejected', 'won', 'lost'];
 
 export const isLegacyStatus = (status?: string) => !status || !VALID_STATUSES.includes(status);
 
 export const allowedTransitions = (status?: string) => {
-  if (status === 'draft') return ['sent'];
-  if (status === 'sent') return ['accepted', 'rejected'];
+  if (status === 'draft') return ['submitted_for_approval'];
+  if (status === 'submitted_for_approval') return ['approved', 'rejected', 'revision_required'];
+  if (status === 'revision_required') return ['submitted_for_approval'];
+  if (status === 'approved') return ['won', 'lost'];
   return [];
+};
+
+export const getQuotationVatLabel = (taxRate?: number | null) => {
+  const safeTaxRate = Number.isFinite(Number(taxRate)) ? Number(taxRate) : 0;
+  return { rate: safeTaxRate };
 };
 
 const VN_TIMEZONE = 'Asia/Ho_Chi_Minh';
@@ -214,9 +221,9 @@ export function normalizeCommercialTerms(value: any) {
 export function createInitialQuotationTerms() {
   return {
     remarks:
-      'Giá trên đã bao gồm thuế VAT 8%. Giá trị VAT được tính theo thuế suất áp dụng tại thời điểm phát hành hóa đơn.\nDo biến động của thị trường toàn cầu, đơn giá có thể thay đổi khi có thông báo cập nhật từ nhà máy, phụ thuộc vào giá nguyên vật liệu, cước vận tải, tỷ giá ngoại tệ hoặc các yếu tố đầu vào khác trước thời điểm xác nhận đơn hàng.',
+      'Giá trên đã bao gồm thuế VAT theo mức áp dụng tại thời điểm phát hành hóa đơn.\nDo biến động của thị trường toàn cầu, đơn giá có thể thay đổi khi có thông báo cập nhật từ nhà máy, phụ thuộc vào giá nguyên vật liệu, cước vận tải, tỷ giá ngoại tệ hoặc các yếu tố đầu vào khác trước thời điểm xác nhận đơn hàng.',
     remarksEn:
-      'The above price includes VAT 8%. VAT applicable tax rate is calculated at the time of invoice issuance.\nDue to global market fluctuations, unit prices are subject to change upon updated notification from the factory, depending on raw material costs, freight rates, exchange rates, or other input factors prior to order confirmation.',
+      'The above price includes VAT at the applicable rate at the time of invoice issuance.\nDue to global market fluctuations, unit prices are subject to change upon updated notification from the factory, depending on raw material costs, freight rates, exchange rates, or other input factors prior to order confirmation.',
     termItems: [
       { labelViPrint: 'Hiệu lực', labelEn: 'Validity', textVi: VALIDITY_PRESETS[1], textEn: '30 days from the date here of' },
       { labelViPrint: 'Thanh toán', labelEn: 'Payment', textVi: PAYMENT_PRESETS[0], textEn: '30% upon order, 70% balance before delivery' },

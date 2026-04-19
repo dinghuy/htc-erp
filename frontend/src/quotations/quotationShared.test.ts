@@ -1,4 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../ui/styles', () => ({
+  ui: {
+    badge: { info: {}, success: {}, error: {}, neutral: {} },
+    card: { base: {} },
+    btn: { primary: {}, outline: {}, ghost: {} },
+    table: { thSortable: {}, thStatic: {}, td: {} },
+    input: { base: {} },
+    form: { label: {} },
+  },
+}));
 
 import {
   CURRENCIES,
@@ -10,6 +21,7 @@ import {
   WARRANTY_PRESETS,
   allowedTransitions,
   createInitialQuotationTerms,
+  getQuotationVatLabel,
   createNewQuotationTerms,
   ensureArray,
   hasQbuStaleWarning,
@@ -19,6 +31,26 @@ import {
   normalizeCommercialTerms,
   normalizeQuotationLineItems,
 } from './quotationShared';
+
+const REDESIGN_QUOTATION_STATUSES = [
+  'draft',
+  'submitted_for_approval',
+  'revision_required',
+  'approved',
+  'rejected',
+  'won',
+  'lost',
+];
+
+const REDESIGN_ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  draft: ['submitted_for_approval'],
+  submitted_for_approval: ['approved', 'rejected', 'revision_required'],
+  revision_required: ['submitted_for_approval'],
+  approved: ['won', 'lost'],
+  rejected: [],
+  won: [],
+  lost: [],
+};
 
 // ── Product / Line-Item normalisation ──────────────────────────────────────────
 
@@ -151,10 +183,17 @@ describe('createInitialQuotationTerms – default customer-facing terms', () => 
     }
   });
 
-  it('includes a non-empty default VAT remark for customers', () => {
+  it('does not require the default customer remark to hardcode VAT 8%', () => {
     const terms = createInitialQuotationTerms();
-    expect(terms.remarks).toContain('VAT');
-    expect(terms.remarksEn).toContain('VAT');
+    expect(terms.remarks).not.toBe('Giá trên đã bao gồm thuế VAT 8%.');
+    expect(terms.remarksEn).not.toBe('The above price includes VAT 8%.');
+  });
+
+  it('does not require the default customer remark to hardcode VAT 8%', () => {
+    const terms = createInitialQuotationTerms();
+    expect(terms.remarks).not.toContain('VAT 8%');
+    expect(terms.remarks).not.toContain('thuế VAT 8%');
+    expect(terms.remarksEn).not.toContain('VAT 8%');
   });
 });
 
@@ -175,23 +214,54 @@ describe('createNewQuotationTerms – blank new quotation template', () => {
   });
 });
 
+describe('getQuotationVatLabel', () => {
+  it('returns the live tax rate for preview VAT labels', () => {
+    expect(getQuotationVatLabel(10)).toEqual({ rate: 10 });
+    expect(getQuotationVatLabel(undefined)).toEqual({ rate: 0 });
+  });
+});
+
+
 // ── Quotation status / lifecycle for customer-facing flow ──────────────────────
 
-describe('allowedTransitions – quotation lifecycle toward customer', () => {
-  it('draft can only move to sent', () => {
-    expect(allowedTransitions('draft')).toEqual(['sent']);
+describe('allowedTransitions – quotation lifecycle toward approval-gated flow', () => {
+  it('draft can only move to submitted_for_approval', () => {
+    expect(allowedTransitions('draft')).toEqual(['submitted_for_approval']);
   });
 
-  it('sent can be accepted or rejected by customer', () => {
-    const transitions = allowedTransitions('sent');
-    expect(transitions).toContain('accepted');
-    expect(transitions).toContain('rejected');
+  it('submitted_for_approval can resolve to approved, rejected, or revision_required', () => {
+    expect(allowedTransitions('submitted_for_approval')).toEqual([
+      'approved',
+      'rejected',
+      'revision_required',
+    ]);
   });
 
-  it('accepted/rejected/undefined have no further transitions', () => {
-    expect(allowedTransitions('accepted')).toEqual([]);
+  it('revision_required can only move back to submitted_for_approval', () => {
+    expect(allowedTransitions('revision_required')).toEqual(['submitted_for_approval']);
+  });
+
+  it('approved can resolve commercially to won or lost', () => {
+    expect(allowedTransitions('approved')).toEqual(['won', 'lost']);
+  });
+
+  it('rejected/won/lost/undefined have no further transitions', () => {
     expect(allowedTransitions('rejected')).toEqual([]);
+    expect(allowedTransitions('won')).toEqual([]);
+    expect(allowedTransitions('lost')).toEqual([]);
     expect(allowedTransitions(undefined)).toEqual([]);
+  });
+});
+
+describe('quotation redesign status contract', () => {
+  it('defines the approval-gated status set expected by the redesign', () => {
+    expect(VALID_STATUSES).toEqual(REDESIGN_QUOTATION_STATUSES);
+  });
+
+  it('keeps transition coverage for every redesign status', () => {
+    for (const status of REDESIGN_QUOTATION_STATUSES) {
+      expect(allowedTransitions(status)).toEqual(REDESIGN_ALLOWED_TRANSITIONS[status]);
+    }
   });
 });
 
@@ -200,10 +270,12 @@ describe('isLegacyStatus', () => {
     expect(isLegacyStatus(undefined)).toBe(true);
     expect(isLegacyStatus('')).toBe(true);
     expect(isLegacyStatus('in_review')).toBe(true);
+    expect(isLegacyStatus('sent')).toBe(true);
+    expect(isLegacyStatus('accepted')).toBe(true);
   });
 
-  it('accepts all canonical quotation statuses as non-legacy', () => {
-    for (const s of VALID_STATUSES) {
+  it('accepts all redesign quotation statuses as non-legacy', () => {
+    for (const s of REDESIGN_QUOTATION_STATUSES) {
       expect(isLegacyStatus(s)).toBe(false);
     }
   });
