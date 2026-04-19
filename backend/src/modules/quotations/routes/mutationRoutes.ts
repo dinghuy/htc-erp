@@ -34,13 +34,17 @@ export function registerQuotationMutationRoutes(params: RegisterQuotationMutatio
     if (!createValidation.ok) {
       return res.status(400).json(createValidation);
     }
-    const created = await quotationMutationServices.createProjectQuotation({
-      projectId,
-      body: parsedBody.normalizedBody,
-      actorUserId,
-    });
-    if (!created) return res.status(404).json({ error: 'Project not found' });
-    res.status(201).json(created);
+    try {
+      const created = await quotationMutationServices.createProjectQuotation({
+        projectId,
+        body: parsedBody.normalizedBody,
+        actorUserId,
+      });
+      if (!created) return res.status(404).json({ error: 'Project not found' });
+      res.status(201).json(created);
+    } catch (error: any) {
+      return res.status(400).json({ error: error.message });
+    }
   }));
 
   app.post('/api/quotations', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
@@ -53,11 +57,15 @@ export function registerQuotationMutationRoutes(params: RegisterQuotationMutatio
     if (!createValidation.ok) {
       return res.status(400).json(createValidation);
     }
-    const created = await quotationMutationServices.createStandaloneQuotation({
-      body: parsedBody.normalizedBody,
-      actorUserId,
-    });
-    res.status(201).json(created);
+    try {
+      const created = await quotationMutationServices.createStandaloneQuotation({
+        body: parsedBody.normalizedBody,
+        actorUserId,
+      });
+      res.status(201).json(created);
+    } catch (error: any) {
+      return res.status(400).json({ error: error.message });
+    }
   }));
 
   app.put('/api/quotations/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {

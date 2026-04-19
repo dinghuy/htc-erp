@@ -178,10 +178,10 @@ export function createCollaborationRepository() {
        VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [input.entityType, input.entityId, input.title ?? null, input.status ?? 'active', input.createdBy ?? null]
     );
-    return result.lastID;
+    return Number((result as any)?.lastID);
   }
 
-  function findEntityThreadById(id: string) {
+  function findEntityThreadById(id: string | number) {
     return getDb().get(
       `SELECT et.*,
               COALESCE(tmr.messageCount, 0) AS messageCount,
@@ -193,7 +193,7 @@ export function createCollaborationRepository() {
     );
   }
 
-  function listEntityThreadMessages(threadId: string, limit: number) {
+  function listEntityThreadMessages(threadId: string | number, limit: number) {
     return getDb().all(
       `SELECT etm.*,
               u.fullName AS authorName
@@ -207,7 +207,7 @@ export function createCollaborationRepository() {
   }
 
   async function createEntityThreadMessage(input: {
-    threadId: string;
+    threadId: string | number;
     authorUserId?: string | null;
     content: string;
     contentType?: string | null;
@@ -218,10 +218,10 @@ export function createCollaborationRepository() {
       [input.threadId, input.authorUserId ?? null, input.content, input.contentType ?? 'text/plain']
     );
     await getDb().run(`UPDATE EntityThread SET updatedAt = datetime('now') WHERE id = ?`, [input.threadId]);
-    return result.lastID;
+    return Number((result as any)?.lastID);
   }
 
-  function findEntityThreadMessageById(id: string) {
+  function findEntityThreadMessageById(id: string | number) {
     return getDb().get(
       `SELECT etm.*,
               u.fullName AS authorName

@@ -11,7 +11,7 @@ export type SupplierRow = {
 };
 
 export type SupplierWriteInput = {
-  id: string;
+  id?: string;
   companyName: string;
   code?: string;
   description?: string;
@@ -52,8 +52,8 @@ export function createSupplierRepository() {
 
     insertImportedSupplier(input: SupplierWriteInput) {
       return getDb().run(
-        `INSERT INTO Account (id, code, companyName, description, tag, country, status, accountType) VALUES (?, ?, ?, ?, ?, ?, ?, 'Supplier')`,
-        [input.id, input.code, input.companyName, input.description, input.tag, input.country, input.status],
+        `INSERT INTO Account (code, companyName, description, tag, country, status, accountType) VALUES (?, ?, ?, ?, ?, ?, 'Supplier')`,
+        [input.code, input.companyName, input.description, input.tag, input.country, input.status],
       );
     },
   };

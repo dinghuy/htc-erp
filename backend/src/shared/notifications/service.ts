@@ -1,5 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
-
 type CreateNotificationServicesDeps = {
   allowedEntityTypes: readonly string[];
   allowedLinks: readonly string[];
@@ -37,14 +35,13 @@ export function createNotificationServices(deps: CreateNotificationServicesDeps)
     );
     if (existing) return { created: false, row: existing };
 
-    const id = uuidv4();
-    await db.run(
-      `INSERT INTO Notification (id, userId, content, entityType, entityId, link, readAt)
-       VALUES (?, ?, ?, ?, ?, ?, NULL)`,
-      [id, userId, content, entityType, entityId, link]
+    const result = await db.run(
+      `INSERT INTO Notification (userId, content, entityType, entityId, link, readAt)
+       VALUES (?, ?, ?, ?, ?, NULL)`,
+      [userId, content, entityType, entityId, link]
     );
 
-    return { created: true, row: await db.get('SELECT * FROM Notification WHERE id = ?', [id]) };
+    return { created: true, row: await db.get('SELECT * FROM Notification WHERE id = ?', [result.lastID]) };
   }
 
   return {

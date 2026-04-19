@@ -1,7 +1,7 @@
 import { getDb } from '../../../sqlite-db';
 
 type AccountRecord = {
-  id: string;
+  id?: number;
   companyName: string;
   region?: string;
   industry?: string;
@@ -19,8 +19,8 @@ type AccountRecord = {
 };
 
 type ContactRecord = {
-  id: string;
-  accountId?: string;
+  id?: number;
+  accountId?: number;
   lastName?: string;
   firstName?: string;
   department?: string;
@@ -32,7 +32,7 @@ type ContactRecord = {
 };
 
 type LeadRecord = {
-  id: string;
+  id?: number;
   companyName: string;
   contactName?: string;
   email?: string;
@@ -53,12 +53,11 @@ export function createCrmRepository() {
       return getDb().get('SELECT * FROM Account WHERE id = ?', id);
     },
 
-    async insertAccount(account: AccountRecord) {
-      await getDb().run(
-        `INSERT INTO Account (id, companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    insertAccount(account: AccountRecord) {
+      return getDb().run(
+        `INSERT INTO Account (companyName, region, industry, website, taxCode, address, assignedTo, status, accountType, code, shortName, description, tag, country)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          account.id,
           account.companyName,
           account.region,
           account.industry,
@@ -114,11 +113,10 @@ export function createCrmRepository() {
       return getDb().get('SELECT * FROM Contact WHERE id = ?', id);
     },
 
-    async insertContact(contact: ContactRecord) {
-      await getDb().run(
-        `INSERT INTO Contact (id, accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    insertContact(contact: ContactRecord) {
+      return getDb().run(
+        `INSERT INTO Contact (accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          contact.id,
           contact.accountId,
           contact.lastName,
           contact.firstName,
@@ -132,10 +130,11 @@ export function createCrmRepository() {
       );
     },
 
-    async updateContactById(id: string, contact: Omit<ContactRecord, 'id' | 'accountId'>) {
+    async updateContactById(id: string, contact: Omit<ContactRecord, 'id'>) {
       await getDb().run(
-        `UPDATE Contact SET lastName=?, firstName=?, department=?, jobTitle=?, gender=?, email=?, phone=?, isPrimaryContact=? WHERE id=?`,
+        `UPDATE Contact SET accountId=?, lastName=?, firstName=?, department=?, jobTitle=?, gender=?, email=?, phone=?, isPrimaryContact=? WHERE id=?`,
         [
+          contact.accountId,
           contact.lastName,
           contact.firstName,
           contact.department,
@@ -161,10 +160,10 @@ export function createCrmRepository() {
       return getDb().get('SELECT * FROM Lead WHERE id = ?', id);
     },
 
-    async insertLead(lead: LeadRecord) {
-      await getDb().run(
-        `INSERT INTO Lead (id, companyName, contactName, email, phone, status, source) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [lead.id, lead.companyName, lead.contactName, lead.email, lead.phone, lead.status, lead.source],
+    insertLead(lead: LeadRecord) {
+      return getDb().run(
+        `INSERT INTO Lead (companyName, contactName, email, phone, status, source) VALUES (?, ?, ?, ?, ?, ?)`,
+        [lead.companyName, lead.contactName, lead.email, lead.phone, lead.status, lead.source],
       );
     },
 

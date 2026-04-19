@@ -24,6 +24,8 @@ export type ProductPersistenceRecord = {
   status: unknown;
 };
 
+export type ProductPersistenceWriteRecord = Omit<ProductPersistenceRecord, 'id'>;
+
 function getAssetField(kind: ProductAssetKind) {
   if (kind === 'image') return 'productImages';
   if (kind === 'video') return 'productVideos';
@@ -64,13 +66,12 @@ export function createProductRepository() {
       );
     },
 
-    insertProduct(record: ProductPersistenceRecord) {
+    insertProduct(record: ProductPersistenceWriteRecord) {
       return getDb().run(
         `INSERT INTO Product (
-          id, sku, name, category, unit, basePrice, currency, specifications, technicalSpecs, media, productImages, productVideos, productDocuments, qbuData, qbuUpdatedAt, qbuRateSource, qbuRateDate, qbuRateValue, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          sku, name, category, unit, basePrice, currency, specifications, technicalSpecs, media, productImages, productVideos, productDocuments, qbuData, qbuUpdatedAt, qbuRateSource, qbuRateDate, qbuRateValue, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          record.id,
           record.sku,
           record.name,
           record.category,
@@ -93,7 +94,7 @@ export function createProductRepository() {
       );
     },
 
-    updateProductById(id: string, record: Omit<ProductPersistenceRecord, 'id'>) {
+    updateProductById(id: string, record: ProductPersistenceWriteRecord) {
       return getDb().run(
         `UPDATE Product
          SET sku=?, name=?, category=?, unit=?, basePrice=?, currency=?, specifications=?, technicalSpecs=?, media=?, productImages=?, productVideos=?, productDocuments=?, qbuData=?, qbuUpdatedAt=?, qbuRateSource=?, qbuRateDate=?, qbuRateValue=?, status=?

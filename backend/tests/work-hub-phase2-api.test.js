@@ -6,6 +6,14 @@ const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
 
+function parseInsertedId(result, entityName) {
+  const id = Number(result?.lastID);
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error(`Failed to insert ${entityName}`);
+  }
+  return id;
+}
+
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-work-hub-phase2-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-work-hub-phase2.db');
 
@@ -65,7 +73,7 @@ async function seedUser({
       'vi',
     ],
   );
-  return result.lastID;
+  return parseInsertedId(result, 'User');
 }
 
 async function login(username, password) {
@@ -114,19 +122,20 @@ async function main() {
       `INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`,
       ['Thread Customer'],
     );
-    const accountId = accountResult.lastID;
+    const accountId = parseInsertedId(accountResult, 'Account');
+
     const projectResult = await db.run(
       `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
       ['THR-001', 'Thread Project', authorUserId, accountId, 'delivery_active', 'active'],
     );
-    const projectId = projectResult.lastID;
+    const projectId = parseInsertedId(projectResult, 'Project');
+
     const documentResult = await db.run(
       `INSERT INTO ProjectDocument (projectId, documentCode, documentName, category, department, status, requiredAtStage)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [projectId, 'DOC-001', 'Delivery checklist', 'Delivery', 'Operations', 'missing', 'delivery'],
     );
-    const documentId = documentResult.lastID;
-
+    const documentId = parseInsertedId(documentResult, 'ProjectDocument');
 
     const auth = await login('thread.author', 'Author@123');
     assert.equal(auth.response.status, 200);
@@ -192,19 +201,20 @@ async function main() {
       `INSERT INTO Account (companyName, accountType, status) VALUES (?, 'Customer', 'active')`,
       ['Review Customer'],
     );
-    const accountId = accountResult.lastID;
+    const accountId = parseInsertedId(accountResult, 'Account');
+
     const projectResult = await db.run(
       `INSERT INTO Project (code, name, managerId, accountId, projectStage, status) VALUES (?, ?, ?, ?, ?, ?)`,
       ['REV-001', 'Review Project', managerUserId, accountId, 'internal-review', 'active'],
     );
-    const projectId = projectResult.lastID;
+    const projectId = parseInsertedId(projectResult, 'Project');
+
     const documentResult = await db.run(
       `INSERT INTO ProjectDocument (projectId, documentCode, documentName, category, department, status, requiredAtStage)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [projectId, 'DOC-REVIEW', 'Contract appendix', 'Contract', 'Legal', 'requested', 'legal_review'],
     );
-    const documentId = documentResult.lastID;
-
+    const documentId = parseInsertedId(documentResult, 'ProjectDocument');
 
     const auth = await login('review.manager', 'Manager@123');
     assert.equal(auth.response.status, 200);

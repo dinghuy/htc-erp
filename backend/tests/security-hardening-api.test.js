@@ -143,7 +143,7 @@ async function main() {
         'vi',
       ],
     );
-    const seededSalespersonId = String(seededSalespersonResult.lastID);
+    const seededSalespersonId = seededSalespersonResult.lastID;
 
     await seedUser({
       username: 'route_manager',

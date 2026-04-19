@@ -1,5 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
-
 export const QBU_PROCUREMENT_REQUEST_TYPE = 'pricing-qbu-procurement';
 export const QBU_FINANCE_REQUEST_TYPE = 'pricing-qbu-finance';
 
@@ -64,14 +62,12 @@ async function createTaskIfMissing(
     [params.projectId, params.department, params.taskType, `QBU:${params.pricingQuotationId}:${params.taskType}`]
   );
   if (existing) return existing;
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO Task (
-      id, projectId, name, description, status, priority, startDate, dueDate, completionPct,
+      projectId, name, description, status, priority, startDate, dueDate, completionPct,
       notes, taskType, department, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
     [
-      id,
       params.projectId,
       params.name,
       params.description,
@@ -85,7 +81,7 @@ async function createTaskIfMissing(
       params.department,
     ]
   );
-  return db.get('SELECT * FROM Task WHERE id = ?', [id]);
+  return db.get('SELECT * FROM Task WHERE id = ?', [result.lastID]);
 }
 
 export async function createQbuApprovalStage(
@@ -121,14 +117,12 @@ export async function createQbuApprovalStage(
     }),
   });
 
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO ApprovalRequest (
-      id, projectId, pricingQuotationId, quotationId, requestType, title, department,
+      projectId, pricingQuotationId, quotationId, requestType, title, department,
       requestedBy, approverRole, approverUserId, status, dueDate, note, createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
     [
-      id,
       params.projectId,
       params.pricingQuotationId,
       null,
@@ -148,7 +142,7 @@ export async function createQbuApprovalStage(
       }),
     ]
   );
-  return db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [id]);
+  return db.get('SELECT * FROM ApprovalRequest WHERE id = ?', [result.lastID]);
 }
 
 export async function handleQbuApprovalDecision(db: any, approval: any) {

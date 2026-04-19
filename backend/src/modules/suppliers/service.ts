@@ -69,7 +69,6 @@ export function createSupplierService(deps: CreateSupplierServiceDeps) {
 
         try {
           await supplierRepository.insertImportedSupplier({
-            id: uuidv4(),
             code: row.values.code || row.values['Mã'] || '',
             companyName: company,
             description: row.values.description || row.values['Mô tả'] || '',

@@ -7,12 +7,12 @@ const { initDb, getDb } = require('../sqlite-db');
 (async () => {
   await initDb();
   const db = getDb();
-  const insertResult = await db.run("INSERT INTO Account (companyName) VALUES (?)", ['Test Co']);
-  const testId = insertResult.lastID;
+  const testCompanyName = `Test Co ${Date.now()}`;
+  await db.run("INSERT INTO Account (companyName) VALUES (?)", [testCompanyName]);
 
   // Re-init: should NOT drop tables or lose data
   await initDb();
-  const row = await getDb().get("SELECT COUNT(*) as c FROM Account WHERE id=?", [testId]);
+  const row = await getDb().get("SELECT COUNT(*) as c FROM Account WHERE companyName=?", [testCompanyName]);
 
   if (!row || row.c !== 1) {
     throw new Error('Persistence check failed: row missing after re-init');

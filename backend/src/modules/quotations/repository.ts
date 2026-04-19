@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { getDb } from '../../../sqlite-db';
 import {
   buildPdfTermsFromCommercialTerms,
@@ -18,7 +17,7 @@ type DatabaseLike = {
 };
 
 type QuotationHeaderWriteRecord = {
-  id: string;
+  id: string | null;
   quoteNumber: string;
   quoteDate: string;
   subject: string | null;
@@ -157,10 +156,9 @@ async function replaceTypedState(db: DatabaseLike, quotationId: string, record: 
   for (const [index, lineItem] of record.lineItems.entries()) {
     await db.run(
       `INSERT INTO QuotationLineItem (
-        id, quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        lineItem.id || randomUUID(),
         quotationId,
         Number.isFinite(Number(lineItem.sortOrder)) ? Number(lineItem.sortOrder) : index,
         lineItem.sku || null,
@@ -178,10 +176,9 @@ async function replaceTypedState(db: DatabaseLike, quotationId: string, record: 
   for (const [index, termItem] of record.commercialTerms.termItems.entries()) {
     await db.run(
       `INSERT INTO QuotationTermItem (
-        id, quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        termItem.id || randomUUID(),
         quotationId,
         Number.isFinite(Number(termItem.sortOrder)) ? Number(termItem.sortOrder) : index,
         termItem.labelViPrint || null,
@@ -225,7 +222,7 @@ export function createQuotationRepository() {
 
   async function insert(record: QuotationRecord, db?: DatabaseLike) {
     const resolvedDb = resolveDb(db);
-    await resolvedDb.run(
+    const result = await resolvedDb.run(
       `INSERT INTO Quotation (
         id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson, salespersonPhone, currency, opportunityId, revisionNo, revisionLabel, parentQuotationId, changeReason, isWinningVersion, items, financialParams, terms, interestRate, exchangeRate, loanTermMonths, markup, vatRate, remarksVi, remarksEn, subtotal, taxTotal, grandTotal, status, validUntil
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -260,7 +257,9 @@ export function createQuotationRepository() {
         record.validUntil,
       ]
     );
-    await replaceTypedState(resolvedDb, record.id, record);
+    const quotationId = record.id ?? String(result?.lastID || '');
+    await replaceTypedState(resolvedDb, quotationId, record);
+    return quotationId;
   }
 
   async function updateById(id: string, record: Omit<QuotationRecord, 'id' | 'quoteNumber' | 'opportunityId'>, db?: DatabaseLike) {

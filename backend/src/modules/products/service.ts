@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import { buildQbuSnapshotState, normalizeProductAssetArray } from './persistence';
 import { createProductRepository, type ProductAssetKind } from './repository';
 
@@ -34,9 +33,7 @@ export function createProductService(deps: CreateProductServiceDeps) {
     },
 
     async createProduct(input: Record<string, any>) {
-      const id = uuidv4();
-      await repository.insertProduct({
-        id,
+      const result = await repository.insertProduct({
         sku: input.sku,
         name: input.name,
         category: input.category,
@@ -56,7 +53,7 @@ export function createProductService(deps: CreateProductServiceDeps) {
         qbuRateValue: null,
         status: input.status ?? 'available',
       });
-      return repository.findProductById(id);
+      return repository.findProductById(String(result.lastID));
     },
 
     async updateProduct(id: string, input: Record<string, any>): Promise<UpdateProductResult> {

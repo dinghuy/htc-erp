@@ -20,7 +20,6 @@ export function createProjectWorkflowRepository(projectDocumentThreadRollupsJoin
   }
 
   async function insertApprovalRequest(input: {
-    id: string;
     projectId: string;
     quotationId?: string | null;
     requestType: string;
@@ -33,12 +32,11 @@ export function createProjectWorkflowRepository(projectDocumentThreadRollupsJoin
     dueDate?: string | null;
     note?: string | null;
   }) {
-    await getDb().run(
+    const result = await getDb().run(
       `INSERT INTO ApprovalRequest (
-        id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.quotationId || null,
         input.requestType,
@@ -52,6 +50,7 @@ export function createProjectWorkflowRepository(projectDocumentThreadRollupsJoin
         input.note || null,
       ]
     );
+    return String(result.lastID);
   }
 
   async function updateApprovalRequestById(input: {
@@ -172,7 +171,6 @@ export function createProjectWorkflowRepository(projectDocumentThreadRollupsJoin
   }
 
   async function insertProjectDocument(input: {
-    id: string;
     projectId: string;
     quotationId?: string | null;
     documentCode?: string | null;
@@ -184,12 +182,11 @@ export function createProjectWorkflowRepository(projectDocumentThreadRollupsJoin
     note?: string | null;
     receivedAt?: string | null;
   }) {
-    await getDb().run(
+    const result = await getDb().run(
       `INSERT INTO ProjectDocument (
-        id, projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note, receivedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note, receivedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
         input.projectId,
         input.quotationId || null,
         input.documentCode || null,
@@ -202,6 +199,7 @@ export function createProjectWorkflowRepository(projectDocumentThreadRollupsJoin
         input.receivedAt || null,
       ]
     );
+    return String(result.lastID);
   }
 
   async function updateProjectDocumentById(input: {

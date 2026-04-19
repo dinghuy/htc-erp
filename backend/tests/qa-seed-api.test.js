@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-qa-seed-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-qa-seed.db');
@@ -26,14 +25,12 @@ async function api(pathname, options = {}) {
 async function seedUser({ username, password, systemRole, roleCodes, fullName }) {
   const db = getDb();
   const passwordHash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
-  await db.run(
+  const result = await db.run(
     `INSERT INTO User (
-      id, fullName, gender, email, phone, role, department, status,
+      fullName, gender, email, phone, role, department, status,
       username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id,
       fullName,
       'male',
       `${username}@example.com`,
@@ -50,7 +47,8 @@ async function seedUser({ username, password, systemRole, roleCodes, fullName })
       'vi',
     ],
   );
-  return id;
+
+  return db.get(`SELECT id FROM User WHERE id = ?`, [result.lastID]);
 }
 
 async function login(username, password) {
@@ -102,10 +100,14 @@ async function main() {
   assert.equal(reset.body.ok, true);
   assert.equal(reset.body.contract.admin.username, 'qa_admin');
   assert.equal(reset.body.contract.personas.sales.username, 'qa_sales');
-  assert.equal(reset.body.contract.sampleIds.projects.delivery, 'qa-project-delivery');
-  assert.equal(reset.body.contract.baseUrl.frontend, 'http://127.0.0.1:4173');
+  assert.match(reset.body.contract.sampleIds.projects.delivery, /^\d+$/);
 
   const db = getDb();
+  const deliveryProject = await db.get(`SELECT id FROM Project WHERE code = ?`, ['QA-DEL-001']);
+  assert.ok(deliveryProject?.id);
+  assert.equal(reset.body.contract.sampleIds.projects.delivery, String(deliveryProject.id));
+  assert.equal(reset.body.contract.baseUrl.frontend, 'http://127.0.0.1:4173');
+
   const userCount = await db.get(`SELECT COUNT(*) AS count FROM User`);
   const projectCount = await db.get(`SELECT COUNT(*) AS count FROM Project`);
   const approvalCount = await db.get(`SELECT COUNT(*) AS count FROM ApprovalRequest`);

@@ -571,10 +571,10 @@ export function computeVarianceSummary(
   const lines = (lineItemsInput || []).map((lineItem) => {
     const lineItemId = lineItem?.id ? String(lineItem.id) : null;
     const approvedAmountVnd = (costEntriesInput || [])
-      .filter(entry => entry?.lineItemId === lineItemId && entry.entryType === 'ESTIMATE_APPROVED')
+      .filter(entry => (entry?.lineItemId != null ? String(entry.lineItemId) : null) === lineItemId && entry.entryType === 'ESTIMATE_APPROVED')
       .reduce((total, entry) => total + num(entry.amountVnd, 0), 0);
     const actualAmountVnd = (costEntriesInput || [])
-      .filter(entry => entry?.lineItemId === lineItemId && entry.entryType === 'ACTUAL')
+      .filter(entry => (entry?.lineItemId != null ? String(entry.lineItemId) : null) === lineItemId && entry.entryType === 'ACTUAL')
       .reduce((total, entry) => total + num(entry.amountVnd, 0), 0);
     const varianceAmountVnd = actualAmountVnd - approvedAmountVnd;
     const variancePct = approvedAmountVnd > 0 ? Math.abs(varianceAmountVnd) / approvedAmountVnd : (actualAmountVnd > 0 ? 1 : 0);

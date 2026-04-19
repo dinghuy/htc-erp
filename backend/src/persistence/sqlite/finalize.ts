@@ -306,8 +306,8 @@ export async function finalizeSqliteSchema(db: Database) {
     );
 
     for (const row of quotationRows) {
-      const quotationId = Number(row?.id);
-      if (!Number.isFinite(quotationId)) continue;
+      const quotationId = String(row?.id || '').trim();
+      if (!quotationId) continue;
 
       const existingLineItemCount = await db.get(
         `SELECT COUNT(*) as c FROM QuotationLineItem WHERE quotationId = ?`,
@@ -826,6 +826,10 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('SupplierQuote', 'linkedQuotationId', 'linkedQuotationId TEXT');
   await ensureColumn('SupplierQuote', 'changeReason', 'changeReason TEXT');
   await ensureColumn('ProjectProcurementLine', 'isActive', 'isActive INTEGER DEFAULT 1');
+  await ensureColumn('ProjectProcurementLine', 'status', "status TEXT DEFAULT 'planned'");
+  await ensureColumn('ProjectProcurementLine', 'note', 'note TEXT');
+  await ensureColumn('ProjectProcurementLine', 'actualReceivedDate', 'actualReceivedDate TEXT');
+  await ensureColumn('ProjectProcurementLine', 'actualDeliveryDate', 'actualDeliveryDate TEXT');
   await ensureColumn('ProjectProcurementLine', 'supersededAt', 'supersededAt TEXT');
   await ensureColumn('ProjectProcurementLine', 'supersededByBaselineId', 'supersededByBaselineId TEXT');
   await ensureColumn('ApprovalRequest', 'projectId', 'projectId TEXT');

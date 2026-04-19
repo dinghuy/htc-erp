@@ -1,5 +1,4 @@
 import express, { Express, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../sqlite-db';
 import {
   DEFAULT_OPERATION_CONFIG,
@@ -237,11 +236,10 @@ async function replaceLineItems(db: any, quotationId: string, lineItemsInput: Pr
   for (const [index, item] of (lineItemsInput || []).entries()) {
     await db.run(
       `INSERT INTO PricingLineItem (
-        id, quotationId, sortOrder, section, description, quantityLabel, unitCount, costRoutingType,
+        quotationId, sortOrder, section, description, quantityLabel, unitCount, costRoutingType,
         sellUnitPriceVnd, buyUnitPriceVnd, buyUnitPriceUsd, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        item.id || uuidv4(),
         quotationId,
         index,
         item.section,
@@ -262,11 +260,10 @@ async function replaceMaintenanceParts(db: any, quotationId: string, parts: Pric
   for (const [index, part] of (parts || []).entries()) {
     await db.run(
       `INSERT INTO PricingMaintenancePart (
-        id, quotationId, sortOrder, systemName, itemDescription, modelSpec, unit, qty, unitPriceVnd,
+        quotationId, sortOrder, systemName, itemDescription, modelSpec, unit, qty, unitPriceVnd,
         level500h, level1000h, level2000h, level3000h, level4000h, note, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        (part as any).id || uuidv4(),
         quotationId,
         index,
         (part as any).systemName || '',
@@ -335,14 +332,12 @@ async function snapshotApprovedEstimateEntries(db: any, quotationId: string) {
 
   const entries = [];
   for (const item of getRoutedLineItems(detail.lineItems)) {
-    const entryId = uuidv4();
     const amountVnd = num((item as any).buyAmount, 0);
-    await db.run(
+    const result = await db.run(
       `INSERT INTO PricingCostEntry (
-        id, pricingQuotationId, lineItemId, entryType, amountVnd, quantity, note, recordedAt, recordedBy, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        pricingQuotationId, lineItemId, entryType, amountVnd, quantity, note, recordedAt, recordedBy, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        entryId,
         quotationId,
         item.id || null,
         'ESTIMATE_APPROVED',
@@ -353,7 +348,7 @@ async function snapshotApprovedEstimateEntries(db: any, quotationId: string) {
         null,
       ]
     );
-    entries.push(entryId);
+    entries.push(String(result?.lastID ?? ''));
   }
 
   return entries;
@@ -437,15 +432,13 @@ export function registerPricingRoutes(app: Express) {
         return res.status(400).json({ error: 'Project đã có QBU gốc. Hãy làm việc trên batch hiện tại hoặc tạo QBU bổ sung.' });
       }
     }
-    const id = uuidv4();
-    await db.run(
+    const insertResult = await db.run(
       `INSERT INTO PricingQuotation (
-        id, projectId, projectCode, customerName, supplierName, salePerson, changeReason, qbuType, parentPricingQuotationId, batchNo,
+        projectId, projectCode, customerName, supplierName, salePerson, changeReason, qbuType, parentPricingQuotationId, batchNo,
         qbuWorkflowStage, qbuSubmittedAt, qbuSubmittedBy, qbuCompletedAt, date, vatRate, discountRate, citRate, tpcType,
         tpcRate, sellFxRate, buyFxRate, loanInterestDays, loanInterestRate, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        id,
         projectId,
         quotation.projectCode,
         quotation.customerName,
@@ -471,6 +464,7 @@ export function registerPricingRoutes(app: Express) {
         quotation.loanInterestRate,
       ]
     );
+    const id = String(insertResult.lastID);
     await replaceLineItems(db, id, body.lineItems || []);
     await upsertRentalConfig(db, id, body.rentalConfig || DEFAULT_RENTAL_CONFIG);
     await upsertOperationConfig(db, id, body.operationConfig || DEFAULT_OPERATION_CONFIG);
@@ -697,9 +691,9 @@ export function registerPricingRoutes(app: Express) {
     const db = getDb();
     const source = await buildQuotationDetail(db, quotationId);
     if (!source) return res.status(404).json({ error: 'Pricing quotation not found' });
-    const rootId = source.parentPricingQuotationId || source.id;
-    const projectId = req.body?.projectId || source.projectId;
-    await ensureProjectOpen(db, projectId);
+    const rootId = num(source.parentPricingQuotationId || source.id, 0);
+    const projectId = req.body?.projectId != null ? num(req.body.projectId, 0) : num(source.projectId, 0);
+    await ensureProjectOpen(db, projectId ? String(projectId) : null);
     const changeReason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
     if (!changeReason) {
       return res.status(400).json({ error: 'Cần nhập lý do tạo QBU bổ sung' });
@@ -716,23 +710,21 @@ export function registerPricingRoutes(app: Express) {
       [rootId, rootId]
     );
     const batchNo = num(row?.maxBatchNo, 0) + 1;
-    const newId = uuidv4();
-    await db.run(
+    const insertResult = await db.run(
       `INSERT INTO PricingQuotation (
-        id, projectId, projectCode, customerName, supplierName, salePerson, changeReason, qbuType, parentPricingQuotationId, batchNo,
+        projectId, projectCode, customerName, supplierName, salePerson, changeReason, qbuType, parentPricingQuotationId, batchNo,
         qbuWorkflowStage, date, vatRate, discountRate, citRate, tpcType, tpcRate, sellFxRate, buyFxRate,
         loanInterestDays, loanInterestRate, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        newId,
-        projectId,
+        projectId || null,
         source.projectCode,
         source.customerName,
         source.supplierName,
         source.salePerson,
         changeReason,
         'SUPPLEMENTAL',
-        rootId,
+        rootId || null,
         batchNo,
         source.date,
         source.vatRate,
@@ -746,6 +738,7 @@ export function registerPricingRoutes(app: Express) {
         source.loanInterestRate,
       ]
     );
+    const newId = String(insertResult.lastID);
     await replaceLineItems(db, newId, lineItems);
     await upsertRentalConfig(db, newId, req.body?.rentalConfig || source.rentalConfig);
     await upsertOperationConfig(db, newId, req.body?.operationConfig || source.operationConfig);
@@ -771,13 +764,11 @@ export function registerPricingRoutes(app: Express) {
     const lineItem = detail.lineItems.find((item: any) => item.id === lineItemId);
     if (!lineItem) return res.status(400).json({ error: 'Line item không thuộc quotation hiện tại' });
 
-    const entryId = uuidv4();
-    await db.run(
+    const insertResult = await db.run(
       `INSERT INTO PricingCostEntry (
-        id, pricingQuotationId, lineItemId, entryType, amountVnd, quantity, note, recordedAt, recordedBy, createdAt, updatedAt
-      ) VALUES (?, ?, ?, 'ACTUAL', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        pricingQuotationId, lineItemId, entryType, amountVnd, quantity, note, recordedAt, recordedBy, createdAt, updatedAt
+      ) VALUES (?, ?, 'ACTUAL', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        entryId,
         quotationId,
         lineItemId,
         num(req.body?.amountVnd, 0),
@@ -787,7 +778,7 @@ export function registerPricingRoutes(app: Express) {
         getCurrentUserId(req),
       ]
     );
-    const row = await db.get(`SELECT * FROM PricingCostEntry WHERE id = ?`, [entryId]);
+    const row = await db.get(`SELECT * FROM PricingCostEntry WHERE id = ?`, [String(insertResult.lastID)]);
     res.status(201).json(mapCostEntryRow(row));
   }));
 

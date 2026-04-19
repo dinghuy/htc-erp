@@ -3,13 +3,27 @@ import type { Database } from 'sqlite';
 import type { SystemRole } from '../../shared/contracts/domain';
 
 type QaUserSeed = {
-  id: string;
   username: string;
   password: string;
   fullName: string;
   systemRole: SystemRole;
   roleCodes: SystemRole[];
   department: string;
+};
+
+type QaSeedIds = {
+  users: Record<string, string>;
+  accounts: Record<string, string>;
+  contacts: Record<string, string>;
+  projects: Record<string, string>;
+  quotations: Record<string, string>;
+  approvals: Record<string, string>;
+  tasks: Record<string, string>;
+  documents: Record<string, string>;
+  baselines: Record<string, string>;
+  milestones: Record<string, string>;
+  procurementLines: Record<string, string>;
+  timeline: Record<string, string>;
 };
 
 type UxSeedContract = {
@@ -33,11 +47,68 @@ type UxSeedContract = {
   };
 };
 
+function createQaSeedIds(): QaSeedIds {
+  return {
+    users: {},
+    accounts: {},
+    contacts: {},
+    projects: {},
+    quotations: {},
+    approvals: {},
+    tasks: {},
+    documents: {},
+    baselines: {},
+    milestones: {},
+    procurementLines: {},
+    timeline: {},
+  };
+}
+
+function toLegacySampleIds(ids: QaSeedIds): UxSeedContract['sampleIds'] {
+  return {
+    accounts: {
+      alpha: ids.accounts.alpha,
+      beta: ids.accounts.beta,
+      gamma: ids.accounts.gamma,
+      supplier: ids.accounts.supplier,
+    },
+    projects: {
+      quoting: ids.projects.quoting,
+      won: ids.projects.won,
+      delivery: ids.projects.delivery,
+    },
+    quotations: {
+      quoting: ids.quotations.quoting,
+      won: ids.quotations.won,
+      delivery: ids.quotations.delivery,
+    },
+    approvals: {
+      commercial: ids.approvals.commercial,
+      procurement: ids.approvals.procurement,
+      finance: ids.approvals.finance,
+      legal: ids.approvals.legal,
+      executive: ids.approvals.executive,
+    },
+    tasks: {
+      salesFollowUp: ids.tasks.salesFollowUp,
+      handoff: ids.tasks.handoff,
+      delivery: ids.tasks.delivery,
+      procurement: ids.tasks.procurement,
+      accounting: ids.tasks.accounting,
+      legal: ids.tasks.legal,
+      viewer: ids.tasks.viewer,
+    },
+    documents: {
+      legalContract: ids.documents.legalContract,
+      financeMilestone: ids.documents.financeMilestone,
+    },
+  };
+}
+
 const QA_PASSWORD = 'QaRole@123';
 
 const QA_USERS: Record<string, QaUserSeed> = {
   admin: {
-    id: 'qa-user-admin',
     username: 'qa_admin',
     password: 'admin123',
     fullName: 'QA Administrator',
@@ -46,7 +117,6 @@ const QA_USERS: Record<string, QaUserSeed> = {
     department: 'IT',
   },
   sales: {
-    id: 'qa-user-sales',
     username: 'qa_sales',
     password: QA_PASSWORD,
     fullName: 'QA Sales',
@@ -55,7 +125,6 @@ const QA_USERS: Record<string, QaUserSeed> = {
     department: 'Sales',
   },
   projectManager: {
-    id: 'qa-user-project-manager',
     username: 'qa_pm',
     password: QA_PASSWORD,
     fullName: 'QA Project Manager',
@@ -64,7 +133,6 @@ const QA_USERS: Record<string, QaUserSeed> = {
     department: 'Operations',
   },
   procurement: {
-    id: 'qa-user-procurement',
     username: 'qa_procurement',
     password: QA_PASSWORD,
     fullName: 'QA Procurement',
@@ -73,7 +141,6 @@ const QA_USERS: Record<string, QaUserSeed> = {
     department: 'Procurement',
   },
   accounting: {
-    id: 'qa-user-accounting',
     username: 'qa_accounting',
     password: QA_PASSWORD,
     fullName: 'QA Accounting',
@@ -82,7 +149,6 @@ const QA_USERS: Record<string, QaUserSeed> = {
     department: 'Finance',
   },
   legal: {
-    id: 'qa-user-legal',
     username: 'qa_legal',
     password: QA_PASSWORD,
     fullName: 'QA Legal',
@@ -91,7 +157,6 @@ const QA_USERS: Record<string, QaUserSeed> = {
     department: 'Legal',
   },
   director: {
-    id: 'qa-user-director',
     username: 'qa_director',
     password: QA_PASSWORD,
     fullName: 'QA Director',
@@ -100,7 +165,6 @@ const QA_USERS: Record<string, QaUserSeed> = {
     department: 'BOD',
   },
   viewer: {
-    id: 'qa-user-viewer',
     username: 'qa_viewer',
     password: QA_PASSWORD,
     fullName: 'QA Viewer',
@@ -203,7 +267,7 @@ const RESET_TABLES = [
   'User',
 ];
 
-export function buildUxSeedContract(): UxSeedContract {
+export function buildUxSeedContract(sampleIds?: UxSeedContract['sampleIds']): UxSeedContract {
   return {
     contractVersion: 'ux-regression-v1',
     baseUrl: {
@@ -224,7 +288,7 @@ export function buildUxSeedContract(): UxSeedContract {
         },
       ]),
     ),
-    sampleIds: {
+    sampleIds: sampleIds || {
       accounts: { ...IDS.accounts },
       projects: { ...IDS.projects },
       quotations: { ...IDS.quotations },
@@ -245,16 +309,15 @@ async function clearQaTables(db: Database) {
   }
 }
 
-async function insertQaUsers(db: Database) {
-  for (const user of Object.values(QA_USERS)) {
+async function insertQaUsers(db: Database, ids: QaSeedIds) {
+  for (const [key, user] of Object.entries(QA_USERS)) {
     const passwordHash = await bcrypt.hash(user.password, 10);
-    await db.run(
+    const result = await db.run(
       `INSERT INTO User (
-        id, fullName, gender, email, phone, role, department, status,
+        fullName, gender, email, phone, role, department, status,
         username, passwordHash, systemRole, roleCodes, accountStatus, mustChangePassword, language
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        user.id,
         user.fullName,
         'male',
         `${user.username}@qa.local`,
@@ -271,47 +334,59 @@ async function insertQaUsers(db: Database) {
         'vi',
       ],
     );
+    ids.users[key] = String(result.lastID);
   }
 }
 
-async function insertQaAccounts(db: Database) {
-  await db.run(
-    `INSERT INTO Account (id, companyName, accountType, status, assignedTo, shortName, country)
-     VALUES (?, ?, 'Customer', 'active', ?, ?, ?)`,
-    [IDS.accounts.alpha, 'QA Alpha Port', QA_USERS.sales.id, 'QAA', 'Vietnam'],
+async function insertQaAccounts(db: Database, ids: QaSeedIds) {
+  const alphaAccount = await db.run(
+    `INSERT INTO Account (companyName, accountType, status, assignedTo, shortName, country)
+     VALUES (?, 'Customer', 'active', ?, ?, ?)`,
+    ['QA Alpha Port', ids.users.sales, 'QAA', 'Vietnam'],
   );
-  await db.run(
-    `INSERT INTO Account (id, companyName, accountType, status, assignedTo, shortName, country)
-     VALUES (?, ?, 'Customer', 'active', ?, ?, ?)`,
-    [IDS.accounts.beta, 'QA Beta Logistics', QA_USERS.sales.id, 'QAB', 'Vietnam'],
-  );
-  await db.run(
-    `INSERT INTO Account (id, companyName, accountType, status, assignedTo, shortName, country)
-     VALUES (?, ?, 'Customer', 'active', ?, ?, ?)`,
-    [IDS.accounts.gamma, 'QA Gamma Manufacturing', QA_USERS.projectManager.id, 'QAG', 'Vietnam'],
-  );
-  await db.run(
-    `INSERT INTO Account (id, companyName, accountType, status, shortName, country)
-     VALUES (?, ?, 'Supplier', 'active', ?, ?)`,
-    [IDS.accounts.supplier, 'QA Supplier One', 'QAS', 'China'],
-  );
+  ids.accounts.alpha = String(alphaAccount.lastID);
 
-  await db.run(
-    `INSERT INTO Contact (id, accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-    [IDS.contacts.alpha, IDS.accounts.alpha, 'Nguyen', 'Lan', 'Procurement', 'Manager', 'female', 'lan.alpha@qa.local', '0900000001'],
+  const betaAccount = await db.run(
+    `INSERT INTO Account (companyName, accountType, status, assignedTo, shortName, country)
+     VALUES (?, 'Customer', 'active', ?, ?, ?)`,
+    ['QA Beta Logistics', ids.users.sales, 'QAB', 'Vietnam'],
   );
-  await db.run(
-    `INSERT INTO Contact (id, accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-    [IDS.contacts.beta, IDS.accounts.beta, 'Tran', 'Minh', 'Operations', 'Coordinator', 'male', 'minh.beta@qa.local', '0900000002'],
+  ids.accounts.beta = String(betaAccount.lastID);
+
+  const gammaAccount = await db.run(
+    `INSERT INTO Account (companyName, accountType, status, assignedTo, shortName, country)
+     VALUES (?, 'Customer', 'active', ?, ?, ?)`,
+    ['QA Gamma Manufacturing', ids.users.projectManager, 'QAG', 'Vietnam'],
   );
+  ids.accounts.gamma = String(gammaAccount.lastID);
+
+  const supplierAccount = await db.run(
+    `INSERT INTO Account (companyName, accountType, status, shortName, country)
+     VALUES (?, 'Supplier', 'active', ?, ?)`,
+    ['QA Supplier One', 'QAS', 'China'],
+  );
+  ids.accounts.supplier = String(supplierAccount.lastID);
+
+  const alphaContact = await db.run(
+    `INSERT INTO Contact (accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+    [ids.accounts.alpha, 'Nguyen', 'Lan', 'Procurement', 'Manager', 'female', 'lan.alpha@qa.local', '0900000001'],
+  );
+  ids.contacts.alpha = String(alphaContact.lastID);
+
+  const betaContact = await db.run(
+    `INSERT INTO Contact (accountId, lastName, firstName, department, jobTitle, gender, email, phone, isPrimaryContact)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+    [ids.accounts.beta, 'Tran', 'Minh', 'Operations', 'Coordinator', 'male', 'minh.beta@qa.local', '0900000002'],
+  );
+  ids.contacts.beta = String(betaContact.lastID);
 }
 
 async function insertQaQuotation(
   db: Database,
+  ids: QaSeedIds,
   input: {
-    id: string;
+    key: string;
     quoteNumber: string;
     subject: string;
     accountId: string;
@@ -335,15 +410,14 @@ async function insertQaQuotation(
 ) {
   const financialConfig = input.financialConfig || {};
   const commercialTerms = input.commercialTerms || {};
-  await db.run(
+  const result = await db.run(
     `INSERT INTO Quotation (
-      id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson,
+      quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson,
       salespersonPhone, currency, revisionNo, revisionLabel, isWinningVersion, items, financialParams, terms,
       interestRate, exchangeRate, loanTermMonths, markup, vatRate, remarksVi, remarksEn,
       subtotal, taxTotal, grandTotal, status, validUntil
-    ) VALUES (?, ?, ${input.quoteDateSql || "date('now')"}, ?, ?, ?, ?, ?, ?, 'VND', ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${input.validUntilSql || "date('now', '+15 day')"})`,
+    ) VALUES (?, ${input.quoteDateSql || "date('now')"}, ?, ?, ?, ?, ?, ?, 'VND', ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${input.validUntilSql || "date('now', '+15 day')"})`,
     [
-      input.id,
       input.quoteNumber,
       input.subject,
       input.accountId,
@@ -367,15 +441,15 @@ async function insertQaQuotation(
       input.status,
     ]
   );
+  const quotationId = String(result.lastID);
 
   for (const [index, item] of input.lineItems.entries()) {
     await db.run(
       `INSERT INTO QuotationLineItem (
-        id, quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        `${input.id}-line-${index + 1}`,
-        input.id,
+        quotationId,
         index,
         item.sku,
         item.name,
@@ -391,11 +465,10 @@ async function insertQaQuotation(
   for (const [index, termItem] of (commercialTerms.termItems || []).entries()) {
     await db.run(
       `INSERT INTO QuotationTermItem (
-        id, quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
       [
-        `${input.id}-term-${index + 1}`,
-        input.id,
+        quotationId,
         index,
         termItem.labelViPrint,
         termItem.labelEn,
@@ -404,32 +477,39 @@ async function insertQaQuotation(
       ]
     );
   }
+
+  return quotationId;
 }
 
-async function insertQaProjectsAndQuotes(db: Database) {
-  await db.run(
-    `INSERT INTO Project (id, code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, date('now', '-5 day'), date('now', '+20 day'), ?)`,
-    [IDS.projects.quoting, 'QA-QUO-001', 'QA Quoting Project', 'Representative project for quoting-stage commercial checks.', QA_USERS.projectManager.id, IDS.accounts.alpha, 'quoting', 'active'],
+async function insertQaProjectsAndQuotes(db: Database, ids: QaSeedIds) {
+  const quotingProject = await db.run(
+    `INSERT INTO Project (code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
+     VALUES (?, ?, ?, ?, ?, ?, date('now', '-5 day'), date('now', '+20 day'), ?)`,
+    ['QA-QUO-001', 'QA Quoting Project', 'Representative project for quoting-stage commercial checks.', ids.users.projectManager, ids.accounts.alpha, 'quoting', 'active'],
   );
-  await db.run(
-    `INSERT INTO Project (id, code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, date('now', '-12 day'), date('now', '+45 day'), ?)`,
-    [IDS.projects.won, 'QA-WON-001', 'QA Won Project', 'Representative project for legal and executive checks.', QA_USERS.projectManager.id, IDS.accounts.beta, 'won', 'active'],
-  );
-  await db.run(
-    `INSERT INTO Project (id, code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, date('now', '-18 day'), date('now', '+60 day'), ?)`,
-    [IDS.projects.delivery, 'QA-DEL-001', 'QA Delivery Project', 'Representative project for delivery, finance and procurement checks.', QA_USERS.projectManager.id, IDS.accounts.gamma, 'delivery', 'active'],
-  );
+  ids.projects.quoting = String(quotingProject.lastID);
 
-  await insertQaQuotation(db, {
-    id: IDS.quotations.quoting,
+  const wonProject = await db.run(
+    `INSERT INTO Project (code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
+     VALUES (?, ?, ?, ?, ?, ?, date('now', '-12 day'), date('now', '+45 day'), ?)`,
+    ['QA-WON-001', 'QA Won Project', 'Representative project for legal and executive checks.', ids.users.projectManager, ids.accounts.beta, 'won', 'active'],
+  );
+  ids.projects.won = String(wonProject.lastID);
+
+  const deliveryProject = await db.run(
+    `INSERT INTO Project (code, name, description, managerId, accountId, projectStage, startDate, endDate, status)
+     VALUES (?, ?, ?, ?, ?, ?, date('now', '-18 day'), date('now', '+60 day'), ?)`,
+    ['QA-DEL-001', 'QA Delivery Project', 'Representative project for delivery, finance and procurement checks.', ids.users.projectManager, ids.accounts.gamma, 'delivery', 'active'],
+  );
+  ids.projects.delivery = String(deliveryProject.lastID);
+
+  ids.quotations.quoting = await insertQaQuotation(db, ids, {
+    key: 'quoting',
     quoteNumber: 'QA-Q-001',
     subject: 'QA Quoting Package',
-    accountId: IDS.accounts.alpha,
-    contactId: IDS.contacts.alpha,
-    projectId: IDS.projects.quoting,
+    accountId: ids.accounts.alpha,
+    contactId: ids.contacts.alpha,
+    projectId: ids.projects.quoting,
     salesperson: QA_USERS.sales.fullName,
     salespersonPhone: '0900000101',
     revisionNo: 1,
@@ -446,13 +526,13 @@ async function insertQaProjectsAndQuotes(db: Database) {
     commercialTerms: { termItems: [{ labelViPrint: 'Hiệu lực', labelEn: 'Validity', textVi: '15 days', textEn: '15 days' }] },
   });
 
-  await insertQaQuotation(db, {
-    id: IDS.quotations.won,
+  ids.quotations.won = await insertQaQuotation(db, ids, {
+    key: 'won',
     quoteNumber: 'QA-Q-002',
     subject: 'QA Winning Package',
-    accountId: IDS.accounts.beta,
-    contactId: IDS.contacts.beta,
-    projectId: IDS.projects.won,
+    accountId: ids.accounts.beta,
+    contactId: ids.contacts.beta,
+    projectId: ids.projects.won,
     salesperson: QA_USERS.sales.fullName,
     salespersonPhone: '0900000102',
     revisionNo: 2,
@@ -469,13 +549,13 @@ async function insertQaProjectsAndQuotes(db: Database) {
     commercialTerms: { termItems: [{ labelViPrint: 'Hiệu lực', labelEn: 'Validity', textVi: '30 days', textEn: '30 days' }] },
   });
 
-  await insertQaQuotation(db, {
-    id: IDS.quotations.delivery,
+  ids.quotations.delivery = await insertQaQuotation(db, ids, {
+    key: 'delivery',
     quoteNumber: 'QA-Q-003',
     subject: 'QA Delivery Package',
-    accountId: IDS.accounts.gamma,
-    contactId: IDS.contacts.alpha,
-    projectId: IDS.projects.delivery,
+    accountId: ids.accounts.gamma,
+    contactId: ids.contacts.alpha,
+    projectId: ids.projects.delivery,
     salesperson: QA_USERS.projectManager.fullName,
     salespersonPhone: '0900000103',
     revisionNo: 1,
@@ -493,183 +573,198 @@ async function insertQaProjectsAndQuotes(db: Database) {
   });
 }
 
-async function insertQaExecutionData(db: Database) {
-  await db.run(
+async function insertQaExecutionData(db: Database, ids: QaSeedIds) {
+  const baselineResult = await db.run(
     `INSERT INTO ProjectExecutionBaseline (
-      id, projectId, sourceType, sourceId, baselineNo, title, effectiveDate, currency, totalValue, lineItems, isCurrent, createdBy
-    ) VALUES (?, ?, 'main_contract', ?, 1, ?, date('now', '-15 day'), 'VND', ?, ?, 1, ?)`,
+      projectId, sourceType, sourceId, baselineNo, title, effectiveDate, currency, totalValue, lineItems, isCurrent, createdBy
+    ) VALUES (?, 'main_contract', ?, 1, ?, date('now', '-15 day'), 'VND', ?, ?, 1, ?)`,
     [
-      IDS.baselines.delivery,
-      IDS.projects.delivery,
-      IDS.quotations.delivery,
+      ids.projects.delivery,
+      ids.quotations.delivery,
       'QA Delivery Baseline',
       345600000,
       JSON.stringify([{ lineKey: 'delivery-core', itemCode: 'QA-DEL-CORE', itemName: 'Delivery Core Package', quantity: 1 }]),
-      QA_USERS.projectManager.id,
+      ids.users.projectManager,
     ],
   );
+  ids.baselines.delivery = String(baselineResult.lastID);
 
-  await db.run(
+  const procurementResult = await db.run(
     `INSERT INTO ProjectProcurementLine (
-      id, projectId, baselineId, sourceLineKey, itemCode, itemName, unit, contractQty,
+      projectId, baselineId, sourceLineKey, itemCode, itemName, unit, contractQty,
       orderedQty, receivedQty, deliveredQty, shortageQty, shortageStatus, supplierId, poNumber,
       etaDate, committedDeliveryDate, status, note, isActive
-    ) VALUES (?, ?, ?, ?, ?, ?, 'Set', 10, 7, 4, 2, 3, 'pending', ?, ?, date('now', '-2 day'), date('now', '-1 day'), 'ordered', ?, 1)`,
+    ) VALUES (?, ?, ?, ?, ?, 'Set', 10, 7, 4, 2, 3, 'pending', ?, ?, date('now', '-2 day'), date('now', '-1 day'), 'ordered', ?, 1)`,
     [
-      IDS.procurementLines.deliveryCore,
-      IDS.projects.delivery,
-      IDS.baselines.delivery,
+      ids.projects.delivery,
+      ids.baselines.delivery,
       'delivery-core',
       'QA-DEL-CORE',
       'Delivery Core Package',
-      IDS.accounts.supplier,
+      ids.accounts.supplier,
       'PO-QA-001',
       'Seeded shortage + overdue ETA for procurement and finance risk checks.',
     ],
   );
+  ids.procurementLines.deliveryCore = String(procurementResult.lastID);
 
-  await db.run(
+  const milestoneResult = await db.run(
     `INSERT INTO ProjectMilestone (
-      id, projectId, milestoneType, title, plannedDate, actualDate, status, note, createdBy
-    ) VALUES (?, ?, 'kickoff', ?, date('now', '+2 day'), NULL, 'pending', ?, ?)`,
+      projectId, milestoneType, title, plannedDate, actualDate, status, note, createdBy
+    ) VALUES (?, 'kickoff', ?, date('now', '+2 day'), NULL, 'pending', ?, ?)`,
     [
-      IDS.milestones.deliveryKickoff,
-      IDS.projects.delivery,
+      ids.projects.delivery,
       'Kickoff delivery execution',
       'Milestone used by PM/timeline audit flow.',
-      QA_USERS.projectManager.id,
+      ids.users.projectManager,
     ],
   );
+  ids.milestones.deliveryKickoff = String(milestoneResult.lastID);
 
-  await db.run(
+  const timelineResult = await db.run(
     `INSERT INTO ProjectTimelineEvent (
-      id, projectId, eventType, title, description, eventDate, entityType, entityId, payload, createdBy
-    ) VALUES (?, ?, 'workflow', ?, ?, date('now', '-1 day'), 'ProjectMilestone', ?, ?, ?)`,
+      projectId, eventType, title, description, eventDate, entityType, entityId, payload, createdBy
+    ) VALUES (?, 'workflow', ?, ?, date('now', '-1 day'), 'ProjectMilestone', ?, ?, ?)`,
     [
-      IDS.timeline.deliveryKickoff,
-      IDS.projects.delivery,
+      ids.projects.delivery,
       'Delivery readiness review',
       'Timeline event for PM and combined workspace timeline checks.',
-      IDS.milestones.deliveryKickoff,
+      ids.milestones.deliveryKickoff,
       JSON.stringify({ source: 'qa-seed' }),
-      QA_USERS.projectManager.id,
+      ids.users.projectManager,
     ],
   );
+  ids.timeline.deliveryKickoff = String(timelineResult.lastID);
 }
 
-async function insertQaTasksApprovalsDocuments(db: Database) {
-  await db.run(
+async function insertQaTasksApprovalsDocuments(db: Database, ids: QaSeedIds) {
+  const salesFollowUp = await db.run(
     `INSERT INTO Task (
-      id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
+      projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
       quotationId, taskType, department, blockedReason
-    ) VALUES (?, ?, ?, ?, ?, 'active', 'high', date('now', '-1 day'), date('now', '+1 day'), 40, ?, 'follow_up', 'Sales', NULL)`,
-    [IDS.tasks.salesFollowUp, IDS.projects.quoting, 'Follow up quoting package', 'Commercial follow-up for QA quoting journey.', QA_USERS.sales.id, IDS.quotations.quoting],
+    ) VALUES (?, ?, ?, ?, 'active', 'high', date('now', '-1 day'), date('now', '+1 day'), 40, ?, 'follow_up', 'Sales', NULL)`,
+    [ids.projects.quoting, 'Follow up quoting package', 'Commercial follow-up for QA quoting journey.', ids.users.sales, ids.quotations.quoting],
   );
-  await db.run(
+  ids.tasks.salesFollowUp = String(salesFollowUp.lastID);
+
+  const handoffTask = await db.run(
     `INSERT INTO Task (
-      id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
+      projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
       quotationId, taskType, department, blockedReason
-    ) VALUES (?, ?, ?, ?, ?, 'active', 'high', date('now', '-2 day'), date('now', '+2 day'), 20, ?, 'handoff', 'Operations', ?)`,
-    [IDS.tasks.handoff, IDS.projects.won, 'Validate project handoff', 'PM handoff validation item.', QA_USERS.projectManager.id, IDS.quotations.won, 'Awaiting legal package'],
+    ) VALUES (?, ?, ?, ?, 'active', 'high', date('now', '-2 day'), date('now', '+2 day'), 20, ?, 'handoff', 'Operations', ?)`,
+    [ids.projects.won, 'Validate project handoff', 'PM handoff validation item.', ids.users.projectManager, ids.quotations.won, 'Awaiting legal package'],
   );
-  await db.run(
+  ids.tasks.handoff = String(handoffTask.lastID);
+
+  const deliveryTask = await db.run(
     `INSERT INTO Task (
-      id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
+      projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
       quotationId, taskType, department, blockedReason
-    ) VALUES (?, ?, ?, ?, ?, 'active', 'high', date('now', '-3 day'), date('now', '+3 day'), 35, ?, 'delivery_handoff', 'Operations', ?)`,
-    [IDS.tasks.delivery, IDS.projects.delivery, 'Coordinate delivery execution', 'Execution-focused item for PM and director audit flows.', QA_USERS.projectManager.id, IDS.quotations.delivery, 'Waiting inbound completion'],
+    ) VALUES (?, ?, ?, ?, 'active', 'high', date('now', '-3 day'), date('now', '+3 day'), 35, ?, 'delivery_handoff', 'Operations', ?)`,
+    [ids.projects.delivery, 'Coordinate delivery execution', 'Execution-focused item for PM and director audit flows.', ids.users.projectManager, ids.quotations.delivery, 'Waiting inbound completion'],
   );
-  await db.run(
+  ids.tasks.delivery = String(deliveryTask.lastID);
+
+  const procurementTask = await db.run(
     `INSERT INTO Task (
-      id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
+      projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
       quotationId, taskType, department, blockedReason
-    ) VALUES (?, ?, ?, ?, ?, 'active', 'high', date('now', '-3 day'), date('now', '+1 day'), 15, ?, 'procurement_followup', 'Procurement', ?)`,
-    [IDS.tasks.procurement, IDS.projects.delivery, 'Resolve supplier shortage', 'Procurement queue item tied to overdue ETA.', QA_USERS.procurement.id, IDS.quotations.delivery, 'ETA overdue from supplier'],
+    ) VALUES (?, ?, ?, ?, 'active', 'high', date('now', '-3 day'), date('now', '+1 day'), 15, ?, 'procurement_followup', 'Procurement', ?)`,
+    [ids.projects.delivery, 'Resolve supplier shortage', 'Procurement queue item tied to overdue ETA.', ids.users.procurement, ids.quotations.delivery, 'ETA overdue from supplier'],
   );
-  await db.run(
+  ids.tasks.procurement = String(procurementTask.lastID);
+
+  const accountingTask = await db.run(
     `INSERT INTO Task (
-      id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
+      projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
       quotationId, taskType, department, blockedReason
-    ) VALUES (?, ?, ?, ?, ?, 'active', 'medium', date('now', '-2 day'), date('now', '+2 day'), 10, ?, 'payment_review', 'Finance', NULL)`,
-    [IDS.tasks.accounting, IDS.projects.delivery, 'Review payment milestone', 'Accounting queue item for finance cockpit.', QA_USERS.accounting.id, IDS.quotations.delivery],
+    ) VALUES (?, ?, ?, ?, 'active', 'medium', date('now', '-2 day'), date('now', '+2 day'), 10, ?, 'payment_review', 'Finance', NULL)`,
+    [ids.projects.delivery, 'Review payment milestone', 'Accounting queue item for finance cockpit.', ids.users.accounting, ids.quotations.delivery],
   );
-  await db.run(
+  ids.tasks.accounting = String(accountingTask.lastID);
+
+  const legalTask = await db.run(
     `INSERT INTO Task (
-      id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
+      projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
       quotationId, taskType, department, blockedReason
-    ) VALUES (?, ?, ?, ?, ?, 'active', 'medium', date('now', '-2 day'), date('now', '+2 day'), 10, ?, 'contract_review', 'Legal', ?)`,
-    [IDS.tasks.legal, IDS.projects.won, 'Review contract deviation', 'Legal queue item tied to pending contract review.', QA_USERS.legal.id, IDS.quotations.won, 'Awaiting appendix upload'],
+    ) VALUES (?, ?, ?, ?, 'active', 'medium', date('now', '-2 day'), date('now', '+2 day'), 10, ?, 'contract_review', 'Legal', ?)`,
+    [ids.projects.won, 'Review contract deviation', 'Legal queue item tied to pending contract review.', ids.users.legal, ids.quotations.won, 'Awaiting appendix upload'],
   );
-  await db.run(
+  ids.tasks.legal = String(legalTask.lastID);
+
+  const viewerTask = await db.run(
     `INSERT INTO Task (
-      id, projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
+      projectId, name, description, assigneeId, status, priority, startDate, dueDate, completionPct,
       quotationId, taskType, department, blockedReason
-    ) VALUES (?, ?, ?, ?, ?, 'pending', 'low', date('now'), date('now', '+5 day'), 0, ?, 'observe', 'Audit', NULL)`,
-    [IDS.tasks.viewer, IDS.projects.won, 'Observe project status', 'Read-only visibility item for viewer smoke checks.', QA_USERS.viewer.id, IDS.quotations.won],
+    ) VALUES (?, ?, ?, ?, 'pending', 'low', date('now'), date('now', '+5 day'), 0, ?, 'observe', 'Audit', NULL)`,
+    [ids.projects.won, 'Observe project status', 'Read-only visibility item for viewer smoke checks.', ids.users.viewer, ids.quotations.won],
   );
+  ids.tasks.viewer = String(viewerTask.lastID);
 
   const approvalRows = [
-    [IDS.approvals.commercial, IDS.projects.quoting, IDS.quotations.quoting, 'commercial-review', 'Commercial approval', 'Sales', QA_USERS.sales.id, 'sales', QA_USERS.sales.id],
-    [IDS.approvals.procurement, IDS.projects.delivery, IDS.quotations.delivery, 'po-approval', 'Procurement approval', 'Procurement', QA_USERS.projectManager.id, 'procurement', QA_USERS.procurement.id],
-    [IDS.approvals.finance, IDS.projects.delivery, IDS.quotations.delivery, 'payment-milestone', 'Finance approval', 'Finance', QA_USERS.projectManager.id, 'accounting', QA_USERS.accounting.id],
-    [IDS.approvals.legal, IDS.projects.won, IDS.quotations.won, 'contract-review', 'Legal approval', 'Legal', QA_USERS.projectManager.id, 'legal', QA_USERS.legal.id],
-    [IDS.approvals.executive, IDS.projects.won, IDS.quotations.won, 'margin-exception', 'Executive approval', 'BOD', QA_USERS.projectManager.id, 'director', QA_USERS.director.id],
-  ];
+    ['commercial', ids.projects.quoting, ids.quotations.quoting, 'commercial-review', 'Commercial approval', 'Sales', ids.users.sales, 'sales', ids.users.sales],
+    ['procurement', ids.projects.delivery, ids.quotations.delivery, 'po-approval', 'Procurement approval', 'Procurement', ids.users.projectManager, 'procurement', ids.users.procurement],
+    ['finance', ids.projects.delivery, ids.quotations.delivery, 'payment-milestone', 'Finance approval', 'Finance', ids.users.projectManager, 'accounting', ids.users.accounting],
+    ['legal', ids.projects.won, ids.quotations.won, 'contract-review', 'Legal approval', 'Legal', ids.users.projectManager, 'legal', ids.users.legal],
+    ['executive', ids.projects.won, ids.quotations.won, 'margin-exception', 'Executive approval', 'BOD', ids.users.projectManager, 'director', ids.users.director],
+  ] as const;
 
-  for (const row of approvalRows) {
-    await db.run(
+  for (const [key, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId] of approvalRows) {
+    const result = await db.run(
       `INSERT INTO ApprovalRequest (
-        id, projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', date('now', '+3 day'), ?)`,
-      [...row, 'Seeded for UX regression lane checks.'],
+        projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, status, dueDate, note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', date('now', '+3 day'), ?)`,
+      [projectId, quotationId, requestType, title, department, requestedBy, approverRole, approverUserId, 'Seeded for UX regression lane checks.'],
     );
+    ids.approvals[key] = String(result.lastID);
   }
 
-  await db.run(
+  const legalDocument = await db.run(
     `INSERT INTO ProjectDocument (
-      id, projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note
-    ) VALUES (?, ?, ?, 'HDMB', 'Contract package', 'Contract', 'Legal', 'missing', 'legal_review', ?)`,
-    [IDS.documents.legalContract, IDS.projects.won, IDS.quotations.won, 'Missing legal package for audit flow'],
+      projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note
+    ) VALUES (?, ?, 'HDMB', 'Contract package', 'Contract', 'Legal', 'missing', 'legal_review', ?)`,
+    [ids.projects.won, ids.quotations.won, 'Missing legal package for audit flow'],
   );
-  await db.run(
+  ids.documents.legalContract = String(legalDocument.lastID);
+
+  const financeDocument = await db.run(
     `INSERT INTO ProjectDocument (
-      id, projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note
-    ) VALUES (?, ?, ?, 'PAY-01', 'Payment milestone backup', 'Finance', 'Finance', 'requested', 'delivery', ?)`,
-    [IDS.documents.financeMilestone, IDS.projects.delivery, IDS.quotations.delivery, 'Requested finance backup document for audit flow'],
+      projectId, quotationId, documentCode, documentName, category, department, status, requiredAtStage, note
+    ) VALUES (?, ?, 'PAY-01', 'Payment milestone backup', 'Finance', 'Finance', 'requested', 'delivery', ?)`,
+    [ids.projects.delivery, ids.quotations.delivery, 'Requested finance backup document for audit flow'],
   );
+  ids.documents.financeMilestone = String(financeDocument.lastID);
 }
 
-async function insertQaAdminArtifacts(db: Database) {
-  await db.run(
+async function insertQaAdminArtifacts(db: Database, ids: QaSeedIds) {
+  const supportTicket = await db.run(
     `INSERT INTO SupportTicket (
-      id, category, subject, description, status, responseNote, createdBy, updatedBy, createdAt, updatedAt
-    ) VALUES (?, 'system', ?, ?, 'open', ?, ?, ?, datetime('now', '-1 day'), datetime('now'))`,
+      category, subject, description, status, responseNote, createdBy, updatedBy, createdAt, updatedAt
+    ) VALUES ('system', ?, ?, 'open', ?, ?, ?, datetime('now', '-1 day'), datetime('now'))`,
     [
-      IDS.supportTickets.admin,
       'QA preview issue follow-up',
       'Support ticket used for admin/support smoke coverage.',
       'Awaiting admin verification from UX regression seed.',
-      QA_USERS.admin.id,
-      QA_USERS.admin.id,
+      ids.users.admin,
+      ids.users.admin,
     ],
   );
 
   await db.run(
-    `INSERT INTO Notification (id, userId, content, entityType, entityId, link, createdAt)
-     VALUES (?, ?, ?, 'SupportTicket', ?, 'Support', datetime('now', '-1 hour'))`,
-    [IDS.notifications.admin, QA_USERS.admin.id, 'QA support ticket requires review', IDS.supportTickets.admin],
+    `INSERT INTO Notification (userId, content, entityType, entityId, link, createdAt)
+     VALUES (?, ?, 'SupportTicket', ?, 'Support', datetime('now', '-1 hour'))`,
+    [ids.users.admin, 'QA support ticket requires review', String(supportTicket.lastID)],
   );
   await db.run(
-    `INSERT INTO Notification (id, userId, content, entityType, entityId, link, createdAt)
-     VALUES (?, ?, ?, 'Project', ?, 'Projects', datetime('now', '-30 minutes'))`,
-    [IDS.notifications.projectManager, QA_USERS.projectManager.id, 'QA project handoff needs attention', IDS.projects.won],
+    `INSERT INTO Notification (userId, content, entityType, entityId, link, createdAt)
+     VALUES (?, ?, 'Project', ?, 'Projects', datetime('now', '-30 minutes'))`,
+    [ids.users.projectManager, 'QA project handoff needs attention', ids.projects.won],
   );
 
   await db.run(
     `INSERT INTO Activity (
-      id, title, description, category, icon, color, iconColor, entityId, entityType, actorUserId, actorRoles, actingCapability, action, timestamp, createdAt
+      title, description, category, icon, color, iconColor, entityId, entityType, actorUserId, actorRoles, actingCapability, action, timestamp, createdAt
     ) VALUES (
-      'qa-activity-approval',
       'Approval decision',
       'Seeded approval activity for Event Log smoke checks.',
       'Approval',
@@ -685,24 +780,25 @@ async function insertQaAdminArtifacts(db: Database) {
       datetime('now', '-20 minutes'),
       datetime('now', '-20 minutes')
     )`,
-    [IDS.projects.won, QA_USERS.director.id, JSON.stringify(['director'])],
+    [ids.projects.won, ids.users.director, JSON.stringify(['director'])],
   );
 }
 
 export async function resetUxRegressionSeed(db: Database) {
+  const ids = createQaSeedIds();
   await db.exec('BEGIN');
   try {
     await clearQaTables(db);
-    await insertQaUsers(db);
-    await insertQaAccounts(db);
-    await insertQaProjectsAndQuotes(db);
-    await insertQaExecutionData(db);
-    await insertQaTasksApprovalsDocuments(db);
-    await insertQaAdminArtifacts(db);
+    await insertQaUsers(db, ids);
+    await insertQaAccounts(db, ids);
+    await insertQaProjectsAndQuotes(db, ids);
+    await insertQaExecutionData(db, ids);
+    await insertQaTasksApprovalsDocuments(db, ids);
+    await insertQaAdminArtifacts(db, ids);
     await db.exec('COMMIT');
   } catch (error) {
     await db.exec('ROLLBACK');
     throw error;
   }
-  return buildUxSeedContract();
+  return buildUxSeedContract(toLegacySampleIds(ids));
 }

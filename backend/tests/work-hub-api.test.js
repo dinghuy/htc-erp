@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
-const { v4: uuidv4 } = require('uuid');
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-work-hub-'));
 process.env.DB_PATH = path.join(tempDir, 'crm-work-hub.db');
@@ -282,8 +281,8 @@ async function main() {
         description: 'Checked delivery readiness',
       }),
     });
-    assert.equal(createWorklog.response.status, 201);
-    assert.equal(createWorklog.body.taskId, taskId);
+    assert.equal(createWorklog.response.status, 201, JSON.stringify(createWorklog.body));
+    assert.equal(Number(createWorklog.body.taskId), taskId);
     assert.equal(createWorklog.body.durationMinutes, 150);
     assert.equal(createWorklog.body.summary, 'Checked delivery readiness');
 
@@ -293,7 +292,7 @@ async function main() {
     assert.equal(worklogList.response.status, 200);
     assert.equal(worklogList.body.items.length, 1);
     assert.equal(worklogList.body.items[0].durationMinutes, 150);
-    assert.equal(worklogList.body.items[0].authorUserId, ownerUserId);
+    assert.equal(Number(worklogList.body.items[0].authorUserId), ownerUserId);
   });
 
   await teardown();

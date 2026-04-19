@@ -37,6 +37,36 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
   } = deps;
   const quotationRepository = createQuotationRepository();
 
+  function createValidationError(message: string) {
+    const err: any = new Error(message);
+    err.status = 400;
+    return err;
+  }
+
+  async function validateQuotationReferences(db: any, input: { accountId: string | null; contactId: string | null }) {
+    const { accountId, contactId } = input;
+
+    if (accountId) {
+      const account = await db.get('SELECT id FROM Account WHERE id = ?', [accountId]);
+      if (!account) {
+        throw createValidationError('Invalid accountId');
+      }
+    }
+
+    if (contactId) {
+      const contact = await db.get('SELECT id, accountId FROM Contact WHERE id = ?', [contactId]);
+      if (!contact) {
+        throw createValidationError('Invalid contactId');
+      }
+      if (!accountId) {
+        throw createValidationError('accountId is required when contactId is provided');
+      }
+      if (String(contact.accountId) !== String(accountId)) {
+        throw createValidationError('contactId does not belong to accountId');
+      }
+    }
+  }
+
   async function withTransaction<T>(db: any, operation: () => Promise<T>) {
     await db.exec('BEGIN');
     try {
@@ -58,7 +88,6 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
     const project = await db.get('SELECT * FROM Project WHERE id = ?', [input.projectId]);
     if (!project) return null;
 
-    const id = uuidv4();
     const mapped = mapProjectQuotationInput({
       body: input.body,
       projectId: input.projectId,
@@ -88,6 +117,9 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       normalizedTaxTotal,
       normalizedGrandTotal,
     } = mapped;
+
+    await validateQuotationReferences(db, { accountId, contactId });
+
     const nextRevisionNo = Number.isFinite(Number(requestedRevisionNo ?? NaN))
       ? Number(requestedRevisionNo)
       : await getNextQuotationRevisionNo(db, projectId, parentQuotationId || null);
@@ -96,8 +128,8 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       : buildRevisionLabel(nextRevisionNo);
 
     const created = await withTransaction(db, async () => {
-      await quotationRepository.insert({
-        id,
+      const createdId = await quotationRepository.insert({
+        id: null,
         quoteNumber,
         quoteDate: quoteDate || new Date().toISOString().slice(0, 10),
         subject,
@@ -123,11 +155,12 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
         validUntil,
       }, db);
 
-      return quotationRepository.findById(id, db);
+      return quotationRepository.findById(createdId, db);
     });
+    const createdQuotationId = String(created?.id || '');
     await updateProjectStageFromQuotation(db, projectId, finalStatus);
     if (isWinningQuotationStatus(finalStatus)) {
-      await markWinningQuotation(db, id, projectId, true);
+      await markWinningQuotation(db, createdQuotationId, projectId, true);
       await createProjectTasksFromTemplate(db, {
         projectId,
         templateKey: 'quotation-accepted',
@@ -139,12 +172,12 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
           projectId,
           eventType: 'handoff_started',
           title: 'Handoff started',
-          description: `Quotation ${created?.quoteNumber || id} entered won state and is ready for execution handoff.`,
+          description: `Quotation ${created?.quoteNumber || createdQuotationId} entered won state and is ready for execution handoff.`,
           eventDate: new Date().toISOString(),
           entityType: 'Quotation',
-          entityId: id,
+          entityId: createdQuotationId,
           payload: {
-            quotationId: id,
+            quotationId: createdQuotationId,
             quoteNumber: created?.quoteNumber || null,
             source: 'quotation_create',
           },
@@ -166,8 +199,13 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
     actorUserId: string | null;
   }) {
     const db = getDb();
-    const id = uuidv4();
     const mapped = mapStandaloneQuotationInput(input.body);
+
+    await validateQuotationReferences(db, {
+      accountId: mapped.accountId,
+      contactId: mapped.contactId,
+    });
+
     const {
       quoteNumber,
       quoteDate,
@@ -219,8 +257,8 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       : buildRevisionLabel(nextRevisionNo);
 
     const created = await withTransaction(db, async () => {
-      await quotationRepository.insert({
-        id,
+      const createdId = await quotationRepository.insert({
+        id: null,
         quoteNumber,
         quoteDate: quoteDate || new Date().toISOString().slice(0, 10),
         subject,
@@ -246,8 +284,9 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
         validUntil,
       }, db);
 
-      return quotationRepository.findById(id, db);
+      return quotationRepository.findById(createdId, db);
     });
+    const createdQuotationId = String(created?.id || '');
 
     await logAct(
       'Tạo Báo giá',
@@ -256,13 +295,13 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       '📄',
       '#e0f2fe',
       '#0284c7',
-      id,
+      createdQuotationId,
       'Quotation'
     );
 
     await updateProjectStageFromQuotation(db, projectId, finalStatus);
     if (isWinningQuotationStatus(finalStatus)) {
-      await markWinningQuotation(db, id, projectId, true);
+      await markWinningQuotation(db, createdQuotationId, projectId, true);
     }
 
     if (isApprovalSubmissionStatus(finalStatus) || isWinningQuotationStatus(finalStatus)) {
@@ -273,8 +312,8 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
         await enqueueErpEvent(db, {
           eventType: 'sales_order.request',
           entityType: 'Quotation',
-          entityId: id,
-          payload: { quotationId: id, quoteNumber: created?.quoteNumber || null },
+          entityId: createdQuotationId,
+          payload: { quotationId: createdQuotationId, quoteNumber: created?.quoteNumber || null },
         });
       } catch {
         // Never block CRM write-path if ERP is temporarily down or misconfigured.
@@ -291,12 +330,12 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
         projectId,
         eventType: 'handoff_started',
         title: 'Handoff started',
-        description: `Quotation ${created?.quoteNumber || id} entered won state and is ready for execution handoff.`,
+        description: `Quotation ${created?.quoteNumber || createdQuotationId} entered won state and is ready for execution handoff.`,
         eventDate: new Date().toISOString(),
         entityType: 'Quotation',
-        entityId: id,
+        entityId: createdQuotationId,
         payload: {
-          quotationId: id,
+          quotationId: createdQuotationId,
           quoteNumber: created?.quoteNumber || null,
           source: 'quotation_create',
         },

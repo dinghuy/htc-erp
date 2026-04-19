@@ -220,7 +220,6 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
         const rawSystemRole = (row.values.systemRole || row.values['systemRole'] || row.values['Phân quyền'] || 'viewer').trim();
 
         await repository.createImportedUser({
-          id: createId(),
           fullName: fullName.trim(),
           gender: normalizeGender(row.values.gender || row.values['Danh xưng']),
           email: row.values.email || '',

@@ -15,8 +15,7 @@ const { app } = require('../server.ts');
 let server;
 let baseUrl;
 let failures = 0;
-let seededAccountId;
-let seededContactId;
+let seeded;
 
 async function api(pathname, options = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, options);
@@ -68,40 +67,54 @@ async function createUser({ fullName, username, password, systemRole }) {
       'vi',
     ]
   );
+
+  return db.get(`SELECT id FROM User WHERE username = ?`, [username]);
 }
 
 async function seedActivities() {
   const db = getDb();
   await db.run('DELETE FROM Activity');
-  const accountResult = await db.run(
-    `INSERT INTO Account (companyName, shortName, status, accountType)
-     VALUES (?, ?, ?, ?)`,
-    ['Acme Corporation', 'ACME', 'Active', 'Customer']
-  );
-  seededAccountId = String(accountResult.lastID);
 
-  const contactResult = await db.run(
-    `INSERT INTO Contact (accountId, lastName, firstName, gender)
-     VALUES (?, ?, ?, ?)`,
-    [seededAccountId, 'Nguyen', 'An', 'male']
-  );
-  seededContactId = String(contactResult.lastID);
+  const accountId = 100001;
+  const contactId = 200001;
 
   await db.run(
+    `INSERT INTO Account (id, companyName, shortName, status, accountType)
+     VALUES (?, ?, ?, ?, ?)`,
+    [accountId, 'Acme Corporation', 'ACME', 'Active', 'Customer']
+  );
+
+  await db.run(
+    `INSERT INTO Contact (id, accountId, lastName, firstName, gender)
+     VALUES (?, ?, ?, ?, ?)`,
+    [contactId, accountId, 'Nguyen', 'An', 'male']
+  );
+
+  const accountActivityInsert = await db.run(
     `INSERT INTO Activity (title, description, category, icon, color, iconColor, entityId, entityType, link, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ['Account follow-up', 'Account note', 'Account', 'office', '#fff', '#000', seededAccountId, 'Account', 'Customers', '2026-01-01 09:00:00']
+    ['Account follow-up', 'Account note', 'Account', 'office', '#fff', '#000', accountId, 'Account', 'Customers', '2026-01-01 09:00:00']
   );
-  await db.run(
+
+  const contactActivityInsert = await db.run(
     `INSERT INTO Activity (title, description, category, icon, color, iconColor, entityId, entityType, link, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ['Contact follow-up', 'Contact note', 'Contact', 'user', '#fff', '#000', seededContactId, 'Contact', 'Customers', '2026-01-02 09:00:00']
+    ['Contact follow-up', 'Contact note', 'Contact', 'user', '#fff', '#000', contactId, 'Contact', 'Customers', '2026-01-02 09:00:00']
   );
-  await db.run(
+
+  const genericActivityInsert = await db.run(
     `INSERT INTO Activity (title, description, category, icon, color, iconColor, entityId, entityType, link, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ['General note', 'General note', 'General', 'note', '#fff', '#000', null, null, 'Dashboard', '2026-01-03 09:00:00']
   );
+
+  return {
+    accountId,
+    contactId,
+    accountActivityId: accountActivityInsert.lastID,
+    contactActivityId: contactActivityInsert.lastID,
+    genericActivityId: genericActivityInsert.lastID,
+  };
 }
 
 async function setup() {
@@ -112,7 +125,7 @@ async function setup() {
     password: 'Viewer@123',
     systemRole: 'viewer',
   });
-  await seedActivities();
+  seeded = await seedActivities();
 
   server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
@@ -133,14 +146,14 @@ async function main() {
     const list = await api('/api/activities?limit=1');
     assert.equal(list.response.status, 200);
     assert.equal(list.body.length, 1);
-    assert.equal(list.body[0].title, 'General note');
+    assert.equal(list.body[0].id, seeded.genericActivityId);
 
-    const accountActivities = await api(`/api/activities?entityId=${seededAccountId}&limit=5`);
+    const accountActivities = await api(`/api/activities?entityId=${seeded.accountId}&limit=5`);
     assert.equal(accountActivities.response.status, 200);
     assert.equal(accountActivities.body.length, 2);
     assert.equal(accountActivities.body.some((activity) => activity.entityDisplay === 'ACME'), true);
 
-    const contactActivities = await api(`/api/activities?entityId=${seededContactId}&limit=5`);
+    const contactActivities = await api(`/api/activities?entityId=${seeded.contactId}&limit=5`);
     assert.equal(contactActivities.response.status, 200);
     assert.equal(contactActivities.body.length, 2);
     assert.equal(contactActivities.body.some((activity) => activity.entityDisplay === 'Nguyen An - ACME'), true);
