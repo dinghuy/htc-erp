@@ -1,9 +1,10 @@
 import { API_BASE } from './config';
+import type { JSX } from 'preact';
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { showNotify } from './Notification';
 import { tokens } from './ui/tokens';
 import { ui } from './ui/styles';
-import { canEdit, canDelete, fetchWithAuth, loadSession } from './auth';
+import { canEdit, canDelete, fetchWithAuth, loadSession, type CurrentUser } from './auth';
 import { useI18n } from './i18n';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import {
@@ -18,28 +19,54 @@ import { buildTabularFileUrl } from './shared/imports/tabularFiles';
 import { FormatActionButton } from './ui/FormatActionButton';
 import { PageHeader } from './ui/PageHeader';
 import {
-  EditIcon,
   ExportIcon,
-  EyeIcon,
   ImportIcon,
   LoaderIcon,
   PackageIcon,
   PlusIcon,
   SearchIcon,
   SheetIcon,
-  TrashIcon,
 } from './ui/icons';
-import { resolveAssetUrl } from './products/productAssetUi';
 import { getPrimaryImage } from './products/productAssetData';
+import { ProductIdentity } from './products/productsCardSections';
+import {
+  ProductCardsSection,
+  ProductInsightsAside,
+  ProductTableSection,
+} from './products/productsWorkspaceSections';
 import { ProductImportReportModal, ProductImportWizardModal } from './products/productImportModals';
-import { ProductDetailModal, getProductQbuWarnings, QbuBadgeRow } from './products/ProductDetailModal';
+import { ProductDetailModal, type ProductDetailEditContext } from './products/ProductDetailModal';
 import {
   AddProductModal,
   EditProductModal,
   createEmptyProductForm,
   createProductFormFromProduct,
 } from './products/ProductFormModal';
-export type { ProductFormState } from './products/ProductFormModal';
+import type { ProductFormTab } from './products/ProductFormModal';
+import {
+  computeProductHealth,
+  matchesQuery,
+  persistWorkspaceState,
+  readPersistedWorkspaceState,
+  type ProductListItem,
+  type ProductListItemWithHealth,
+  type ProductWorkspaceViewMode,
+  type ProductWorkspaceSortKey,
+  useSortableData,
+} from './products/productsWorkspaceData';
+import {
+  ADVANCED_FILTER_FIELDS,
+  PRODUCT_COLUMNS,
+  getModeButtonLabel,
+  getSortLabel as getSortLabelUtil,
+  getSortIcon as getSortIconUtil,
+  getColumnAriaSort,
+  getCompletenessSummary,
+  getTopProblemProducts,
+  extractDuplicateSkusFromPreview,
+} from './products/productsWorkspaceUtils';
+import { workspaceStyles, createWorkspaceSurfaceStyles } from './products/productsWorkspaceStyles';
+export type { ProductFormState, ProductFormTab } from './products/ProductFormModal';
 export { createEmptyProductForm, createProductFormFromProduct };
 
 export type UploadFeedback = {
@@ -63,46 +90,29 @@ const API = API_BASE;
 const API_ORIGIN = API.replace(/\/api\/?$/, '');
 const FX_PAIR = 'USDVND';
 
-const S = {
-  card: ui.card.base as any,
-  btnPrimary: { ...ui.btn.primary, justifyContent: 'center', transition: 'all 0.2s ease' } as any,
-  btnOutline: { ...ui.btn.outline, transition: 'all 0.2s ease' } as any,
-  thSortable: ui.table.thSortable as any,
-  thStatic: ui.table.thStatic as any,
-  td: ui.table.td as any,
-  input: { ...ui.input.base, transition: 'all 0.2s ease' } as any,
-  kpiCard: ui.card.kpi as any,
+const S = workspaceStyles;
+
+type ProductDetailModalProduct = ProductListItemWithHealth;
+
+type ProductsProps = {
+  isMobile?: boolean;
+  currentUser?: CurrentUser;
 };
 
-function matchesQuery(value: unknown, needle: string) {
-  if (!needle) return true;
-  return String(value ?? '').toLowerCase().includes(needle.toLowerCase());
-}
-
-function useSortableData(items: any[]) {
-  const [sortConfig, setSortConfig] = useState<any>(null);
-  const [filters, setFilters] = useState<any>({});
-  const filteredItems = useMemo(() => {
-    let result = [...items];
-    Object.keys(filters).forEach((k) => { if (filters[k]) result = result.filter((i) => String(i[k] || '').toLowerCase().includes(filters[k].toLowerCase())); });
-    if (sortConfig) result.sort((a, b) => { const vA = (a[sortConfig.key] || '').toString().toLowerCase(); const vB = (b[sortConfig.key] || '').toString().toLowerCase(); return vA < vB ? (sortConfig.direction === 'asc' ? -1 : 1) : vA > vB ? (sortConfig.direction === 'asc' ? 1 : -1) : 0; });
-    return result;
-  }, [items, sortConfig, filters]);
-  return { items: filteredItems, requestSort: (key: string) => { const dir = sortConfig?.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'; setSortConfig({ key, direction: dir }); }, sortConfig, filters, setFilters };
-}
-
-export function Products({ isMobile, currentUser }: { isMobile?: boolean; currentUser?: any; onNavigate?: (route: string) => void } = {}) {
-  const sessionUser = currentUser ?? loadSession();
+export function Products({ isMobile, currentUser }: ProductsProps = {}) {
+  const sessionUser: CurrentUser | null = currentUser ?? loadSession();
   const token = sessionUser?.token ?? '';
   const { t } = useI18n();
   const userCanEdit = sessionUser ? canEdit(sessionUser.roleCodes, sessionUser.systemRole) : false;
   const userCanDelete = sessionUser ? canDelete(sessionUser.roleCodes, sessionUser.systemRole) : false;
-  const [products, setProducts] = useState<any[]>([]);
+  const persistedWorkspace = useMemo(() => readPersistedWorkspaceState(), []);
+  const [products, setProducts] = useState<ProductListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any>(null);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [editingProduct, setEditingProduct] = useState<ProductListItem | null>(null);
+  const [editingProductInitialTab, setEditingProductInitialTab] = useState<ProductFormTab>('info');
+  const [selectedProduct, setSelectedProduct] = useState<ProductListItem | null>(null);
   const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [importReport, setImportReport] = useState<ProductImportReport | null>(null);
   const [importPreview, setImportPreview] = useState<ProductImportPreviewReport | null>(null);
@@ -112,9 +122,10 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
   const [importing, setImporting] = useState(false);
   const [latestRate, setLatestRate] = useState<number | null>(null);
   const [latestRateWarnings, setLatestRateWarnings] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(persistedWorkspace.searchTerm || '');
+  const [categoryFilter, setCategoryFilter] = useState(persistedWorkspace.categoryFilter || '');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(Boolean(persistedWorkspace.showAdvancedFilters));
+  const [desktopViewMode, setDesktopViewMode] = useState<ProductWorkspaceViewMode>(persistedWorkspace.desktopViewMode === 'cards' ? 'cards' : 'table');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categoryOptions = useMemo(() => {
@@ -125,7 +136,7 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
 
   const primaryFilteredProducts = useMemo(() => {
     const needle = searchTerm.trim().toLowerCase();
-    return products.filter((product: any) => {
+    return products.filter((product) => {
       if (categoryFilter && String(product.category || '') !== categoryFilter) return false;
       if (!needle) return true;
       return (
@@ -138,8 +149,41 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
     });
   }, [products, searchTerm, categoryFilter]);
 
-  const data = useSortableData(primaryFilteredProducts);
+  const productsWithHealth = useMemo(
+    () => primaryFilteredProducts.map((product) => computeProductHealth(product, latestRate)),
+    [primaryFilteredProducts, latestRate],
+  );
+
+  const data = useSortableData(productsWithHealth);
+
+  useEffect(() => {
+    if (persistedWorkspace.advancedFilters && Object.keys(data.filters).length === 0) {
+      data.setFilters(persistedWorkspace.advancedFilters);
+    }
+  }, [persistedWorkspace.advancedFilters]);
+
+  useEffect(() => {
+    persistWorkspaceState({
+      searchTerm,
+      categoryFilter,
+      desktopViewMode,
+      showAdvancedFilters,
+      advancedFilters: data.filters,
+    });
+  }, [searchTerm, categoryFilter, desktopViewMode, showAdvancedFilters, data.filters]);
   const hasFilters = !!(searchTerm.trim() || categoryFilter || Object.values(data.filters || {}).some(Boolean));
+  const visibleCount = data.items.length;
+  const hasCatalogData = products.length > 0;
+  const showCatalogLoading = loading;
+  const showCatalogError = !loading && !!loadError;
+  const showCatalogEmpty = !loading && !loadError && !hasCatalogData;
+  const showFilteredEmpty = !loading && !loadError && hasCatalogData && visibleCount === 0;
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setCategoryFilter('');
+    data.setFilters({});
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -194,6 +238,62 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
     return { total, categories, avgPrice };
   }, [products]);
 
+  const quickCategoryPills = useMemo(() => categoryOptions.slice(0, isMobile ? 4 : 8), [categoryOptions, isMobile]);
+
+  const selectedCategoryLabel = categoryFilter || 'Tất cả danh mục';
+  const searchTermLabel = searchTerm.trim() || 'Tất cả từ khóa';
+
+  const activeAdvancedFilterCount = useMemo(() => {
+    return ADVANCED_FILTER_FIELDS.filter((field) => String(data.filters?.[field.key] || '').trim().length > 0).length;
+  }, [data.filters]);
+
+  const completenessSummary = useMemo(() => getCompletenessSummary(data.items), [data.items]);
+
+  const topProblemProducts = useMemo(() => getTopProblemProducts(data.items), [data.items]);
+
+
+  const showDesktopCards = !isMobile && desktopViewMode === 'cards';
+  const showDesktopTable = !isMobile && desktopViewMode === 'table';
+  const showMobileCards = !!isMobile;
+  const showCatalogResults = !showCatalogLoading && !showCatalogError && !showCatalogEmpty && !showFilteredEmpty;
+
+  const surfaceStyles = useMemo(
+    () => createWorkspaceSurfaceStyles({ isMobile: !!isMobile, showDesktopTable, desktopViewMode }),
+    [isMobile, showDesktopTable, desktopViewMode],
+  );
+
+  const showQuickInsights = !isMobile;
+
+  const resultHint = showCatalogLoading
+    ? 'Đang tải catalog sản phẩm...'
+    : `Hiển thị ${visibleCount}/${products.length} sản phẩm • ${selectedCategoryLabel} • ${searchTermLabel}`;
+
+  const resultModeLabel = isMobile ? 'Danh sách di động' : desktopViewMode === 'cards' ? 'Chế độ thẻ' : 'Chế độ bảng';
+
+  const openEditProduct = (product: ProductListItem) => {
+    setEditingProduct(product);
+    setEditingProductInitialTab('info');
+  };
+
+  const openDetailProduct = (product: ProductListItem) => setSelectedProduct(product);
+
+  const renderProductIdentity = (product: ProductListItem) => (
+    <ProductIdentity
+      name={product.name}
+      sku={product.sku}
+      primaryImage={getPrimaryImage(product.productImages || [])}
+      summaryChipStyle={surfaceStyles.summaryChipStyle}
+      apiOrigin={API_ORIGIN}
+    />
+  );
+
+  const columnAriaSort = (key: ProductWorkspaceSortKey) => getColumnAriaSort(data.sortConfig, key);
+  const getSortLabel = (key: ProductWorkspaceSortKey) => getSortLabelUtil(data.sortConfig, key);
+  const getSortIcon = (key: ProductWorkspaceSortKey) => getSortIconUtil(data.sortConfig, key);
+  const cols = PRODUCT_COLUMNS;
+
+  const topIssueProduct = topProblemProducts[0] || null;
+
   const resetImportWizard = () => {
     setPendingImportFile(null);
     setImportPreview(null);
@@ -201,8 +301,9 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleImportFileSelection = (e: any) => {
-    const file = e.target.files?.[0];
+  const handleImportFileSelection = (e: Event) => {
+    if (!(e.currentTarget instanceof HTMLInputElement)) return;
+    const file = e.currentTarget.files?.[0];
     if (!file) return;
     setPendingImportFile(file);
     setImportPreview(null);
@@ -223,12 +324,12 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
       if (!res.ok) throw new Error(result?.error || 'Không thể phân tích file import');
       const report = normalizeProductImportPreview(result);
       setImportPreview(report);
-      setSelectedDuplicateSkus(
-        report.rows.filter((row) => row.action === 'duplicate' && row.sku).map((row) => row.sku as string),
-      );
+      const duplicateSkus = extractDuplicateSkusFromPreview(report);
+      setSelectedDuplicateSkus(duplicateSkus);
       showNotify(buildProductImportPreviewSummary(report), report.errorRows > 0 ? 'info' : 'success');
-    } catch (error: any) {
-      showNotify(error?.message || 'Không thể phân tích file import', 'error');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Không thể phân tích file import';
+      showNotify(message, 'error');
     } finally {
       setImporting(false);
     }
@@ -255,8 +356,9 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
       setShowImportWizard(false);
       showNotify(buildProductImportSummary(report), report.errors > 0 ? 'info' : 'success');
       loadData();
-    } catch (error: any) {
-      showNotify(error?.message || 'Không thể import sản phẩm', 'error');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Không thể import sản phẩm';
+      showNotify(message, 'error');
     } finally {
       setImporting(false);
       resetImportWizard();
@@ -274,23 +376,28 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
       onConfirm: async () => {
         setConfirmState(null);
         await fetchWithAuth(token, `${API}/products/${id}`, { method: 'DELETE' });
-        setProducts((prev) => prev.filter((p: any) => p.id !== id));
+        setProducts((prev) => prev.filter((p) => p.id !== id));
       },
     });
   };
 
-  const cols = [
-    { k: 'sku', l: 'SKU' },
-    { k: 'name', l: 'Sản phẩm' },
-    { k: 'category', l: 'Danh mục' },
-    { k: 'basePrice', l: 'Giá bán ($)' },
-  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {confirmState && <ConfirmDialog message={confirmState.message} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
       {showAdd && <AddProductModal onClose={() => setShowAdd(false)} onSaved={loadData} token={token} />}
-      {editingProduct && <EditProductModal product={editingProduct} onClose={() => setEditingProduct(null)} onSaved={loadData} token={token} />}
+      {editingProduct && (
+        <EditProductModal
+          product={editingProduct}
+          initialTab={editingProductInitialTab}
+          onClose={() => {
+            setEditingProduct(null);
+            setEditingProductInitialTab('info');
+          }}
+          onSaved={loadData}
+          token={token}
+        />
+      )}
       {selectedProduct && (
         <ProductDetailModal
           product={selectedProduct}
@@ -299,9 +406,10 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
           onClose={() => setSelectedProduct(null)}
           onEdit={
             userCanEdit
-              ? (product: any) => {
+              ? (product: ProductDetailModalProduct, context?: ProductDetailEditContext) => {
                   setSelectedProduct(null);
                   setEditingProduct(product);
+                  setEditingProductInitialTab(context?.tab || 'info');
                 }
               : undefined
           }
@@ -326,11 +434,10 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
               current.includes(sku) ? current.filter((item) => item !== sku) : [...current, sku],
             )
           }
-          onSelectAllDuplicates={() =>
-            setSelectedDuplicateSkus(
-              (importPreview?.rows || []).filter((row) => row.action === 'duplicate' && row.sku).map((row) => row.sku as string),
-            )
-          }
+          onSelectAllDuplicates={() => {
+            const allDuplicates = extractDuplicateSkusFromPreview(importPreview);
+            setSelectedDuplicateSkus(allDuplicates);
+          }}
           onClearAllDuplicates={() => setSelectedDuplicateSkus([])}
           outlineButtonStyle={S.btnOutline}
           primaryButtonStyle={S.btnPrimary}
@@ -344,22 +451,6 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
         />
       )}
       <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImportFileSelection} accept=".csv,.xlsx" />
-
-      {/* Mini Dashboard */}
-      <div style={ui.page.kpiRow}>
-        <div style={{ ...S.kpiCard, ...ui.page.kpiCard }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Danh mục Sản phẩm</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.total}</span>
-        </div>
-        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, borderLeft: `4px solid ${tokens.colors.warningDark}` }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.warningDark, textTransform: 'uppercase' }}>Số phân mục</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.categories}</span>
-        </div>
-        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, flex: '2 1 200px', borderLeft: `4px solid ${tokens.colors.success}` }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.success, textTransform: 'uppercase' }}>Giá tham chiếu trung bình</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>${Math.round(stats.avgPrice).toLocaleString()}</span>
-        </div>
-      </div>
 
       <PageHeader
         icon={<PackageIcon size={22} />}
@@ -383,22 +474,45 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
         }
       />
 
-      <div style={{ ...S.card, display: 'flex', flexDirection: 'column', gap: '12px', border: `1px solid ${tokens.colors.border}` }}>
+      <div style={ui.page.kpiRow}>
+        <div style={{ ...S.kpiCard, ...ui.page.kpiCard }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Tổng SKU</span>
+          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.total}</span>
+        </div>
+        <div style={{ ...S.kpiCard, ...ui.page.kpiCard }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Số danh mục</span>
+          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.categories}</span>
+        </div>
+        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, flex: '2 1 220px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>Giá tham chiếu trung bình</span>
+          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>${Math.round(stats.avgPrice).toLocaleString()}</span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          ...S.card,
+          display: 'grid',
+          gap: '12px',
+          border: `1px solid ${tokens.colors.border}`,
+          background: tokens.surface.panelGradient,
+        }}
+      >
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', flex: 1, minWidth: 0 }}>
-            <div style={{ position: 'relative', minWidth: isMobile ? '100%' : '280px', flex: isMobile ? '1 1 100%' : '1 1 280px' }}>
+            <div style={{ position: 'relative', minWidth: isMobile ? '100%' : '320px', flex: isMobile ? '1 1 100%' : '1 1 320px' }}>
               <SearchIcon size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
               <input
                 type="text"
                 placeholder="Tìm theo SKU, tên, danh mục..."
                 value={searchTerm}
-                onInput={(e: any) => setSearchTerm(e.target.value)}
+                onInput={(e: JSX.TargetedEvent<HTMLInputElement, Event>) => setSearchTerm(e.currentTarget.value)}
                 style={{ ...ui.input.base, padding: '9px 12px 9px 36px', fontSize: '13.5px', width: '100%', minWidth: 0 }}
               />
             </div>
             <select
               value={categoryFilter}
-              onChange={(e: any) => setCategoryFilter(e.target.value)}
+              onChange={(e: JSX.TargetedEvent<HTMLSelectElement, Event>) => setCategoryFilter(e.currentTarget.value)}
               style={{ ...ui.input.base, minWidth: isMobile ? '100%' : '220px' }}
             >
               <option value="">Tất cả danh mục</option>
@@ -407,162 +521,196 @@ export function Products({ isMobile, currentUser }: { isMobile?: boolean; curren
               ))}
             </select>
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {!isMobile ? (
+              <div
+                style={{ display: 'inline-flex', border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.lg, overflow: 'hidden', background: tokens.colors.surface }}
+                role="group"
+                aria-label="Chuyển đổi chế độ hiển thị desktop"
+              >
+                <button
+                  type="button"
+                  style={desktopViewMode === 'table' ? surfaceStyles.desktopViewActiveStyle : surfaceStyles.desktopViewToggleStyle}
+                  onClick={() => setDesktopViewMode('table')}
+                  aria-pressed={desktopViewMode === 'table'}
+                  aria-label={`${getModeButtonLabel('table')}${desktopViewMode === 'table' ? ' (đang chọn)' : ''}`}
+                >
+                  {getModeButtonLabel('table')}
+                </button>
+                <button
+                  type="button"
+                  style={desktopViewMode === 'cards' ? surfaceStyles.desktopViewActiveStyle : surfaceStyles.desktopViewToggleStyle}
+                  onClick={() => setDesktopViewMode('cards')}
+                  aria-pressed={desktopViewMode === 'cards'}
+                  aria-label={`${getModeButtonLabel('cards')}${desktopViewMode === 'cards' ? ' (đang chọn)' : ''}`}
+                >
+                  {getModeButtonLabel('cards')}
+                </button>
+              </div>
+            ) : null}
             <button type="button" onClick={() => setShowAdvancedFilters((prev) => !prev)} style={S.btnOutline}>
               {showAdvancedFilters ? 'Ẩn bộ lọc nâng cao' : 'Bộ lọc nâng cao'}
+              {activeAdvancedFilterCount > 0 ? ` (${activeAdvancedFilterCount})` : ''}
             </button>
-            {hasFilters && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setCategoryFilter('');
-                  data.setFilters({});
-                }}
-                style={S.btnOutline}
-              >
+            {hasFilters ? (
+              <button type="button" onClick={clearAllFilters} style={S.btnOutline}>
                 Xóa bộ lọc
               </button>
-            )}
+            ) : null}
           </div>
         </div>
-        {showAdvancedFilters && (
+
+        {quickCategoryPills.length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              style={!categoryFilter ? surfaceStyles.quickFilterPillActiveStyle : surfaceStyles.quickFilterPillStyle}
+              onClick={() => setCategoryFilter('')}
+            >
+              Tất cả danh mục
+            </button>
+            {quickCategoryPills.map((category) => (
+              <button
+                key={category}
+                type="button"
+                style={categoryFilter === category ? surfaceStyles.quickFilterPillActiveStyle : surfaceStyles.quickFilterPillStyle}
+                onClick={() => setCategoryFilter(category)}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>{resultHint}</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+            <div style={surfaceStyles.summaryChipStyle}>{resultModeLabel}</div>
+            {data.sortConfig ? (
+              <div style={surfaceStyles.summaryChipStyle}>
+                Sắp xếp: {cols.find((col) => col.k === data.sortConfig?.key)?.l || data.sortConfig?.key} {data.sortConfig.direction === 'asc' ? '↑' : '↓'}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {showAdvancedFilters ? (
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: '12px' }}>
-            {[
-              { key: 'sku', label: 'SKU' },
-              { key: 'unit', label: 'Đơn vị' },
-              { key: 'basePrice', label: 'Giá bán ($)' },
-            ].map((field) => (
+            {ADVANCED_FILTER_FIELDS.map((field) => (
               <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>{field.label}</label>
                 <input
                   type="text"
                   placeholder={`Lọc ${field.label.toLowerCase()}`}
                   value={data.filters[field.key] || ''}
-                  onInput={(e: any) => data.setFilters({ ...data.filters, [field.key]: e.target.value })}
+                  onInput={(e: JSX.TargetedEvent<HTMLInputElement, Event>) => data.setFilters({ ...data.filters, [field.key]: e.currentTarget.value })}
                   style={{ ...ui.input.base, width: '100%', padding: '8px 10px', fontSize: '12px', fontWeight: 400 }}
                 />
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
 
-      {loadError ? (
-        <div style={{ ...S.card, border: `1px solid ${tokens.colors.warning}`, background: tokens.colors.badgeBgInfo, color: tokens.colors.textSecondary }}>
-          {loadError}
+      {showFilteredEmpty && hasFilters ? (
+        <div style={{ ...S.card, border: `1px solid ${tokens.colors.border}`, background: tokens.surface.empty, display: 'grid', gap: '10px', justifyItems: 'center', textAlign: 'center', padding: '28px 20px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: tokens.colors.textPrimary }}>Không có sản phẩm nào khớp bộ lọc hiện tại</div>
+          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>Thử nới điều kiện tìm kiếm hoặc xóa bộ lọc để xem toàn bộ catalog.</div>
+          <button type="button" style={S.btnOutline} onClick={clearAllFilters}>Xóa bộ lọc</button>
         </div>
       ) : null}
 
-      <div style={{ ...S.card, overflow: 'hidden', border: `1px solid ${tokens.colors.border}` }}>
-        {loading ? (
-          <div style={{ padding: '80px', textAlign: 'center', color: tokens.colors.textMuted, fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <LoaderIcon size={16} /> Đang tải dữ liệu...
+      {showCatalogEmpty ? (
+        <div style={{ ...S.card, border: `1px solid ${tokens.colors.border}`, background: tokens.surface.empty, display: 'grid', gap: '10px', justifyItems: 'center', textAlign: 'center', padding: '28px 20px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: tokens.colors.textPrimary }}>Catalog sản phẩm đang trống</div>
+          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>Bạn có thể import file mẫu hoặc thêm sản phẩm mới để bắt đầu quản lý SKU.</div>
+          {userCanEdit ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+              <button type="button" style={S.btnOutline} onClick={() => setShowImportWizard(true)}>
+                <ImportIcon size={14} /> {t('common.import_file')}
+              </button>
+              <button type="button" style={S.btnPrimary} onClick={() => setShowAdd(true)}>
+                <PlusIcon size={14} /> Thêm mới Sản phẩm
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showCatalogError ? (
+        <div style={{ ...S.card, border: `1px solid ${tokens.colors.warningBorder}`, background: tokens.colors.warningSurfaceBgSoft, color: tokens.colors.warningSurfaceText, display: 'grid', gap: '10px' }}>
+          <div style={{ fontWeight: 700 }}>{loadError}</div>
+          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>Dữ liệu có thể chưa đồng bộ từ backend hoặc mạng đang gián đoạn tạm thời.</div>
+          <div>
+            <button type="button" style={S.btnOutline} onClick={loadData}>Thử tải lại</button>
           </div>
-        ) : isMobile ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px' }}>
-            {data.items.map((p: any) => (
-              <div key={p.id} style={{ ...ui.card.base, border: `1px solid ${tokens.colors.border}`, padding: tokens.spacing.lg }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary }}>{p.name}</div>
-                  <span style={{ background: tokens.colors.background, padding: '2px 8px', borderRadius: '8px', border: `1px solid ${tokens.colors.border}`, fontSize: '10px', fontWeight: 800, color: tokens.colors.textMuted }}>{p.sku}</span>
-                </div>
-                <QbuBadgeRow warnings={getProductQbuWarnings(p, latestRate)} />
-                <div style={{ display: 'grid', gap: '8px', marginTop: '10px' }}>
-                  <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}><strong>Danh mục:</strong> {p.category || '-'}</div>
-                  <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}><strong>Giá:</strong> ${p.basePrice?.toLocaleString() || '-'}</div>
-                  <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}><strong>Đơn vị:</strong> {p.unit || '-'}</div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '12px', marginTop: '12px', borderTop: `1px solid ${tokens.colors.border}` }}>
-                  <button aria-label={`Xem chi tiết ${p.name || p.sku || 'sản phẩm'}`} title="Xem chi tiết" onClick={() => setSelectedProduct(p)} style={{ ...ui.btn.outline, padding: '6px 10px' }}><EyeIcon size={14} /></button>
-                  {userCanEdit && <button aria-label={`Chỉnh sửa ${p.name || p.sku || 'sản phẩm'}`} title="Chỉnh sửa" onClick={() => setEditingProduct(p)} style={{ ...ui.btn.outline, padding: '6px 10px' }}><EditIcon size={14} /></button>}
-                  {userCanDelete && <button aria-label={`Xóa ${p.name || p.sku || 'sản phẩm'}`} title="Xóa" onClick={() => deleteProduct(p.id)} style={{ ...ui.btn.danger, padding: '6px 10px' }}><TrashIcon size={14} /></button>}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: tokens.colors.background }}>
-                {cols.map((c) => (
-                  <th key={c.k} style={S.thSortable} onClick={() => data.requestSort(c.k)}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>{c.l} {data.sortConfig?.key === c.k ? (data.sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
-                    </div>
-                  </th>
-                ))}
-                <th style={{ ...S.thStatic, cursor: 'default', textAlign: 'right' }}>Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((p: any) => (
-                <tr key={p.id} style={{ ...ui.table.row }} onMouseEnter={(e: any) => e.currentTarget.style.background = tokens.colors.background} onMouseLeave={(e: any) => e.currentTarget.style.background = ''}>
-                  <td style={{ ...S.td, fontWeight: 800, color: tokens.colors.primary, verticalAlign: 'top' }}>{p.sku}</td>
-                  <td style={{ ...S.td, fontWeight: 700, color: tokens.colors.textPrimary, verticalAlign: 'middle' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      {(() => {
-                        const img = getPrimaryImage(p.productImages || []);
-                        return img ? (
-                          <img
-                            src={resolveAssetUrl(API_ORIGIN, img.url)}
-                            alt={img.alt || p.name}
-                            style={{ width: 36, height: 36, borderRadius: '8px', objectFit: 'cover', flexShrink: 0, border: `1px solid ${tokens.colors.border}` }}
-                          />
-                        ) : (
-                          <div style={{ width: 36, height: 36, borderRadius: '8px', background: tokens.colors.background, border: `1px solid ${tokens.colors.border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: tokens.colors.textMuted }}>
-                            {(p.name || p.sku || '?')[0].toUpperCase()}
-                          </div>
-                        );
-                      })()}
-                      <div>
-                        <div>{p.name}</div>
-                        <QbuBadgeRow warnings={getProductQbuWarnings(p, latestRate)} />
-                      </div>
-                    </div>
-                  </td>
-                  <td style={S.td}>
-                    <span style={{ background: tokens.colors.background, padding: '3px 10px', borderRadius: '6px', border: `1px solid ${tokens.colors.border}`, fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>{p.category}</span>
-                  </td>
-                  <td style={{ ...S.td, fontWeight: 800, color: tokens.colors.textPrimary }}>${p.basePrice?.toLocaleString()}</td>
-                  <td style={{ ...S.td, textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                      <button
-                        aria-label={`Xem chi tiết ${p.name || p.sku || 'sản phẩm'}`}
-                        title="Xem chi tiết"
-                        onClick={() => setSelectedProduct(p)}
-                        style={{ color: tokens.colors.info, background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}
-                      >
-                        <EyeIcon size={14} />
-                      </button>
-                      {userCanEdit && (
-                        <button
-                          aria-label={`Chỉnh sửa ${p.name || p.sku || 'sản phẩm'}`}
-                          title="Chỉnh sửa"
-                          onClick={() => setEditingProduct(p)}
-                          style={{ color: tokens.colors.primary, background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}
-                        >
-                          <EditIcon size={14} />
-                        </button>
-                      )}
-                      {userCanDelete && (
-                        <button
-                          aria-label={`Xóa ${p.name || p.sku || 'sản phẩm'}`}
-                          title="Xóa"
-                          onClick={() => deleteProduct(p.id)}
-                          style={{ color: tokens.colors.error, background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 700 }}
-                        >
-                          <TrashIcon size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+        </div>
+      ) : null}
+
+      {showCatalogLoading ? (
+        <div style={{ ...S.card, border: `1px solid ${tokens.colors.border}`, padding: '64px 24px', textAlign: 'center', color: tokens.colors.textMuted, fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <LoaderIcon size={16} /> Đang tải dữ liệu...
+        </div>
+      ) : null}
+
+      {showCatalogResults ? (
+        <div style={surfaceStyles.contentGridStyle}>
+          {showDesktopCards || showMobileCards ? (
+            <div style={surfaceStyles.cardsSurfaceStyle}>
+              <ProductCardsSection
+                isMobile={showMobileCards}
+                items={data.items}
+                latestRate={latestRate}
+                userCanEdit={userCanEdit}
+                userCanDelete={userCanDelete}
+                handlers={{ onView: openDetailProduct, onEdit: openEditProduct, onDelete: deleteProduct }}
+                renderProductIdentity={renderProductIdentity}
+                viewButtonStyle={surfaceStyles.productCardButtonStyle}
+                deleteButtonStyle={{ ...ui.btn.danger, padding: '6px 10px' }}
+                summaryChipStyle={surfaceStyles.summaryChipStyle}
+                apiOrigin={API_ORIGIN}
+              />
+            </div>
+          ) : null}
+
+          {showDesktopTable ? (
+            <ProductTableSection
+              items={data.items}
+              columns={cols}
+              requestSort={data.requestSort}
+              getSortLabel={getSortLabel}
+              getSortIcon={getSortIcon}
+              columnAriaSort={columnAriaSort}
+              handlers={{ onView: openDetailProduct, onEdit: openEditProduct, onDelete: deleteProduct }}
+              userCanEdit={userCanEdit}
+              userCanDelete={userCanDelete}
+              tableSurfaceStyle={surfaceStyles.tableSurfaceStyle}
+              tableHeaderButtonStyle={surfaceStyles.tableHeaderButtonStyle}
+              summaryChipStyle={surfaceStyles.summaryChipStyle}
+              tableInfoButtonStyle={surfaceStyles.tableInfoButtonStyle}
+              tableEditButtonStyle={surfaceStyles.tableEditButtonStyle}
+              tableDeleteButtonStyle={surfaceStyles.tableDeleteButtonStyle}
+              renderProductIdentity={renderProductIdentity}
+              visibleCount={visibleCount}
+              S={{ thSortable: S.thSortable, thStatic: S.thStatic, td: S.td }}
+            />
+          ) : null}
+
+          {showQuickInsights ? (
+            <ProductInsightsAside
+              sidePanelStyle={surfaceStyles.sidePanelStyle}
+              summaryChipStyle={surfaceStyles.summaryChipStyle}
+              selectedCategoryLabel={selectedCategoryLabel}
+              completenessSummary={completenessSummary}
+              topIssueProduct={topIssueProduct}
+              topProblemProducts={topProblemProducts}
+              openDetailProduct={openDetailProduct}
+              btnOutlineStyle={S.btnOutline}
+            />
+          ) : null}
+
+        </div>
+      ) : null}
     </div>
   );
 }

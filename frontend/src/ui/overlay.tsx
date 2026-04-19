@@ -85,6 +85,7 @@ export const overlayStyles = {
   backdrop: {
     position: 'absolute' as const,
     inset: 0,
+    pointerEvents: 'none' as const,
     ...ui.overlay.backdrop,
   },
   surface: {
