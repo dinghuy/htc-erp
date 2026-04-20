@@ -5,6 +5,7 @@ import {
   DEFAULT_QUOTATION_FINANCIAL_CONFIG,
   parseLegacyQuotationCommercialTerms,
   parseLegacyQuotationFinancialConfig,
+  parseLegacyQuotationOfferGroups,
   parseLegacyQuotationLineItems,
 } from '../../modules/quotations/typedState';
 import {
@@ -258,6 +259,22 @@ export async function finalizeSqliteSchema(db: Database) {
 
   const createTypedQuotationChildTables = async () => {
     await db.exec(`
+      CREATE TABLE IF NOT EXISTS QuotationOfferGroup (
+        id TEXT PRIMARY KEY,
+        quotationId TEXT NOT NULL,
+        groupKey TEXT NOT NULL,
+        label TEXT,
+        currency TEXT DEFAULT 'VND',
+        vatComputed INTEGER DEFAULT 0,
+        totalComputed INTEGER DEFAULT 0,
+        sortOrder INTEGER DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(quotationId) REFERENCES Quotation(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.exec(`
       CREATE TABLE IF NOT EXISTS QuotationLineItem (
         id TEXT PRIMARY KEY,
         quotationId TEXT NOT NULL,
@@ -265,8 +282,9 @@ export async function finalizeSqliteSchema(db: Database) {
         sku TEXT,
         name TEXT,
         unit TEXT,
+        offerGroupKey TEXT DEFAULT 'group-a',
         currency TEXT DEFAULT 'VND',
-        vatMode TEXT DEFAULT 'excluded',
+        vatMode TEXT DEFAULT 'net',
         vatRate REAL DEFAULT 8,
         technicalSpecs TEXT,
         remarks TEXT,
@@ -295,6 +313,7 @@ export async function finalizeSqliteSchema(db: Database) {
     `);
 
     await db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_quotationoffergroup_quote_key ON QuotationOfferGroup (quotationId, groupKey);
       CREATE INDEX IF NOT EXISTS idx_quotationlineitem_quote ON QuotationLineItem (quotationId, sortOrder);
       CREATE INDEX IF NOT EXISTS idx_quotationtermitem_quote ON QuotationTermItem (quotationId, sortOrder);
     `);
@@ -314,32 +333,62 @@ export async function finalizeSqliteSchema(db: Database) {
       if (!quotationId) continue;
       const financialConfig = parseLegacyQuotationFinancialConfig(row.financialParams);
       const commercialTerms = parseLegacyQuotationCommercialTerms(row.terms);
+      const lineItems = parseLegacyQuotationLineItems(row.items);
+      const offerGroups = parseLegacyQuotationOfferGroups(null, lineItems, {
+        currency: row.currency,
+        calculateTotals: financialConfig.calculateTotals,
+      });
 
       const existingLineItemCount = await db.get(
         `SELECT COUNT(*) as c FROM QuotationLineItem WHERE quotationId = ?`,
         [quotationId]
       );
       if (Number(existingLineItemCount?.c || 0) === 0) {
-        const lineItems = parseLegacyQuotationLineItems(row.items);
         for (const item of lineItems) {
           await db.run(
             `INSERT INTO QuotationLineItem (
-              quotationId, sortOrder, sku, name, unit, currency, vatMode, vatRate, technicalSpecs, remarks, quantity, unitPrice, isOption, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
+              quotationId, sortOrder, sku, name, unit, offerGroupKey, currency, vatMode, vatRate, technicalSpecs, remarks, quantity, unitPrice, isOption, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
             [
               quotationId,
               item.sortOrder,
               item.sku,
               item.name,
               item.unit,
+              item.offerGroupKey || (item.isOption ? 'group-b' : 'group-a'),
               item.currency || row.currency || 'VND',
-              item.vatMode === 'included' ? 'included' : 'excluded',
+              item.vatMode === 'gross' ? 'gross' : 'net',
               item.vatRate ?? financialConfig.vatRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate,
               item.technicalSpecs,
               item.remarks,
               item.quantity,
               item.unitPrice,
               item.isOption ? 1 : 0,
+              row.createdAt || null,
+            ]
+          );
+        }
+      }
+
+      const existingOfferGroupCount = await db.get(
+        `SELECT COUNT(*) as c FROM QuotationOfferGroup WHERE quotationId = ?`,
+        [quotationId]
+      );
+      if (Number(existingOfferGroupCount?.c || 0) === 0) {
+        for (const offerGroup of offerGroups) {
+          await db.run(
+            `INSERT INTO QuotationOfferGroup (
+              id, quotationId, groupKey, label, currency, vatComputed, totalComputed, sortOrder, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
+            [
+              offerGroup.id || randomUUID(),
+              quotationId,
+              offerGroup.groupKey,
+              offerGroup.label || null,
+              offerGroup.currency || row.currency || 'VND',
+              offerGroup.vatComputed ? 1 : 0,
+              offerGroup.totalComputed ? 1 : 0,
+              offerGroup.sortOrder,
               row.createdAt || null,
             ]
           );
@@ -852,9 +901,10 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Quotation', 'remarksVi', 'remarksVi TEXT');
   await ensureColumn('Quotation', 'remarksEn', 'remarksEn TEXT');
   await createTypedQuotationChildTables();
+  await ensureColumn('QuotationLineItem', 'offerGroupKey', "offerGroupKey TEXT DEFAULT 'group-a'");
   await ensureColumn('QuotationLineItem', 'isOption', 'isOption INTEGER DEFAULT 0');
   await ensureColumn('QuotationLineItem', 'currency', "currency TEXT DEFAULT 'VND'");
-  await ensureColumn('QuotationLineItem', 'vatMode', "vatMode TEXT DEFAULT 'excluded'");
+  await ensureColumn('QuotationLineItem', 'vatMode', "vatMode TEXT DEFAULT 'net'");
   await ensureColumn('QuotationLineItem', 'vatRate', 'vatRate REAL DEFAULT 8');
   await ensureColumn('SupplierQuote', 'projectId', 'projectId TEXT');
   await ensureColumn('SupplierQuote', 'linkedQuotationId', 'linkedQuotationId TEXT');

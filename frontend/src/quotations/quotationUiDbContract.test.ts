@@ -231,7 +231,7 @@ describe('Quotation line item → PDF export field contract', () => {
       remarks: 'Giao tại kho',
       unit: 'Chiếc',
       currency: 'USD',
-      vatMode: 'included',
+      vatMode: 'gross',
       vatRate: 10,
       quantity: 2,
       unitPrice: 500000000,
@@ -245,7 +245,7 @@ describe('Quotation line item → PDF export field contract', () => {
     expect(item.remarks).toBe('Giao tại kho');
     expect(item.unit).toBe('Chiếc');
     expect(item.currency).toBe('USD');
-    expect(item.vatMode).toBe('included');
+    expect(item.vatMode).toBe('gross');
     expect(item.vatRate).toBe(10);
     expect(item.quantity).toBe(2);
     expect(item.unitPrice).toBe(500000000);
@@ -323,12 +323,12 @@ describe('Quotation header → PDF export field contract', () => {
   it('line item pricing contract now allows per-line currency and VAT semantics', () => {
     const lineItem = {
       currency: 'EUR',
-      vatMode: 'excluded',
+      vatMode: 'net',
       vatRate: 8,
     };
 
     expect(lineItem.currency).toBe('EUR');
-    expect(lineItem.vatMode).toBe('excluded');
+    expect(lineItem.vatMode).toBe('net');
     expect(lineItem.vatRate).toBe(8);
   });
 

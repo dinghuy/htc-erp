@@ -157,12 +157,12 @@ async function main() {
   await run('initDb creates typed quotation child tables and backfills legacy quotation blobs', async () => {
     const db = getDb();
     const tableNames = (await db.all(
-      `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('QuotationLineItem', 'QuotationFinancialConfig', 'QuotationTermProfile', 'QuotationTermItem')`
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('QuotationOfferGroup', 'QuotationLineItem', 'QuotationFinancialConfig', 'QuotationTermProfile', 'QuotationTermItem')`
     )).map((row) => row.name);
 
     assert.deepEqual(
       tableNames.sort(),
-      ['QuotationLineItem', 'QuotationTermItem']
+      ['QuotationLineItem', 'QuotationOfferGroup', 'QuotationTermItem']
     );
 
     const quotationCols = await db.all(`PRAGMA table_info('Quotation')`);
@@ -177,7 +177,7 @@ async function main() {
     assert.equal(quotationColNames.includes('remarksEn'), true);
 
     const lineItems = await db.all(
-      `SELECT sku, name, unit, currency, vatMode, vatRate, technicalSpecs, remarks, quantity, unitPrice, isOption
+      `SELECT sku, name, unit, currency, vatMode, vatRate, technicalSpecs, remarks, quantity, unitPrice, isOption, offerGroupKey
        FROM QuotationLineItem
        WHERE quotationId = ?
        ORDER BY sortOrder ASC, createdAt ASC`,
@@ -186,11 +186,23 @@ async function main() {
     assert.equal(lineItems.length, 1);
     assert.equal(lineItems[0].sku, 'SKU-001');
     assert.equal(lineItems[0].currency, 'USD');
-    assert.equal(lineItems[0].vatMode, 'included');
+    assert.equal(lineItems[0].vatMode, 'gross');
     assert.equal(lineItems[0].vatRate, 10);
     assert.equal(lineItems[0].quantity, 2);
     assert.equal(lineItems[0].unitPrice, 125000);
     assert.equal(lineItems[0].isOption, 0);
+    assert.equal(lineItems[0].offerGroupKey, 'group-a');
+
+    const offerGroups = await db.all(
+      `SELECT groupKey, label, currency, vatComputed, totalComputed
+       FROM QuotationOfferGroup
+       WHERE quotationId = ?
+       ORDER BY sortOrder ASC`,
+      ['legacy-quotation-1']
+    );
+    assert.equal(offerGroups.length, 1);
+    assert.equal(offerGroups[0].groupKey, 'group-a');
+    assert.equal(offerGroups[0].currency, 'USD');
 
     const quotationHeader = await db.get(
       `SELECT interestRate, exchangeRate, loanTermMonths, markup, vatRate, calculateTotals, remarksVi, remarksEn

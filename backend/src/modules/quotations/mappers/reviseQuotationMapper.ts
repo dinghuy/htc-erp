@@ -14,6 +14,7 @@ export function mapReviseQuotationInput(params: MapReviseQuotationInputParams) {
   const nextQuoteNumber = normalizeText(body?.quoteNumber) || `${source.quoteNumber || source.id}-${buildRevisionLabel(revisionNo)}`;
   const typedState = buildTypedQuotationStateFromBody({
     lineItems: body?.lineItems ?? source?.lineItems,
+    offerGroups: body?.offerGroups ?? source?.offerGroups,
     financialConfig: body?.financialConfig ?? source?.financialConfig,
     commercialTerms: body?.commercialTerms ?? source?.commercialTerms,
   });
@@ -36,6 +37,7 @@ export function mapReviseQuotationInput(params: MapReviseQuotationInputParams) {
     changeReason: normalizeText(body?.changeReason) || `Revision from ${source.quoteNumber || source.id}`,
     isWinningVersion: 0,
     lineItems: typedState.lineItems,
+    offerGroups: typedState.offerGroups,
     financialConfig: typedState.financialConfig,
     commercialTerms: typedState.commercialTerms,
     subtotal: body?.subtotal ?? source.subtotal ?? 0,

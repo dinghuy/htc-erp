@@ -122,7 +122,7 @@ export const WARRANTY_PRESETS = [
 
 export const UNITS = ['Chiếc', 'Bộ', 'Cái', 'Cặp', 'Hộp', 'Thùng', 'Kg', 'Gói'];
 export const CURRENCIES = ['VND', 'USD', 'EUR', 'JPY', 'CNY'];
-export const VAT_MODES = ['excluded', 'included'] as const;
+export const VAT_MODES = ['net', 'gross'] as const;
 export const VALID_STATUSES = ['draft', 'submitted_for_approval', 'revision_required', 'approved', 'rejected', 'won', 'lost'] as const;
 export const LEGACY_STATUS_ALIASES: Record<string, (typeof VALID_STATUSES)[number]> = {
   sent: 'submitted_for_approval',
@@ -219,7 +219,10 @@ export function ensureArray<T = any>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-export function normalizeQuotationLineItems(value: unknown) {
+export function normalizeQuotationLineItems(
+  value: unknown,
+  defaults: { currency?: string | null; vatRate?: number | null; offerGroupKey?: string | null } = {},
+) {
   const source = ensureArray<any>(value);
   return source.map((item: any) => ({
     id: item?.id || null,
@@ -232,10 +235,18 @@ export function normalizeQuotationLineItems(value: unknown) {
     unitPrice: (item?.unitPrice != null && Number.isFinite(Number(item.unitPrice))) ? Number(item.unitPrice) : 0,
     sortOrder: item?.sortOrder ?? null,
     isOption: coerceBoolean(item?.isOption, false),
-    currency: item?.currency || 'VND',
-    vatMode: item?.vatMode === 'included' ? 'included' : 'excluded',
-    vatRate: normalizeVatRate(item?.vatRate, 8),
+    offerGroupKey: String(item?.offerGroupKey || defaults.offerGroupKey || (coerceBoolean(item?.isOption, false) ? 'group-b' : 'group-a')),
+    currency: item?.currency || defaults.currency || 'VND',
+    vatMode: normalizeQuotationVatMode(item?.vatMode, 'net'),
+    vatRate: normalizeVatRate(item?.vatRate, normalizeVatRate(defaults.vatRate, 8)),
   }));
+}
+
+export function normalizeQuotationVatMode(value: unknown, fallback: 'net' | 'gross' = 'net') {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === 'gross' || normalized === 'included') return 'gross';
+  if (normalized === 'net' || normalized === 'excluded') return 'net';
+  return fallback;
 }
 
 export function normalizeVatRate(value: unknown, fallback = 8) {
@@ -341,14 +352,14 @@ export function parseNumberInput(value: unknown) {
 export function computeLineItemPricing(item: any) {
   const quantity = Number.isFinite(Number(item?.quantity)) ? Number(item.quantity) : 1;
   const currency = String(item?.currency || 'VND').toUpperCase();
-  const vatMode = item?.vatMode === 'included' ? 'included' : 'excluded';
+  const vatMode = normalizeQuotationVatMode(item?.vatMode, 'net');
   const vatRate = normalizeVatRate(item?.vatRate, 8);
   const unitPrice = parseNumberInput(item?.unitPrice);
   const precision = getCurrencyPrecision(currency);
   const factor = 10 ** precision;
   const round = (value: number) => Math.round(value * factor) / factor;
-  const unitGross = vatMode === 'included' ? unitPrice : round(unitPrice * (1 + vatRate / 100));
-  const unitNet = vatMode === 'included' ? round(unitPrice / (1 + vatRate / 100)) : unitPrice;
+  const unitGross = vatMode === 'gross' ? unitPrice : round(unitPrice * (1 + vatRate / 100));
+  const unitNet = vatMode === 'gross' ? round(unitPrice / (1 + vatRate / 100)) : unitPrice;
   const grossTotal = round(quantity * unitGross);
   const netTotal = round(quantity * unitNet);
   const vatTotal = round(grossTotal - netTotal);

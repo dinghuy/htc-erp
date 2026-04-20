@@ -118,6 +118,14 @@ Khi một modal có tab/step nội bộ và phần nội dung đủ dài để c
 - trên chiều ngang hẹp, giữ rail một hàng và cho cuộn ngang thay vì wrap nhiều dòng
 - nếu pattern lặp lại ở từ 2 modal trở lên, đưa style nền/border/shadow/scroll behavior về `frontend/src/ui/styles.ts`
 
+Khi một editor nghiệp vụ có nhiều phương án ngang hàng:
+
+- dùng card stack để tất cả phương án vẫn nhìn thấy trong cùng dòng công việc
+- card đang chọn phải có viền/badge rõ thay vì dựa vào tên tự sinh
+- action tính toán/xác nhận nên gom vào một dock ở cuối vùng editor, scoped rõ tới phương án đang chọn
+- nếu tên phương án để trống, chỉ dùng chip metadata trong editor; không render fallback kỹ thuật trong preview/PDF
+- với điều khoản song ngữ, ưu tiên bố cục hai cột Việt/Anh trên desktop và xếp dọc trên mobile
+
 Mẫu tốt:
 
 ```ts

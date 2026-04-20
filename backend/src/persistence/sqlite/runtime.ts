@@ -3,6 +3,16 @@ import path from 'path';
 import sqlite3 from 'sqlite3';
 import { open, type Database } from 'sqlite';
 
+export function resolveDefaultSqliteDbPath(runtimeDir: string) {
+  const normalizedRuntimeDir = path.resolve(runtimeDir);
+  const runtimeBaseName = path.basename(normalizedRuntimeDir).toLowerCase();
+  const backendRoot = runtimeBaseName === 'dist'
+    ? path.dirname(normalizedRuntimeDir)
+    : normalizedRuntimeDir;
+
+  return path.join(backendRoot, 'crm.db');
+}
+
 export function resolveSqliteDbPath(envPath: string | undefined, fallbackPath: string) {
   return envPath?.trim() ? path.resolve(envPath.trim()) : fallbackPath;
 }

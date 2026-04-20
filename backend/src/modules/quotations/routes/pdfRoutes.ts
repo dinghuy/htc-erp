@@ -9,6 +9,41 @@ type RegisterQuotationPdfRoutesParams = {
   quotationRepository: QuotationRepository;
 };
 
+function getLinePricing(item: any) {
+  const quantity = Number.isFinite(Number(item?.quantity)) ? Number(item.quantity) : 1;
+  const unitPrice = Number.isFinite(Number(item?.unitPrice)) ? Number(item.unitPrice) : 0;
+  const vatRate = Number.isFinite(Number(item?.vatRate)) ? Number(item.vatRate) : 0;
+  const amount = quantity * unitPrice;
+  if (String(item?.vatMode || '').toLowerCase() === 'gross') {
+    const netTotal = amount / (1 + vatRate / 100);
+    return {
+      netTotal,
+      vatTotal: amount - netTotal,
+      grossTotal: amount,
+    };
+  }
+  return {
+    netTotal: amount,
+    vatTotal: amount * (vatRate / 100),
+    grossTotal: amount * (1 + vatRate / 100),
+  };
+}
+
+function mapPdfLineItem(item: any, idx: number) {
+  const pricing = getLinePricing(item);
+  const commodity = (item.name || 'Unknown Item') + (item.technicalSpecs ? '\n' + item.technicalSpecs : '');
+  return {
+    no: idx + 1,
+    code: item.sku || '-',
+    commodity,
+    unit: item.unit || 'Chiếc',
+    qty: item.quantity || 1,
+    unitPrice: item.unitPrice || 0,
+    amount: pricing.grossTotal,
+    remarks: item.remarks || '',
+  };
+}
+
 export function registerQuotationPdfRoutes(params: RegisterQuotationPdfRoutesParams) {
   const { app, deps, quotationRepository } = params;
   const { ah } = deps;
@@ -24,6 +59,30 @@ export function registerQuotationPdfRoutes(params: RegisterQuotationPdfRoutesPar
       : await db.get('SELECT * FROM Contact WHERE accountId = ? AND isPrimaryContact = 1', q.accountId)
         || await db.get('SELECT * FROM Contact WHERE accountId = ?', q.accountId);
 
+    const lineItems = Array.isArray(q.lineItems) ? q.lineItems : [];
+    const offerGroups = Array.isArray(q.offerGroups) ? q.offerGroups : [];
+    const pdfOfferGroups = offerGroups.map((group: any) => {
+      const groupLineItems = lineItems.filter((item: any) => String(item.offerGroupKey || 'group-a') === String(group.groupKey));
+      const summary = groupLineItems.reduce(
+        (acc: any, item: any) => {
+          const pricing = getLinePricing(item);
+          return {
+            netSubtotal: acc.netSubtotal + pricing.netTotal,
+            vatTotal: acc.vatTotal + pricing.vatTotal,
+            grossTotal: acc.grossTotal + pricing.grossTotal,
+          };
+        },
+        { netSubtotal: 0, vatTotal: 0, grossTotal: 0 },
+      );
+      return {
+        label: group.label || null,
+        currency: group.currency || q.currency || 'VND',
+        totalComputed: group.totalComputed === true,
+        items: groupLineItems.map(mapPdfLineItem),
+        summary,
+      };
+    });
+
     const pdfData: QuotationPdfData = {
       quoteNumber: q.quoteNumber,
       subject: q.subject || 'Báo giá thiết bị HT Group',
@@ -38,19 +97,8 @@ export function registerQuotationPdfRoutes(params: RegisterQuotationPdfRoutesPar
       salesPerson: q.salesperson || 'Huynh Thy Sales Team',
       salesPersonPhone: q.salespersonPhone || '1900 9696 64',
       currency: q.currency || 'VND',
-      items: (Array.isArray(q.lineItems) ? q.lineItems : []).map((item: any, idx: number) => {
-        const commodity = (item.name || 'Unknown Item') + (item.technicalSpecs ? '\n' + item.technicalSpecs : '');
-        return {
-          no: idx + 1,
-          code: item.sku || '-',
-          commodity,
-          unit: item.unit || 'Chiếc',
-          qty: item.quantity || 1,
-          unitPrice: item.unitPrice || 0,
-          amount: (item.quantity || 1) * (item.unitPrice || 0),
-          remarks: item.remarks || '',
-        };
-      }),
+      items: lineItems.map(mapPdfLineItem),
+      offerGroups: pdfOfferGroups.length ? pdfOfferGroups : undefined,
       subtotal: q.subtotal || 0,
       taxTotal: q.taxTotal || 0,
       grandTotal: q.grandTotal || 0,

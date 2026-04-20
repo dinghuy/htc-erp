@@ -4,6 +4,7 @@ import {
   buildTypedQuotationStateFromBody,
   type QuotationCommercialTerms,
   type QuotationFinancialConfig,
+  type QuotationOfferGroupRecord,
   type QuotationLineItemInput,
 } from '../typedState';
 
@@ -18,6 +19,7 @@ export type MappedStandaloneQuotationInput = {
   currency: string;
   opportunityId: string | null;
   lineItems: QuotationLineItemInput[];
+  offerGroups: QuotationOfferGroupRecord[];
   financialConfig: QuotationFinancialConfig;
   commercialTerms: QuotationCommercialTerms;
   validUntil: string | null;
@@ -52,6 +54,7 @@ export function mapStandaloneQuotationInput(body: any): MappedStandaloneQuotatio
     currency: normalizeText(body?.currency) || 'VND',
     opportunityId: normalizeText(body?.opportunityId),
     lineItems: typedState.lineItems,
+    offerGroups: typedState.offerGroups,
     financialConfig: typedState.financialConfig,
     commercialTerms: typedState.commercialTerms,
     validUntil: normalizeText(body?.validUntil),

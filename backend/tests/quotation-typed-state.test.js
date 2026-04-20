@@ -60,7 +60,7 @@ async function main() {
     assert.equal(items[0].unitPrice, 15000);
     assert.equal(items[0].isOption, false);
     assert.equal(items[0].currency, 'USD');
-    assert.equal(items[0].vatMode, 'included');
+    assert.equal(items[0].vatMode, 'gross');
     assert.equal(items[0].vatRate, 10);
   });
 
@@ -69,7 +69,7 @@ async function main() {
     assert.equal(items[0].quantity, 1);
     assert.equal(items[0].unitPrice, 0);
     assert.equal(items[0].currency, 'VND');
-    assert.equal(items[0].vatMode, 'excluded');
+    assert.equal(items[0].vatMode, 'net');
     assert.equal(items[0].vatRate, DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate);
   });
 
@@ -228,10 +228,12 @@ async function main() {
     assert.equal(state.lineItems[0].sku, 'P1');
     assert.equal(state.lineItems[0].quantity, 2.5);
     assert.equal(state.lineItems[0].currency, 'USD');
-    assert.equal(state.lineItems[0].vatMode, 'included');
+    assert.equal(state.lineItems[0].vatMode, 'gross');
     assert.equal(state.lineItems[0].vatRate, 10);
     assert.equal(state.financialConfig.exchangeRate, 26500);
     assert.equal(state.commercialTerms.remarksVi, 'VAT note');
+    assert.equal(state.offerGroups[0].groupKey, 'group-a');
+    assert.equal(state.offerGroups[0].currency, 'USD');
   });
 
   await run('buildTypedQuotationStateFromBody – handles empty body', async () => {

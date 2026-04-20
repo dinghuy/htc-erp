@@ -3,7 +3,7 @@ import { type Database } from 'sqlite';
 import { ensureDefaultAdmin } from './src/persistence/sqlite/defaultAdmin';
 import { bootstrapSqliteSchema } from './src/persistence/sqlite/bootstrap';
 import { finalizeSqliteSchema } from './src/persistence/sqlite/finalize';
-import { resolveSqliteDbPath, openSqliteDatabase } from './src/persistence/sqlite/runtime';
+import { resolveDefaultSqliteDbPath, resolveSqliteDbPath, openSqliteDatabase } from './src/persistence/sqlite/runtime';
 
 let db: Database;
 let dbInitialized = false;
@@ -13,7 +13,7 @@ export async function initDb() {
     return;
   }
 
-  const dbPath = resolveSqliteDbPath(process.env.DB_PATH, path.join(__dirname, 'crm.db'));
+  const dbPath = resolveSqliteDbPath(process.env.DB_PATH, resolveDefaultSqliteDbPath(__dirname));
   db = await openSqliteDatabase(dbPath);
 
   await bootstrapSqliteSchema(db);

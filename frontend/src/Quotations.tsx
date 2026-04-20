@@ -14,7 +14,6 @@ import {
   PREVIEW_PAGE_HEIGHT,
   PREVIEW_PAGE_WIDTH,
   buildSaveQuotationGuard,
-  computeQuotationTotals,
   createInitialQuotationTerms,
   createNewQuotationTerms,
   ensureArray,
@@ -27,9 +26,15 @@ import {
   normalizeVatRate,
   quotationStyles,
   resolveSubmissionContactId,
-  serializeQuotationLineItems,
   type QuotationRow,
 } from './quotations/quotationShared';
+import {
+  computeQuotationOfferWorkspace,
+  createEmptyOfferGroup,
+  normalizeQuotationOfferGroups,
+  serializeQuotationLineItemsByOfferGroups,
+  type QuotationOfferGroup,
+} from './quotations/quotationOfferGroups';
 
 const S = quotationStyles;
 const OPEN_QUOTE_KEY = 'crm_open_quotation_id';
@@ -94,6 +99,8 @@ export function Quotations({
   const [salespersonPhone, setSalespersonPhone] = useState('');
   const [currency, setCurrency] = useState('VND');
   const [items, setItems] = useState<any[]>([]);
+  const [offerGroups, setOfferGroups] = useState<QuotationOfferGroup[]>([createEmptyOfferGroup(0, 'VND')]);
+  const [selectedOfferGroupKey, setSelectedOfferGroupKey] = useState('group-a');
   const [fin, setFin] = useState(DEFAULT_FINANCIAL_CONFIG);
   const [terms, setTerms] = useState<any>(createInitialQuotationTerms());
   const [translating, setTranslating] = useState(false);
@@ -132,9 +139,9 @@ export function Quotations({
     return { totalCount, pendingApprovalCount, reminderCount, wonCount };
   }, [quotations]);
 
-  const totals = useMemo(
-    () => computeQuotationTotals(items, fin.vatRate, fin.calculateTotals),
-    [items, fin.vatRate, fin.calculateTotals],
+  const offerWorkspace = useMemo(
+    () => computeQuotationOfferWorkspace(items, offerGroups, currency),
+    [items, offerGroups, currency],
   );
 
   const getContactDisplayName = (contact: any) => {
@@ -142,6 +149,20 @@ export function Quotations({
     if (contact.fullName) return contact.fullName;
     const composed = [contact.lastName, contact.firstName].filter(Boolean).join(' ').trim();
     return composed || '—';
+  };
+
+  const markOfferGroupDirty = (groupKey: string) => {
+    setOfferGroups((prev) =>
+      prev.map((group) =>
+        group.groupKey === groupKey
+          ? {
+              ...group,
+              vatComputed: false,
+              totalComputed: false,
+            }
+          : group,
+      ),
+    );
   };
 
   const resetEditor = () => {
@@ -157,6 +178,8 @@ export function Quotations({
     setSalespersonPhone('');
     setCurrency('VND');
     setItems([]);
+    setOfferGroups([createEmptyOfferGroup(0, 'VND')]);
+    setSelectedOfferGroupKey('group-a');
     setFin(DEFAULT_FINANCIAL_CONFIG);
     setTerms(createNewQuotationTerms());
     setMobileTab('form');
@@ -298,14 +321,35 @@ export function Quotations({
     setTranslating(true);
     try {
       const termItems = ensureArray<any>(terms.termItems);
-      const textsToTranslate = [terms.remarks, ...termItems.map((item) => item.textVi)];
+      const translationTargets = [
+        !terms.remarksEn && terms.remarks
+          ? { kind: 'remarksEn' as const, text: terms.remarks }
+          : null,
+        ...termItems.flatMap((item, index) => [
+          !item.labelEn && item.labelViPrint
+            ? { kind: 'labelEn' as const, index, text: item.labelViPrint }
+            : null,
+          !item.textEn && item.textVi
+            ? { kind: 'textEn' as const, index, text: item.textVi }
+            : null,
+        ]),
+      ].filter(Boolean) as Array<
+        | { kind: 'remarksEn'; text: string }
+        | { kind: 'labelEn'; index: number; text: string }
+        | { kind: 'textEn'; index: number; text: string }
+      >;
+
+      if (!translationTargets.length) {
+        showNotify('Không có trường tiếng Anh trống để dịch.', 'info');
+        return;
+      }
+
       const translations = await Promise.all(
-        textsToTranslate.map(async (text) => {
-          if (!text) return '';
+        translationTargets.map(async (target) => {
           const res = await fetch(`${API}/translate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text }),
+            body: JSON.stringify({ text: target.text }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Server error');
@@ -313,11 +357,26 @@ export function Quotations({
         }),
       );
 
-      setTerms({
+      const nextTerms = {
         ...terms,
-        remarksEn: translations[0],
-        termItems: termItems.map((item, index) => ({ ...item, textEn: translations[index + 1] })),
+        termItems: termItems.map((item) => ({ ...item })),
+      };
+
+      translationTargets.forEach((target, index) => {
+        const translation = translations[index];
+        if (!translation) return;
+        if (target.kind === 'remarksEn') {
+          nextTerms.remarksEn = translation;
+          return;
+        }
+        if (target.kind === 'labelEn') {
+          nextTerms.termItems[target.index].labelEn = translation;
+          return;
+        }
+        nextTerms.termItems[target.index].textEn = translation;
       });
+
+      setTerms(nextTerms);
     } catch (error: any) {
       showNotify(`Lỗi dịch thuật API: ${error.message}`, 'error');
     } finally {
@@ -326,7 +385,13 @@ export function Quotations({
   };
 
   const addItem = (product: any) => {
-    const previousItem = items.at(-1);
+    const targetGroup =
+      offerGroups.find((group) => group.groupKey === selectedOfferGroupKey) ||
+      offerGroups[0] ||
+      createEmptyOfferGroup(0, currency);
+    const previousItem = [...items]
+      .reverse()
+      .find((item) => String(item.offerGroupKey || 'group-a') === targetGroup.groupKey);
     const nextItem = {
       ...product,
       quantity: 1,
@@ -335,16 +400,24 @@ export function Quotations({
       remarks: '',
       unit: product.unit || 'Chiếc',
       isOption: false,
-      currency: previousItem?.currency || currency,
-      vatMode: previousItem?.vatMode || 'excluded',
+      offerGroupKey: targetGroup.groupKey,
+      currency: previousItem?.currency || targetGroup.currency || currency,
+      vatMode: previousItem?.vatMode || 'net',
       vatRate: previousItem?.vatRate ?? fin.vatRate,
     };
     setItems((prev) => [...prev, nextItem]);
+    markOfferGroupDirty(targetGroup.groupKey);
     setShowProdModal(false);
   };
 
   const addManualItem = () => {
-    const previousItem = items.at(-1);
+    const targetGroup =
+      offerGroups.find((group) => group.groupKey === selectedOfferGroupKey) ||
+      offerGroups[0] ||
+      createEmptyOfferGroup(0, currency);
+    const previousItem = [...items]
+      .reverse()
+      .find((item) => String(item.offerGroupKey || 'group-a') === targetGroup.groupKey);
     setItems((prev) => [
       ...prev,
       {
@@ -358,23 +431,116 @@ export function Quotations({
         unitPrice: 0,
         sortOrder: null,
         isOption: false,
-        currency: previousItem?.currency || currency,
-        vatMode: previousItem?.vatMode || 'excluded',
+        offerGroupKey: targetGroup.groupKey,
+        currency: previousItem?.currency || targetGroup.currency || currency,
+        vatMode: previousItem?.vatMode || 'net',
         vatRate: previousItem?.vatRate ?? fin.vatRate,
       },
     ]);
+    markOfferGroupDirty(targetGroup.groupKey);
   };
 
   const updateItem = (index: number, field: string, value: any) => {
-    setItems((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)));
+    setItems((prev) =>
+      prev.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        const nextItem = { ...item, [field]: value };
+        if (field === 'vatMode') {
+          nextItem.vatMode = value;
+        }
+        return nextItem;
+      }),
+    );
+    const targetGroupKey = String(items[index]?.offerGroupKey || selectedOfferGroupKey || 'group-a');
+    markOfferGroupDirty(targetGroupKey);
   };
 
   const removeItemAt = (index: number) => {
+    const targetGroupKey = String(items[index]?.offerGroupKey || selectedOfferGroupKey || 'group-a');
     setItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    markOfferGroupDirty(targetGroupKey);
   };
 
-  const moveItemToOption = (index: number, isOption: boolean) => {
-    setItems((prev) => prev.map((item, itemIndex) => (itemIndex === index ? { ...item, isOption } : item)));
+  const addOfferGroup = () => {
+    setOfferGroups((prev) => {
+      const nextGroup = createEmptyOfferGroup(prev.length, currency);
+      setSelectedOfferGroupKey(nextGroup.groupKey);
+      return [...prev, nextGroup];
+    });
+  };
+
+  const updateOfferGroup = (groupKey: string, patch: Partial<QuotationOfferGroup>) => {
+    setOfferGroups((prev) =>
+      prev.map((group) =>
+        group.groupKey === groupKey
+          ? {
+              ...group,
+              ...patch,
+              vatComputed: false,
+              totalComputed: false,
+            }
+          : group,
+      ),
+    );
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'currency')) {
+      setItems((prev) =>
+        prev.map((item) =>
+          String(item.offerGroupKey || 'group-a') === groupKey
+            ? { ...item, currency: patch.currency || item.currency }
+            : item,
+        ),
+      );
+    }
+  };
+
+  const removeOfferGroup = (groupKey: string) => {
+    setOfferGroups((prev) => {
+      if (prev.length <= 1) {
+        setItems([]);
+        setSelectedOfferGroupKey('group-a');
+        return [createEmptyOfferGroup(0, currency)];
+      }
+
+      const nextGroups = prev
+        .filter((group) => group.groupKey !== groupKey)
+        .map((group, index) => ({ ...group, sortOrder: index }));
+      const nextSelected = selectedOfferGroupKey === groupKey ? nextGroups[0]?.groupKey || 'group-a' : selectedOfferGroupKey;
+      setSelectedOfferGroupKey(nextSelected);
+      return nextGroups;
+    });
+    setItems((prev) => prev.filter((item) => String(item.offerGroupKey || 'group-a') !== groupKey));
+  };
+
+  const computeVatForOfferGroup = (groupKey: string) => {
+    const group = offerWorkspace.offerGroups.find((entry) => entry.groupKey === groupKey);
+    if (!group?.validation.canComputeVat) return;
+    setOfferGroups((prev) =>
+      prev.map((entry) =>
+        entry.groupKey === groupKey
+          ? {
+              ...entry,
+              vatComputed: true,
+              totalComputed: false,
+            }
+          : entry,
+      ),
+    );
+  };
+
+  const computeTotalForOfferGroup = (groupKey: string) => {
+    const group = offerWorkspace.offerGroups.find((entry) => entry.groupKey === groupKey);
+    if (!group?.validation.canComputeTotal) return;
+    setOfferGroups((prev) =>
+      prev.map((entry) =>
+        entry.groupKey === groupKey
+          ? {
+              ...entry,
+              totalComputed: true,
+            }
+          : entry,
+      ),
+    );
   };
 
   const handleSalespersonSelect = (id: string) => {
@@ -431,11 +597,15 @@ export function Quotations({
     }
 
     setSavingQuote(true);
-    const serializedLineItems = serializeQuotationLineItems(items);
+    const serializedLineItems = serializeQuotationLineItemsByOfferGroups(items, offerGroups);
+    const headerSummary =
+      offerWorkspace.offerGroups.length === 1 && offerWorkspace.offerGroups[0]?.totalComputed
+        ? offerWorkspace.offerGroups[0].summary
+        : null;
     const normalizedFin = {
       ...fin,
       vatRate: normalizeVatRate(fin.vatRate),
-      calculateTotals: normalizeCalculateTotals(fin.calculateTotals),
+      calculateTotals: offerGroups.some((group) => group.totalComputed),
     };
 
     const body = {
@@ -449,6 +619,15 @@ export function Quotations({
       salesperson,
       salespersonPhone,
       currency,
+      offerGroups: offerGroups.map((group, index) => ({
+        id: group.id || null,
+        groupKey: group.groupKey,
+        label: group.label || '',
+        currency: group.currency || currency,
+        vatComputed: group.vatComputed === true,
+        totalComputed: group.totalComputed === true,
+        sortOrder: Number.isFinite(Number(group.sortOrder)) ? Number(group.sortOrder) : index,
+      })),
       lineItems: serializedLineItems.map((item) => ({
         id: item.id || null,
         sortOrder: Number(item.sortOrder || 0),
@@ -458,11 +637,12 @@ export function Quotations({
         unitPrice: parseNumberInput(item.unitPrice || 0),
         unit: item.unit,
         currency: item.currency || currency,
-        vatMode: item.vatMode === 'included' ? 'included' : 'excluded',
+        vatMode: item.vatMode === 'gross' ? 'gross' : 'net',
         vatRate: normalizeVatRate(item.vatRate, normalizedFin.vatRate),
         technicalSpecs: item.technicalSpecs,
         remarks: item.remarks,
         isOption: item.isOption === true,
+        offerGroupKey: item.offerGroupKey || 'group-a',
       })),
       financialConfig: normalizedFin,
       commercialTerms: {
@@ -477,9 +657,9 @@ export function Quotations({
           textEn: item?.textEn || '',
         })),
       },
-      subtotal: totals.subtotal,
-      taxTotal: totals.taxTotal,
-      grandTotal: totals.grandTotal,
+      subtotal: headerSummary?.netSubtotal || 0,
+      taxTotal: headerSummary?.vatTotal || 0,
+      grandTotal: headerSummary?.grossTotal || 0,
       status,
       validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     };
@@ -555,12 +735,20 @@ export function Quotations({
       setSalesperson(fullQ.salesperson || '');
       setSalespersonPhone(fullQ.salespersonPhone || '');
       setCurrency(fullQ.currency || 'VND');
+      const normalizedOfferGroups = normalizeQuotationOfferGroups(
+        fullQ.offerGroups,
+        fullQ.lineItems,
+        fullQ.currency || 'VND',
+      );
+      setOfferGroups(normalizedOfferGroups);
+      setSelectedOfferGroupKey(normalizedOfferGroups[0]?.groupKey || 'group-a');
       setItems(
         normalizeQuotationLineItems(fullQ.lineItems).map((item) => ({
           ...item,
           currency: item.currency || fullQ.currency || 'VND',
-          vatMode: item.vatMode === 'included' ? 'included' : 'excluded',
+          vatMode: item.vatMode === 'gross' ? 'gross' : 'net',
           vatRate: item.vatRate ?? normalizeVatRate(fullQ?.financialConfig?.vatRate, DEFAULT_FINANCIAL_CONFIG.vatRate),
+          offerGroupKey: item.offerGroupKey || (item.isOption ? 'group-b' : 'group-a'),
         })),
       );
       setFin({
@@ -672,7 +860,14 @@ export function Quotations({
         items={items}
         updateItem={updateItem}
         removeItemAt={removeItemAt}
-        moveItemToOption={moveItemToOption}
+        selectedOfferGroupKey={selectedOfferGroupKey}
+        setSelectedOfferGroupKey={setSelectedOfferGroupKey}
+        addOfferGroup={addOfferGroup}
+        updateOfferGroup={updateOfferGroup}
+        removeOfferGroup={removeOfferGroup}
+        computeVatForOfferGroup={computeVatForOfferGroup}
+        computeTotalForOfferGroup={computeTotalForOfferGroup}
+        offerWorkspace={offerWorkspace}
         handleTranslate={handleTranslate}
         translating={translating}
         terms={terms}
@@ -685,12 +880,7 @@ export function Quotations({
         previewA4Ref={previewA4Ref}
         getContactDisplayName={getContactDisplayName}
         selectedContact={selectedContact}
-        totals={totals}
         editingQuoteId={editingQuoteId}
-        vatRate={fin.vatRate}
-        setVatRate={(vatRate: number) => setFin((prev) => ({ ...prev, vatRate }))}
-        calculateTotals={fin.calculateTotals}
-        setCalculateTotals={(calculateTotals: boolean) => setFin((prev) => ({ ...prev, calculateTotals }))}
         saveQuotation={saveQuotation}
         savingQuote={savingQuote}
       />

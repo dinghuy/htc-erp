@@ -27,6 +27,17 @@ export interface QuotationPdfData {
     amount: number;
     remarks: string;
   }>;
+  offerGroups?: Array<{
+    label?: string | null;
+    currency: string;
+    totalComputed?: boolean;
+    items: QuotationPdfData['items'];
+    summary?: {
+      netSubtotal: number;
+      vatTotal: number;
+      grossTotal: number;
+    } | null;
+  }>;
   subtotal: number;
   taxTotal: number;
   grandTotal: number;
@@ -618,9 +629,9 @@ export async function generateQuotationPdf(data: QuotationPdfData): Promise<Uint
     }
   };
 
-  drawTableHeader();
-
-  data.items.forEach((item) => {
+  const drawTableRows = (rows: QuotationPdfData['items']) => {
+    drawTableHeader();
+    rows.forEach((item) => {
     const commMaxW = cols[2].w - 7;
     const commLines = wrapTextLines(item.commodity, commMaxW, ITEM_ROW_FONT_SIZE, timesNewRoman);
     let remainingLines = commLines.slice();
@@ -710,9 +721,8 @@ export async function generateQuotationPdf(data: QuotationPdfData): Promise<Uint
       isFirstChunk = false;
     }
   });
+  };
 
-  // 5. TOTALS
-  y -= 25;
   const totalX = width - 270;
   const drawTotalLine = (label: string, value: string, bold = false) => {
     if (bold) {
@@ -726,20 +736,55 @@ export async function generateQuotationPdf(data: QuotationPdfData): Promise<Uint
     y -= 18;
   };
 
-  drawTotalLine('Subtotal / Tạm tính:', `${(data.subtotal || 0).toLocaleString()} ${data.currency}`);
-  drawTotalLine('VAT (8%):', `${(data.taxTotal || 0).toLocaleString()} ${data.currency}`);
+  const drawGroupSummary = (group: NonNullable<QuotationPdfData['offerGroups']>[number]) => {
+    if (!group.totalComputed || !group.summary) return;
+    y -= 20;
+    drawTotalLine('Subtotal / Tạm tính:', `${(group.summary.netSubtotal || 0).toLocaleString()} ${group.currency}`);
+    drawTotalLine('VAT:', `${(group.summary.vatTotal || 0).toLocaleString()} ${group.currency}`);
 
-  y -= 10;
-  const grandTotalStr = `${(data.grandTotal || 0).toLocaleString()} ${data.currency}`;
-  page.drawRectangle({ x: totalX - 5, y: y - 6, width: width - totalX - 30, height: 26, color: LDA_BLUE });
-  drawTextWithFont(page, 'GRAND TOTAL:', {
-    x: totalX + 5, y: y + 5, size: 11, font: timesNewRomanBold, color: rgb(1, 1, 1)
-  }, simulateBold);
-  drawTextWithFont(page, grandTotalStr, {
-    x: width - 40 - timesNewRomanBold.widthOfTextAtSize(grandTotalStr, 11),
-    y: y + 5, size: 11, font: timesNewRomanBold, color: rgb(1, 1, 1)
-  }, simulateBold);
-  y -= 45;
+    y -= 10;
+    const grandTotalStr = `${(group.summary.grossTotal || 0).toLocaleString()} ${group.currency}`;
+    page.drawRectangle({ x: totalX - 5, y: y - 6, width: width - totalX - 30, height: 26, color: LDA_BLUE });
+    drawTextWithFont(page, 'TOTAL:', {
+      x: totalX + 5, y: y + 5, size: 11, font: timesNewRomanBold, color: rgb(1, 1, 1)
+    }, simulateBold);
+    drawTextWithFont(page, grandTotalStr, {
+      x: width - 40 - timesNewRomanBold.widthOfTextAtSize(grandTotalStr, 11),
+      y: y + 5, size: 11, font: timesNewRomanBold, color: rgb(1, 1, 1)
+    }, simulateBold);
+    y -= 35;
+  };
+
+  const pdfOfferGroups = data.offerGroups?.length
+    ? data.offerGroups
+    : [{
+        label: null,
+        currency: data.currency,
+        totalComputed: true,
+        items: data.items,
+        summary: {
+          netSubtotal: data.subtotal || 0,
+          vatTotal: data.taxTotal || 0,
+          grossTotal: data.grandTotal || 0,
+        },
+      }];
+
+  pdfOfferGroups.forEach((group) => {
+    const title = String(group.label || '').trim();
+    if (title) {
+      if (y - 34 < tableBottomMargin) {
+        page = pdfDoc.addPage(PAGE_SIZE);
+        y = height - NEW_PAGE_TOP_MARGIN;
+      }
+      drawTextWithFont(page, title, { x: LEFT_MARGIN, y: y - 4, size: 12, font: timesNewRomanBold, color: LDA_BLUE }, simulateBold);
+      y -= 18;
+    }
+    drawTableRows(group.items || []);
+    drawGroupSummary(group);
+    y -= 12;
+  });
+
+  y -= 20;
 
   // 6. REMARKS & TERMS
   const DEBUG_PAGINATION = process.env.DEBUG_PDF_PAGINATION === '1';

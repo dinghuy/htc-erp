@@ -294,7 +294,7 @@ describe('product / quotation export catalogue constants', () => {
   });
 
   it('VAT_MODES keeps supported per-line VAT vocabulary stable', () => {
-    expect(VAT_MODES).toEqual(['excluded', 'included']);
+    expect(VAT_MODES).toEqual(['net', 'gross']);
   });
 
   it('PAYMENT_PRESETS contains at least one preset', () => {
@@ -333,8 +333,8 @@ describe('quotation totals + optional offer helpers', () => {
   it('computes payable totals from main items only', () => {
     const result = computeQuotationTotals(
       [
-        { sku: 'MAIN-1', quantity: 2, unitPrice: 100, isOption: false, currency: 'VND', vatMode: 'excluded', vatRate: 10 },
-        { sku: 'OPT-1', quantity: 1, unitPrice: 500, isOption: true, currency: 'VND', vatMode: 'excluded', vatRate: 10 },
+        { sku: 'MAIN-1', quantity: 2, unitPrice: 100, isOption: false, currency: 'VND', vatMode: 'net', vatRate: 10 },
+        { sku: 'OPT-1', quantity: 1, unitPrice: 500, isOption: true, currency: 'VND', vatMode: 'net', vatRate: 10 },
       ],
       10,
       true,
@@ -352,7 +352,7 @@ describe('quotation totals + optional offer helpers', () => {
 
   it('hides totals for all-optional quotations', () => {
     const result = computeQuotationTotals(
-      [{ sku: 'OPT-ONLY', quantity: 3, unitPrice: 100, isOption: true, currency: 'VND', vatMode: 'excluded', vatRate: 8 }],
+      [{ sku: 'OPT-ONLY', quantity: 3, unitPrice: 100, isOption: true, currency: 'VND', vatMode: 'net', vatRate: 8 }],
       8,
       true,
     );
@@ -379,8 +379,8 @@ describe('quotation totals + optional offer helpers', () => {
   it('groups totals by currency instead of forcing one grand total for mixed quotations', () => {
     const result = computeQuotationTotals(
       [
-        { sku: 'VN-1', quantity: 1, unitPrice: 1000000, isOption: false, currency: 'VND', vatMode: 'excluded', vatRate: 8 },
-        { sku: 'US-1', quantity: 2, unitPrice: 50, isOption: false, currency: 'USD', vatMode: 'excluded', vatRate: 10 },
+        { sku: 'VN-1', quantity: 1, unitPrice: 1000000, isOption: false, currency: 'VND', vatMode: 'net', vatRate: 8 },
+        { sku: 'US-1', quantity: 2, unitPrice: 50, isOption: false, currency: 'USD', vatMode: 'net', vatRate: 10 },
       ],
       8,
       true,
@@ -399,7 +399,7 @@ describe('quotation totals + optional offer helpers', () => {
       quantity: 2,
       unitPrice: 110,
       currency: 'USD',
-      vatMode: 'included',
+      vatMode: 'gross',
       vatRate: 10,
     });
 

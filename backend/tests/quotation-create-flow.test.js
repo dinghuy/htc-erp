@@ -199,7 +199,7 @@ async function main() {
     assert.equal(mapped.revisionNo, 3);
     assert.equal(mapped.revisionLabel, 'R3');
     assert.equal(mapped.status, 'won');
-    assert.deepEqual(mapped.lineItems, [{ sku: 'A', sortOrder: 0, name: null, unit: 'Chiếc', currency: 'USD', vatMode: 'included', vatRate: 10, technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null, isOption: false }]);
+    assert.deepEqual(mapped.lineItems, [{ sku: 'A', sortOrder: 0, name: null, unit: 'Chiếc', currency: 'USD', vatMode: 'gross', vatRate: 10, technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null, isOption: false, offerGroupKey: 'group-a' }]);
     assert.equal(mapped.financialConfig.exchangeRate, 26000);
     assert.equal(mapped.financialConfig.calculateTotals, false);
     assert.equal(mapped.commercialTerms.termItems[0].textVi, '50/50');
@@ -272,7 +272,7 @@ async function main() {
     assert.equal(mapped.subject, 'Revised');
     assert.equal(mapped.subtotal, 200);
     assert.equal(mapped.taxTotal, 8);
-    assert.deepEqual(mapped.lineItems, [{ sku: 'SKU-1', sortOrder: 0, name: null, unit: 'Chiếc', currency: 'VND', vatMode: 'excluded', vatRate: 8, technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null, isOption: false }]);
+    assert.deepEqual(mapped.lineItems, [{ sku: 'SKU-1', sortOrder: 0, name: null, unit: 'Chiếc', currency: 'VND', vatMode: 'net', vatRate: 8, technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null, isOption: false, offerGroupKey: 'group-a' }]);
     assert.equal(mapped.financialConfig.exchangeRate, 25400);
     assert.equal(mapped.financialConfig.calculateTotals, true);
     assert.equal(mapped.commercialTerms.termItems[0].textVi, '100%');

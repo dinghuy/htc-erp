@@ -5,13 +5,14 @@ export type QuotationLineItemInput = {
   name?: string | null;
   unit?: string | null;
   currency?: string | null;
-  vatMode?: 'included' | 'excluded' | null;
+  vatMode?: 'net' | 'gross' | 'included' | 'excluded' | null;
   vatRate?: number | null;
   technicalSpecs?: string | null;
   remarks?: string | null;
   quantity?: number | null;
   unitPrice?: number | null;
   isOption?: boolean | null;
+  offerGroupKey?: string | null;
 };
 
 export type QuotationLineItemRecord = {
@@ -21,13 +22,34 @@ export type QuotationLineItemRecord = {
   name: string | null;
   unit: string | null;
   currency: string;
-  vatMode: 'included' | 'excluded';
+  vatMode: 'net' | 'gross';
   vatRate: number;
   technicalSpecs: string | null;
   remarks: string | null;
   quantity: number;
   unitPrice: number;
   isOption: boolean;
+  offerGroupKey: string;
+};
+
+export type QuotationOfferGroupInput = {
+  id?: string | null;
+  groupKey?: string | null;
+  label?: string | null;
+  currency?: string | null;
+  vatComputed?: boolean | null;
+  totalComputed?: boolean | null;
+  sortOrder?: number | null;
+};
+
+export type QuotationOfferGroupRecord = {
+  id: string | null;
+  groupKey: string;
+  label: string | null;
+  currency: string;
+  vatComputed: boolean;
+  totalComputed: boolean;
+  sortOrder: number;
 };
 
 export type QuotationFinancialConfig = {
@@ -115,9 +137,41 @@ function parseJsonArray(raw: unknown) {
   }
 }
 
+export function normalizeVatMode(
+  value: unknown,
+  fallback: 'net' | 'gross' = 'net',
+): 'net' | 'gross' {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === 'gross' || normalized === 'included') return 'gross';
+  if (normalized === 'net' || normalized === 'excluded') return 'net';
+  return fallback;
+}
+
+function buildDefaultOfferGroupKey(index: number) {
+  const alphabetIndex = index % 26;
+  const cycle = Math.floor(index / 26);
+  const suffix = String.fromCharCode(97 + alphabetIndex);
+  return cycle === 0 ? `group-${suffix}` : `group-${suffix}-${cycle + 1}`;
+}
+
+function normalizeOfferGroupKey(
+  value: unknown,
+  index: number,
+  legacyIsOption?: unknown,
+) {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (normalized) return normalized;
+  if (legacyIsOption === true || Number(legacyIsOption) === 1) return 'group-b';
+  return index === 0 ? 'group-a' : buildDefaultOfferGroupKey(index);
+}
+
 export function normalizeQuotationLineItems(
   raw: unknown,
-  defaults: { currency?: string | null; vatRate?: number | null } = {},
+  defaults: { currency?: string | null; vatRate?: number | null; offerGroupKey?: string | null } = {},
 ): QuotationLineItemInput[] {
   return parseJsonArray(raw).map((item: any, index: number) => ({
     id: normalizeText(item?.id),
@@ -126,14 +180,126 @@ export function normalizeQuotationLineItems(
     name: normalizeText(item?.name),
     unit: normalizeText(item?.unit) || 'Chiếc',
     currency: normalizeText(item?.currency) || normalizeText(defaults.currency) || 'VND',
-    vatMode: item?.vatMode === 'included' ? 'included' : 'excluded',
-    vatRate: normalizeNumber(item?.vatRate, normalizeNumber(defaults.vatRate, DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate)),
+    vatMode: normalizeVatMode(item?.vatMode, 'net'),
+    vatRate: normalizeNumber(
+      item?.vatRate,
+      normalizeNumber(defaults.vatRate, DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate),
+    ),
     technicalSpecs: normalizeText(item?.technicalSpecs),
     remarks: normalizeText(item?.remarks),
     quantity: normalizeNumber(item?.quantity, 1),
     unitPrice: normalizeNumber(item?.unitPrice, 0),
     isOption: normalizeBoolean(item?.isOption, false),
+    offerGroupKey: normalizeOfferGroupKey(
+      item?.offerGroupKey ?? item?.groupKey ?? defaults.offerGroupKey,
+      index,
+      item?.isOption,
+    ),
   }));
+}
+
+function ensureOfferGroupsCoverLineItems(
+  groups: QuotationOfferGroupRecord[],
+  lineItems: QuotationLineItemInput[],
+  defaultCurrency: string,
+) {
+  const seen = new Set(groups.map((group) => group.groupKey));
+  const nextGroups = [...groups];
+
+  lineItems.forEach((lineItem, index) => {
+    const groupKey = normalizeOfferGroupKey(lineItem.offerGroupKey, index, lineItem.isOption);
+    if (seen.has(groupKey)) return;
+    seen.add(groupKey);
+    nextGroups.push({
+      id: null,
+      groupKey,
+      label: null,
+      currency: normalizeText(lineItem.currency) || defaultCurrency,
+      vatComputed: false,
+      totalComputed: false,
+      sortOrder: nextGroups.length,
+    });
+  });
+
+  return nextGroups
+    .map((group, index) => ({
+      ...group,
+      sortOrder: Number.isFinite(Number(group.sortOrder)) ? Number(group.sortOrder) : index,
+    }))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function inferOfferGroupsFromLineItems(
+  lineItems: QuotationLineItemInput[],
+  options: { currency?: string | null; calculateTotals?: boolean } = {},
+): QuotationOfferGroupRecord[] {
+  const defaultCurrency = normalizeText(options.currency) || 'VND';
+  if (!lineItems.length) {
+    return [
+      {
+        id: null,
+        groupKey: 'group-a',
+        label: null,
+        currency: defaultCurrency,
+        vatComputed: false,
+        totalComputed: false,
+        sortOrder: 0,
+      },
+    ];
+  }
+
+  const groups = new Map<string, QuotationOfferGroupRecord>();
+  lineItems.forEach((lineItem, index) => {
+    const groupKey = normalizeOfferGroupKey(lineItem.offerGroupKey, index, lineItem.isOption);
+    if (groups.has(groupKey)) return;
+    const isPrimaryLegacyGroup = groupKey === 'group-a';
+    const totalComputed = isPrimaryLegacyGroup && normalizeBoolean(options.calculateTotals, true);
+    groups.set(groupKey, {
+      id: null,
+      groupKey,
+      label: null,
+      currency: normalizeText(lineItem.currency) || defaultCurrency,
+      vatComputed: totalComputed,
+      totalComputed,
+      sortOrder: groups.size,
+    });
+  });
+
+  return Array.from(groups.values());
+}
+
+export function normalizeQuotationOfferGroups(
+  raw: unknown,
+  defaults: {
+    lineItems?: unknown;
+    currency?: string | null;
+    calculateTotals?: boolean;
+  } = {},
+): QuotationOfferGroupRecord[] {
+  const lineItems = normalizeQuotationLineItems(defaults.lineItems, {
+    currency: defaults.currency,
+  });
+  const defaultCurrency = normalizeText(defaults.currency) || 'VND';
+  const rawGroups = parseJsonArray(raw);
+
+  const explicitGroups = rawGroups.map((group: any, index: number) => ({
+    id: normalizeText(group?.id),
+    groupKey: normalizeOfferGroupKey(group?.groupKey, index),
+    label: normalizeText(group?.label),
+    currency: normalizeText(group?.currency) || defaultCurrency,
+    vatComputed: normalizeBoolean(group?.vatComputed, false),
+    totalComputed: normalizeBoolean(group?.totalComputed, false),
+    sortOrder: Number.isFinite(Number(group?.sortOrder)) ? Number(group.sortOrder) : index,
+  }));
+
+  const groups = explicitGroups.length
+    ? ensureOfferGroupsCoverLineItems(explicitGroups, lineItems, defaultCurrency)
+    : inferOfferGroupsFromLineItems(lineItems, {
+        currency: defaultCurrency,
+        calculateTotals: defaults.calculateTotals,
+      });
+
+  return groups;
 }
 
 export function normalizeQuotationFinancialConfig(raw: unknown): QuotationFinancialConfig {
@@ -186,7 +352,10 @@ export function normalizeQuotationCommercialTerms(raw: unknown): QuotationCommer
   return {
     remarksVi: normalizeText(source.remarksVi ?? source.remarks),
     remarksEn: normalizeText(source.remarksEn),
-    termItems: (explicitTermItems.length ? explicitTermItems : fallbackTermItems).sort((a: QuotationCommercialTermItemRecord, b: QuotationCommercialTermItemRecord) => a.sortOrder - b.sortOrder),
+    termItems: (explicitTermItems.length ? explicitTermItems : fallbackTermItems).sort(
+      (a: QuotationCommercialTermItemRecord, b: QuotationCommercialTermItemRecord) =>
+        a.sortOrder - b.sortOrder,
+    ),
   };
 }
 
@@ -202,13 +371,33 @@ export function parseLegacyQuotationCommercialTerms(raw: unknown) {
   return normalizeQuotationCommercialTerms(raw);
 }
 
+export function parseLegacyQuotationOfferGroups(
+  raw: unknown,
+  lineItemsRaw: unknown,
+  defaults: { currency?: string | null; calculateTotals?: boolean } = {},
+) {
+  return normalizeQuotationOfferGroups(raw, {
+    lineItems: lineItemsRaw,
+    currency: defaults.currency,
+    calculateTotals: defaults.calculateTotals,
+  });
+}
+
 export function buildTypedQuotationStateFromBody(body: any) {
   const financialConfig = normalizeQuotationFinancialConfig(body?.financialConfig);
+  const lineItems = normalizeQuotationLineItems(body?.lineItems, {
+    currency: body?.currency,
+    vatRate: financialConfig.vatRate,
+  });
+  const offerGroups = normalizeQuotationOfferGroups(body?.offerGroups, {
+    lineItems,
+    currency: body?.currency,
+    calculateTotals: financialConfig.calculateTotals,
+  });
+
   return {
-    lineItems: normalizeQuotationLineItems(body?.lineItems, {
-      currency: body?.currency,
-      vatRate: financialConfig.vatRate,
-    }),
+    lineItems,
+    offerGroups,
     financialConfig,
     commercialTerms: normalizeQuotationCommercialTerms(body?.commercialTerms),
   };

@@ -24,18 +24,24 @@ type SaveQuotationOptions = {
   exportPdf?: boolean;
 };
 
+function getVatModeLabel(mode: unknown) {
+  return String(mode || '').trim().toLowerCase() === 'gross' ? 'Gross' : 'NET';
+}
+
 function PreviewTable({
   title,
   rows,
   currency,
 }: {
-  title: string;
+  title?: string;
   rows: any[];
   currency: string;
 }) {
   return (
     <div style={{ width: `${PREVIEW_CONTENT_WIDTH.toFixed(2)}px`, marginBottom: '18px' }}>
-      <div style={{ fontSize: '11px', fontWeight: 700, color: '#003F85', marginBottom: '6px' }}>{title}</div>
+      {title ? (
+        <div style={{ fontSize: '11px', fontWeight: 700, color: '#003F85', marginBottom: '6px' }}>{title}</div>
+      ) : null}
       <table style={{ width: `${PREVIEW_CONTENT_WIDTH.toFixed(2)}px`, borderCollapse: 'collapse', fontSize: '9px', border: '0.9px solid #1A202C' }}>
         <colgroup>
           <col style={{ width: `${(22 * PREVIEW_SCALE).toFixed(2)}px` }} />
@@ -83,7 +89,7 @@ function PreviewTable({
                   {item.technicalSpecs ? `\n${item.technicalSpecs}` : ''}
                   {(() => {
                     const pricing = item.pricing || computeLineItemPricing(item);
-                    return `\nVAT: ${pricing.vatMode === 'included' ? 'Đã gồm' : 'Chưa VAT'} (${pricing.vatRate}%)`;
+                    return `\nVAT mode: ${getVatModeLabel(pricing.vatMode)} (${pricing.vatRate}%)`;
                   })()}
                 </td>
                 <td style={{ padding: '4px 4px', textAlign: 'left', border: '0.9px solid #1A202C' }}>{item.unit || 'Chiếc'}</td>
@@ -106,11 +112,11 @@ function PreviewTable({
           )}
         </tbody>
       </table>
-      {rows.length > 0 && (
+      {rows.length > 0 ? (
         <div style={{ marginTop: '6px', textAlign: 'right', fontSize: '10px', color: '#64748B' }}>
           Đơn vị tiền tệ / Currency: {currency}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -132,14 +138,14 @@ export function QuotationPreviewPanel({
   selectedContact,
   currency,
   subject,
-  totals,
+  offerWorkspace,
   terms,
 }: any) {
   const { t } = useI18n();
   const previewCurrencyLabel =
-    totals.mainCurrencyGroups?.length > 1 || totals.optionCurrencyGroups?.length > 1
+    offerWorkspace.offerGroups.length > 1
       ? 'MIXED'
-      : totals.mainCurrencyGroups?.[0]?.currency || totals.optionCurrencyGroups?.[0]?.currency || currency;
+      : offerWorkspace.offerGroups[0]?.currency || currency;
 
   return (
     <div
@@ -207,20 +213,6 @@ export function QuotationPreviewPanel({
                 src: url("/Times New Roman Bold.ttf") format("truetype");
                 font-weight: 700;
                 font-style: normal;
-                font-display: swap;
-              }
-              @font-face {
-                font-family: var(--font-family-sans);
-                src: url("/Times New Roman Italic.ttf") format("truetype");
-                font-weight: 400;
-                font-style: italic;
-                font-display: swap;
-              }
-              @font-face {
-                font-family: var(--font-family-sans);
-                src: url("/Times New Roman Bold Italic.ttf") format("truetype");
-                font-weight: 700;
-                font-style: italic;
                 font-display: swap;
               }
             `}
@@ -304,71 +296,63 @@ export function QuotationPreviewPanel({
                     </div>
                   </div>
 
-                  {subject && (
+                  {subject ? (
                     <div style={{ fontSize: '13px', fontWeight: 700, color: '#003F85', marginBottom: '14px' }}>
                       Subject / V/v: {subject}
                     </div>
-                  )}
+                  ) : null}
 
                   <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>Dear Sir/Madam, / Thưa Ông/Bà,</div>
                   <div style={{ fontSize: '11px', color: '#64748B', marginBottom: '12px' }}>
                     We are glad to offer you the quotation as following / Chúng tôi xin gửi đến quý công ty bảng chào giá như sau:
                   </div>
 
-                  {(totals.mainCurrencyGroups.length > 0 || (totals.mainItems.length === 0 && totals.optionItems.length === 0)) && (
-                    (totals.mainCurrencyGroups.length > 0
-                      ? totals.mainCurrencyGroups.map((group: any) => (
-                          <PreviewTable
-                            key={`main-${group.currency}`}
-                            title={`Main offer / Phương án chính · ${group.currency}`}
-                            rows={group.items}
-                            currency={group.currency}
-                          />
-                        ))
-                      : <PreviewTable title="Main offer / Phương án chính" rows={[]} currency={currency} />)
-                  )}
-
-                  {totals.optionCurrencyGroups.length > 0 && (
-                    totals.optionCurrencyGroups.map((group: any) => (
-                      <PreviewTable
-                        key={`option-${group.currency}`}
-                        title={`Alternative offer / Phương án tùy chọn · ${group.currency}`}
-                        rows={group.items}
-                        currency={group.currency}
-                      />
-                    ))
-                  )}
-
-                  {totals.shouldShowTotals && (
-                    <div style={{ marginLeft: 'auto', width: '320px', marginBottom: '24px', display: 'grid', gap: '12px' }}>
-                      {totals.mainCurrencyGroups.map((group: any) => (
-                        <div key={`summary-${group.currency}`} style={{ border: '1px solid #CBD5E1', padding: '10px 12px' }}>
-                          <div style={{ fontWeight: 700, color: '#003F85', marginBottom: '6px' }}>{group.currency}</div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                            <span>{t('sales.quotations.preview.subtotal')}:</span>
-                            <strong>{formatCurrencyValue(group.netSubtotal, group.currency)} {group.currency}</strong>
+                  {offerWorkspace.offerGroups.map((group: any, index: number) => {
+                    const title = String(group.displayLabel || '').trim() || undefined;
+                    return (
+                      <div key={group.groupKey}>
+                        <PreviewTable title={title} rows={group.items} currency={group.currency} />
+                        {group.validation.primaryError ? (
+                          <div style={{ marginTop: '-8px', marginBottom: '18px', fontSize: '10px', color: '#B91C1C' }}>
+                            {group.validation.primaryError}
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                            <span>VAT:</span>
-                            <strong>{formatCurrencyValue(group.vatTotal, group.currency)} {group.currency}</strong>
+                        ) : null}
+                        {group.vatComputed && !group.totalComputed ? (
+                          <div style={{ marginTop: '-8px', marginBottom: '18px', fontSize: '10px', color: '#64748B' }}>
+                            {title || `Phương án ${index + 1}`} đã tính VAT nhưng chưa tính tổng.
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: '#003F85', color: '#fff', marginTop: '8px' }}>
-                            <span style={{ fontWeight: 700 }}>{t('sales.quotations.preview.grand_total').toUpperCase()}:</span>
-                            <strong>{formatCurrencyValue(group.grossTotal, group.currency)} {group.currency}</strong>
+                        ) : null}
+                        {group.totalComputed && group.summary ? (
+                          <div style={{ marginLeft: 'auto', width: '320px', marginBottom: '24px', display: 'grid', gap: '12px' }}>
+                            <div style={{ border: '1px solid #CBD5E1', padding: '10px 12px' }}>
+                              <div style={{ fontWeight: 700, color: '#003F85', marginBottom: '6px' }}>{group.currency}</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                                <span>{t('sales.quotations.preview.subtotal')}:</span>
+                                <strong>{formatCurrencyValue(group.summary.netSubtotal, group.currency)} {group.currency}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                                <span>VAT:</span>
+                                <strong>{formatCurrencyValue(group.summary.vatTotal, group.currency)} {group.currency}</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: '#003F85', color: '#fff', marginTop: '8px' }}>
+                                <span style={{ fontWeight: 700 }}>{t('sales.quotations.preview.grand_total').toUpperCase()}:</span>
+                                <strong>{formatCurrencyValue(group.summary.grossTotal, group.currency)} {group.currency}</strong>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ) : null}
+                      </div>
+                    );
+                  })}
 
-                  <div style={{ marginTop: totals.shouldShowTotals ? '0' : '12px' }}>
-                    {(terms.remarksEn || terms.remarks) && (
+                  <div style={{ marginTop: '12px' }}>
+                    {(terms.remarksEn || terms.remarks) ? (
                       <div style={{ marginBottom: '18px' }}>
                         <div style={{ fontStyle: 'italic', fontWeight: 700, marginBottom: '6px' }}>Remark:</div>
-                        {terms.remarksEn && <div style={{ fontWeight: 700, marginBottom: '4px', whiteSpace: 'pre-line' }}>{terms.remarksEn}</div>}
-                        {terms.remarks && <div style={{ color: '#64748B', whiteSpace: 'pre-line' }}>{terms.remarks}</div>}
+                        {terms.remarksEn ? <div style={{ fontWeight: 700, marginBottom: '4px', whiteSpace: 'pre-line' }}>{terms.remarksEn}</div> : null}
+                        {terms.remarks ? <div style={{ color: '#64748B', whiteSpace: 'pre-line' }}>{terms.remarks}</div> : null}
                       </div>
-                    )}
+                    ) : null}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: '20px', alignItems: 'end', marginBottom: '6px' }}>
                       <div style={{ fontWeight: 700, color: '#003F85' }}>Terms & Conditions</div>

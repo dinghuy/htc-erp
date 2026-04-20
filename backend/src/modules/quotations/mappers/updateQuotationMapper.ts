@@ -16,6 +16,7 @@ export function mapUpdateQuotationInput(params: MapUpdateQuotationInputParams) {
   const revisionNo = Number.isFinite(Number(body?.revisionNo)) ? Number(body.revisionNo) : currentRevisionNo;
   const typedState = buildTypedQuotationStateFromBody({
     lineItems: body?.lineItems ?? current?.lineItems,
+    offerGroups: body?.offerGroups ?? current?.offerGroups,
     financialConfig: body?.financialConfig ?? current?.financialConfig,
     commercialTerms: body?.commercialTerms ?? current?.commercialTerms,
   });
@@ -37,6 +38,7 @@ export function mapUpdateQuotationInput(params: MapUpdateQuotationInputParams) {
       ? Number(body.isWinningVersion ? 1 : 0)
       : Number(current?.isWinningVersion ? 1 : 0),
     lineItems: typedState.lineItems,
+    offerGroups: typedState.offerGroups,
     financialConfig: typedState.financialConfig,
     commercialTerms: typedState.commercialTerms,
     subtotal: body?.subtotal,
