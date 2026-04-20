@@ -78,7 +78,7 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
 
   app.post('/api/users', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
     const parsed = parseCreateUserBody(req.body);
-    if (!parsed.ok) return sendApiError(res, parsed.httpStatus, parsed.payload);
+    if (parsed.ok === false) return sendApiError(res, parsed.httpStatus, parsed.payload);
     const row = await usersService.createUser(parsed.normalizedBody);
     res.status(201).json(mapGenderRecord(row));
   }));
@@ -86,7 +86,7 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
   app.put('/api/users/:id', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
     const userId = routeParam(req.params.id);
     const parsed = parseUpdateUserBody(req.body);
-    if (!parsed.ok) return sendApiError(res, parsed.httpStatus, parsed.payload);
+    if (parsed.ok === false) return sendApiError(res, parsed.httpStatus, parsed.payload);
     const row = await usersService.updateUser(userId, parsed.normalizedBody);
     if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(mapGenderRecord(row));

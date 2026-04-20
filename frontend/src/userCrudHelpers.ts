@@ -4,11 +4,13 @@ import type { SystemRole } from './shared/domain/contracts';
 export type UserRecord = {
   id: string;
   fullName?: string;
+  gender?: string;
   email?: string;
   phone?: string;
   role?: string;
   department?: string;
   employeeCode?: string;
+  dateOfBirth?: string;
   username?: string;
   avatar?: string;
   status?: string;
@@ -23,7 +25,7 @@ export type UserRecord = {
 };
 
 export function supportsUserBulkFileActions(canManageUsersView: boolean) {
-  return false && canManageUsersView;
+  return canManageUsersView;
 }
 
 export function cloneUpdatedViewingUser(current: UserRecord | null, updated: UserRecord) {

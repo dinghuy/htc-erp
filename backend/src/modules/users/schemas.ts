@@ -94,7 +94,13 @@ function buildValidationError(errors: Record<string, string>, fallback: string) 
 
 export function parseCreateUserBody(body: unknown): UserSchemaParseResult<CreateUserInput> {
   const parsed = parseBodyAsObject(body);
-  if (!parsed.ok) return parsed;
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      httpStatus: parsed.httpStatus,
+      payload: parsed.payload,
+    };
+  }
   const source = parsed.normalizedBody;
   const errors: Record<string, string> = {};
 
@@ -151,7 +157,13 @@ export function parseCreateUserBody(body: unknown): UserSchemaParseResult<Create
 
 export function parseUpdateUserBody(body: unknown): UserSchemaParseResult<UpdateUserInput> {
   const parsed = parseBodyAsObject(body);
-  if (!parsed.ok) return parsed;
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      httpStatus: parsed.httpStatus,
+      payload: parsed.payload,
+    };
+  }
   const source = parsed.normalizedBody;
   const errors: Record<string, string> = {};
   const normalizedBody: UpdateUserInput = {};

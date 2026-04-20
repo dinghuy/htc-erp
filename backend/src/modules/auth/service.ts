@@ -1,8 +1,10 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { createHash, randomUUID } from 'node:crypto';
 import { getJwtSecret, type AuthenticatedRequest } from '../../shared/auth/httpAuth';
 import { normalizeRoleCodes, resolvePrimaryRole, roleCodesToJson } from '../../shared/auth/roles';
 import { authRepository, type UserRecord } from './repository';
+import { buildPasswordResetUrl, isPasswordResetMailerConfigured, sendPasswordResetEmail } from './passwordResetMailer';
 
 export type SessionUser = {
   id: number;
@@ -147,6 +149,103 @@ export async function changePassword(request: AuthenticatedRequest, payload: { c
 
   return {
     token: issueSessionToken(user, false),
+    user: mapSessionUser(updated, false),
+  } as const;
+}
+
+function hashResetToken(token: string) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function isNonProductionRuntime() {
+  return (process.env.NODE_ENV || 'development') !== 'production';
+}
+
+export async function requestPasswordReset(payload: { identifier?: string; requestedByIp?: string | null }) {
+  const identifier = typeof payload.identifier === 'string' ? payload.identifier.trim() : '';
+  if (!identifier) {
+    return { error: { status: 400, message: 'Vui lòng nhập username hoặc email' } } as const;
+  }
+
+  const user = await authRepository.findUserByIdentifier(identifier);
+  if (!user) {
+    return { ok: true } as const;
+  }
+
+  const rawToken = randomUUID();
+  const tokenHash = hashResetToken(rawToken);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  await authRepository.createPasswordResetToken({
+    id: randomUUID(),
+    userId: String(user.id),
+    tokenHash,
+    expiresAt,
+    requestedByIp: payload.requestedByIp ?? null,
+  });
+
+  if (isNonProductionRuntime()) {
+    return {
+      ok: true,
+      debugResetToken: rawToken,
+      debugResetUrl: buildPasswordResetUrl(rawToken),
+      expiresAt,
+    } as const;
+  }
+
+  if (!isPasswordResetMailerConfigured()) {
+    return { error: { status: 500, message: 'Password reset email delivery is not configured' } } as const;
+  }
+  if (!user.email) {
+    return { error: { status: 400, message: 'Tài khoản chưa có email để gửi link đặt lại mật khẩu' } } as const;
+  }
+
+  const resetUrl = buildPasswordResetUrl(rawToken);
+  await sendPasswordResetEmail({
+    to: user.email,
+    fullName: user.fullName,
+    resetUrl,
+  });
+
+  return { ok: true, expiresAt } as const;
+}
+
+export async function resetPasswordWithToken(payload: { token?: string; newPassword?: string }) {
+  const token = typeof payload.token === 'string' ? payload.token.trim() : '';
+  if (!token) {
+    return { error: { status: 400, message: 'Thiếu reset token' } } as const;
+  }
+  if (!payload.newPassword || payload.newPassword.length < 8) {
+    return { error: { status: 400, message: 'Mật khẩu mới phải có ít nhất 8 ký tự' } } as const;
+  }
+
+  const tokenHash = hashResetToken(token);
+  const record = await authRepository.findLatestPasswordResetTokenByHash(tokenHash);
+  if (!record) {
+    return { error: { status: 400, message: 'Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn' } } as const;
+  }
+  if (record.usedAt) {
+    return { error: { status: 400, message: 'Link đặt lại mật khẩu đã được sử dụng' } } as const;
+  }
+  if (new Date(record.expiresAt).getTime() < Date.now()) {
+    return { error: { status: 400, message: 'Link đặt lại mật khẩu đã hết hạn' } } as const;
+  }
+
+  const user = await authRepository.findUserById(record.userId);
+  if (!user) {
+    return { error: { status: 404, message: 'Không tìm thấy user' } } as const;
+  }
+
+  const passwordHash = await bcrypt.hash(payload.newPassword, 10);
+  await authRepository.updatePasswordAndClearMustChange(user.id, passwordHash);
+  await authRepository.markPasswordResetTokenUsed(record.id);
+  const updated = await authRepository.findSessionUserById(user.id);
+  if (!updated) {
+    return { error: { status: 404, message: 'Không tìm thấy user' } } as const;
+  }
+
+  return {
+    ok: true,
+    token: issueSessionToken(updated, false),
     user: mapSessionUser(updated, false),
   } as const;
 }

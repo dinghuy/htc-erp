@@ -1180,6 +1180,19 @@ export async function finalizeSqliteSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_erpoutbox_worker_due ON ErpOutbox (status, nextRunAt, createdAt, id);
   `);
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS PasswordResetToken (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      tokenHash TEXT NOT NULL,
+      requestedByIp TEXT,
+      expiresAt TEXT NOT NULL,
+      usedAt TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_passwordresettoken_user_created ON PasswordResetToken (userId, createdAt);
+    CREATE INDEX IF NOT EXISTS idx_passwordresettoken_hash_created ON PasswordResetToken (tokenHash, createdAt);
+  `);
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS IdempotencyLog (
       id TEXT PRIMARY KEY,
       idempotencyKey TEXT NOT NULL,

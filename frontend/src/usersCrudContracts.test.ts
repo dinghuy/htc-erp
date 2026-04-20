@@ -14,8 +14,8 @@ describe('user CRUD contracts', () => {
     expect(normalizeCreateMustChangePassword(undefined)).toBe(1);
   });
 
-  it('disables unsupported bulk file actions in users screen', () => {
-    expect(supportsUserBulkFileActions(true)).toBe(false);
+  it('enables bulk file actions for managers of the users screen', () => {
+    expect(supportsUserBulkFileActions(true)).toBe(true);
     expect(supportsUserBulkFileActions(false)).toBe(false);
   });
 

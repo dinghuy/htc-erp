@@ -130,6 +130,18 @@ export async function bootstrapSqliteSchema(db: Database) {
   `);
 
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS PasswordResetToken (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      tokenHash TEXT NOT NULL,
+      requestedByIp TEXT,
+      expiresAt TEXT NOT NULL,
+      usedAt TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS Quotation (
       id TEXT PRIMARY KEY,
       quoteNumber TEXT UNIQUE,

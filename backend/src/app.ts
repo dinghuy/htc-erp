@@ -20,6 +20,7 @@ import { startServer } from './bootstrap/startServer';
 import { getJwtSecret, requireAuth, requireRole } from './shared/auth/httpAuth';
 import { asyncHandler } from './shared/http/asyncHandler';
 import { parseLimitParam } from './shared/http/params';
+import { HttpApiError, buildApiError } from './shared/errors/apiError';
 import { registerPlatformRoutes } from './modules/platform/routes';
 import { registerPlatformCalculatorRoutes } from './modules/platform/calculatorRoutes';
 import { registerPlatformReportingRoutes } from './modules/platform/reportingRoutes';
@@ -128,7 +129,7 @@ app.use(cors({
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key'],
 }));
 app.use(express.json({ limit: '2mb' }));
 
@@ -537,6 +538,13 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
       return res.status(413).json({ error: 'Ảnh đại diện vượt quá giới hạn cho phép 2MB.' });
     }
     return res.status(413).json({ error: 'File vượt quá giới hạn cho phép. Ảnh/tài liệu sản phẩm tối đa 20MB, file import tối đa 5MB.' });
+  }
+  if (err instanceof HttpApiError) {
+    return res.status(err.status).json(buildApiError({
+      error: err.message,
+      ...(err.code ? { code: err.code } : {}),
+      ...(err.details !== undefined ? { details: err.details } : {}),
+    }));
   }
   res.status(Number(err?.status) || 500).json({ error: err.message || 'Internal Server Error' });
 });

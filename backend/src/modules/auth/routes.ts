@@ -6,6 +6,8 @@ import {
   changePassword,
   getAuthenticatedUserProfile,
   loginWithCredentials,
+  requestPasswordReset,
+  resetPasswordWithToken,
   updateLanguagePreference,
 } from './service';
 
@@ -61,6 +63,29 @@ export function registerAuthRoutes(app: Express, deps: AuthRouteDependencies) {
       return res.status(result.error.status).json({ error: result.error.message });
     }
 
+    return res.json({
+      ok: true,
+      token: result.token,
+      user: deps.mapGenderRecord(result.user),
+    });
+  }));
+
+  app.post('/api/auth/forgot-password', asyncHandler(async (req, res: Response) => {
+    const result = await requestPasswordReset({
+      identifier: req.body?.identifier,
+      requestedByIp: req.ip,
+    });
+    if ('error' in result) {
+      return res.status(result.error.status).json({ error: result.error.message });
+    }
+    return res.json(result);
+  }));
+
+  app.post('/api/auth/reset-password', asyncHandler(async (req, res: Response) => {
+    const result = await resetPasswordWithToken(req.body ?? {});
+    if ('error' in result) {
+      return res.status(result.error.status).json({ error: result.error.message });
+    }
     return res.json({
       ok: true,
       token: result.token,
