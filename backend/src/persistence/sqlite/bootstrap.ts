@@ -164,6 +164,7 @@ export async function bootstrapSqliteSchema(db: Database) {
       status TEXT DEFAULT 'draft',
       validUntil DATETIME,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(accountId) REFERENCES Account(id) ON DELETE SET NULL,
       FOREIGN KEY(contactId) REFERENCES Contact(id) ON DELETE SET NULL,
       FOREIGN KEY(parentQuotationId) REFERENCES Quotation(id) ON DELETE SET NULL
@@ -963,6 +964,23 @@ export async function bootstrapSqliteSchema(db: Database) {
     )
   `);
 
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS IdempotencyLog (
+      id TEXT PRIMARY KEY,
+      idempotencyKey TEXT NOT NULL,
+      method TEXT NOT NULL,
+      routeKey TEXT NOT NULL,
+      actorUserId TEXT,
+      requestHash TEXT NOT NULL,
+      status TEXT NOT NULL,
+      responseStatus INTEGER,
+      responseBody TEXT,
+      expiresAt DATETIME NOT NULL,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // ─── INDEXES ───
   await db.exec(`
     CREATE INDEX IF NOT EXISTS idx_account_assigned ON Account (assignedTo);
@@ -977,6 +995,9 @@ export async function bootstrapSqliteSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_notification_user ON Notification (userId);
     CREATE INDEX IF NOT EXISTS idx_erpoutbox_status ON ErpOutbox (status);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_erpoutbox_dedupe ON ErpOutbox (dedupeKey);
+    CREATE INDEX IF NOT EXISTS idx_erpoutbox_worker_due ON ErpOutbox (status, nextRunAt, createdAt, id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_idempotency_scope_key ON IdempotencyLog (method, routeKey, actorUserId, idempotencyKey);
+    CREATE INDEX IF NOT EXISTS idx_idempotency_expires_at ON IdempotencyLog (expiresAt);
     CREATE INDEX IF NOT EXISTS idx_timespend_task ON TimeSpendReport (taskId);
     CREATE INDEX IF NOT EXISTS idx_todo_user ON ToDo (userId, doneAt);
   `);

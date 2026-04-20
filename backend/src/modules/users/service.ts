@@ -1,9 +1,11 @@
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { normalizeGender } from '../../../gender';
+import { HttpApiError } from '../../shared/errors/apiError';
 import { normalizeRoleCodes, resolvePrimaryRole, roleCodesToJson } from '../../shared/auth/roles';
 import { createImportReport, type ParsedImportRow } from '../../shared/imports/tabular';
 import { normalizeCreateMustChangePassword } from './createPayload';
+import { parseImportUserRow } from './schemas';
 import { createUsersRepository, usersRepository } from './repository';
 
 type CreateUsersServiceDeps = {
@@ -73,6 +75,12 @@ function normalizeOptionalLanguage(value: unknown): string | undefined {
   return normalized === 'vi' || normalized === 'en' ? normalized : undefined;
 }
 
+function normalizeOptionalUsername(value: unknown): string | null {
+  if (value == null) return null;
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
 export function createUsersService(deps: CreateUsersServiceDeps = {}) {
   const repository = deps.repository ?? usersRepository;
   const createId = deps.createId ?? uuidv4;
@@ -102,10 +110,21 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
     const id = createId();
     const normalizedRoles = normalizeRoleCodes(payload.roleCodes, payload.systemRole);
     const persistedSystemRole = resolvePrimaryRole(normalizedRoles, payload.systemRole);
+    const normalizedUsername = normalizeOptionalUsername(payload.username);
     let passwordHash: string | null = null;
 
     if (payload.password) {
       passwordHash = await hashPassword(String(payload.password));
+    }
+
+    if (normalizedUsername) {
+      const duplicate = await repository.findUserByUsername(normalizedUsername);
+      if (duplicate) {
+        throw new HttpApiError(409, {
+          error: 'Username đã tồn tại',
+          code: 'USERNAME_ALREADY_EXISTS',
+        });
+      }
     }
 
     await repository.createUser({
@@ -117,7 +136,7 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
       role: payload.role,
       department: payload.department,
       status: payload.status || 'Active',
-      username: payload.username ? String(payload.username) : null,
+      username: normalizedUsername,
       passwordHash,
       systemRole: persistedSystemRole,
       roleCodesJson: JSON.stringify(normalizedRoles),
@@ -140,9 +159,22 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
       return null;
     }
 
+    const normalizedUsername = Object.prototype.hasOwnProperty.call(payload, 'username')
+      ? normalizeOptionalUsername(payload.username)
+      : undefined;
     let passwordHash = existing.passwordHash ?? null;
     if (payload.password) {
       passwordHash = await hashPassword(String(payload.password));
+    }
+
+    if (normalizedUsername) {
+      const duplicate = await repository.findUserByUsernameExcludingId(normalizedUsername, id);
+      if (duplicate) {
+        throw new HttpApiError(409, {
+          error: 'Username đã tồn tại',
+          code: 'USERNAME_ALREADY_EXISTS',
+        });
+      }
     }
 
     const normalizedRoles = normalizeRoleCodes(payload.roleCodes, payload.systemRole);
@@ -156,7 +188,7 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
       role: payload.role,
       department: payload.department,
       status: payload.status,
-      username: payload.username ? String(payload.username) : null,
+      username: normalizedUsername === undefined ? (existing.username ?? null) : normalizedUsername,
       passwordHash,
       systemRole: persistedSystemRole,
       roleCodesJson: JSON.stringify(normalizedRoles),
@@ -198,23 +230,39 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
 
   async function importUsers(rows: ParsedImportRow[]) {
     const report = createImportReport(rows.length);
+    const seenUsernames = new Set<string>();
 
     for (const row of rows) {
-      const fullName = row.values.fullName || row.values['Họ tên'] || '';
-      if (!fullName.trim()) {
+      const rowValidation = parseImportUserRow(row.values);
+      if (!rowValidation.ok) {
         report.errors += 1;
         report.rows.push({
           rowNumber: row.rowNumber,
           key: null,
           action: 'error',
-          messages: ['Thiếu họ tên'],
+          messages: rowValidation.errors,
         });
         continue;
       }
 
+      const fullName = rowValidation.normalizedRow.fullName;
       try {
         const rawUsername = (row.values.username || row.values['Username'] || '').trim();
         const generatedUsername = rawUsername || toUsernameHoTen(fullName.trim());
+        const normalizedUsername = generatedUsername.trim().toLowerCase();
+        if (seenUsernames.has(normalizedUsername)) {
+          throw new HttpApiError(409, {
+            error: 'Username bị trùng trong file import',
+            code: 'USERNAME_ALREADY_EXISTS',
+          });
+        }
+        const duplicate = await repository.findUserByUsername(generatedUsername);
+        if (duplicate) {
+          throw new HttpApiError(409, {
+            error: 'Username đã tồn tại',
+            code: 'USERNAME_ALREADY_EXISTS',
+          });
+        }
         const rawPassword = (row.values.password || row.values['Mật khẩu'] || '').trim();
         const passwordHash = rawPassword ? await hashPassword(rawPassword) : null;
         const rawSystemRole = (row.values.systemRole || row.values['systemRole'] || row.values['Phân quyền'] || 'viewer').trim();
@@ -234,6 +282,7 @@ export function createUsersService(deps: CreateUsersServiceDeps = {}) {
           accountStatus: 'active',
           mustChangePassword: 1,
         });
+        seenUsernames.add(normalizedUsername);
 
         const usernameNote = rawUsername ? '' : ` (username tự động: ${generatedUsername})`;
         report.created += 1;

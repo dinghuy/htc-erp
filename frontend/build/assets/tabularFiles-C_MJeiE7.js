@@ -1,0 +1,1 @@
+function e(e,t){return`${e}?format=${t}`}export{e as t};

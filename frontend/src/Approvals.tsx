@@ -4,7 +4,7 @@ import { mapApprovalQueuePayload } from './approvalQueueData';
 import { API_BASE } from './config';
 import { consumeNavContext, setNavContext } from './navContext';
 import { buildDocumentThreadSummary } from './projects/documentThreadData';
-import { requestJsonWithAuth } from './shared/api/client';
+import { createIdempotencyKey, requestJsonWithAuth, withIdempotencyKey } from './shared/api/client';
 import { canApproveRequest, resolveApprovalLane } from './shared/domain/contracts';
 import { QA_TEST_IDS, approvalActionButtonTestId, approvalCardTestId, approvalLaneButtonTestId } from './testing/testIds';
 import { buildThreadCountIndex } from './threadIndexData';
@@ -228,14 +228,15 @@ export function Approvals({
 
   const decide = async (approvalId: string, decision: 'approved' | 'rejected' | 'changes_requested') => {
     setBusyId(approvalId);
+    const idempotencyKey = createIdempotencyKey(`approval-decision:${approvalId}:${decision}`);
     try {
       await requestJsonWithAuth(
         currentUser.token,
-        `${API}/approval-requests/${approvalId}/decision`,
-        {
+        `${API}/v1/approvals/${approvalId}/decision`,
+        withIdempotencyKey({
           method: 'POST',
           body: JSON.stringify({ decision }),
-        },
+        }, idempotencyKey),
         'Không thể cập nhật approval',
       );
       showNotify(

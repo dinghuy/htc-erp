@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 // @ts-ignore Test-only JS helper without TypeScript declarations.
 import { UX_REGRESSION_MANIFEST, UX_SMOKE_ROUTES } from '../../scripts/qa/ux-regression.manifest.mjs';
@@ -23,5 +25,24 @@ describe('ux regression execution metadata', () => {
   it('covers all core journeys and smoke routes in codex runbook sections', () => {
     expect(CODEX_RUNBOOK_SECTIONS.journeys).toHaveLength(UX_REGRESSION_MANIFEST.length);
     expect(CODEX_RUNBOOK_SECTIONS.smokeRoutes).toEqual(UX_SMOKE_ROUTES);
+  });
+
+  it('supports shard filters and seeded persona login in the node runner', () => {
+    const runner = readFileSync(path.resolve(__dirname, '../../scripts/qa/run-ux-audit.mjs'), 'utf8');
+    expect(runner).toContain('QA_JOURNEY_IDS');
+    expect(runner).toContain('QA_PERSONAS');
+    expect(runner).toContain('function selectJourneys');
+    expect(runner).toContain('async function loginAsSeededPersona');
+    expect(runner).toContain('sales_pm_combined');
+    expect(runner).toContain('salesProjectManager');
+  });
+
+  it('keeps sharded journeys anchored to seeded QA accounts instead of preview copy', () => {
+    const shardedJourneys = UX_REGRESSION_MANIFEST.filter((journey: any) => journey.id !== 'admin-preview-viewer-escape');
+    for (const journey of shardedJourneys) {
+      expect(journey.preconditions.join(' ')).toContain('Login as qa_');
+      expect(journey.preconditions.join(' ')).not.toContain('Preview');
+      expect(journey.escapeActions.join(' ')).not.toContain('Back to Admin');
+    }
   });
 });

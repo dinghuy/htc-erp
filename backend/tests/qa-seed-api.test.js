@@ -113,7 +113,7 @@ async function main() {
   const approvalCount = await db.get(`SELECT COUNT(*) AS count FROM ApprovalRequest`);
   const documentCount = await db.get(`SELECT COUNT(*) AS count FROM ProjectDocument`);
 
-  assert.equal(userCount.count, 8);
+  assert.equal(userCount.count, 9);
   assert.equal(projectCount.count, 3);
   assert.equal(approvalCount.count, 5);
   assert.equal(documentCount.count, 2);

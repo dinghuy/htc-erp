@@ -132,6 +132,14 @@ const QA_USERS: Record<string, QaUserSeed> = {
     roleCodes: ['project_manager'],
     department: 'Operations',
   },
+  salesProjectManager: {
+    username: 'qa_sales_pm',
+    password: QA_PASSWORD,
+    fullName: 'QA Sales + Project Manager',
+    systemRole: 'project_manager',
+    roleCodes: ['sales', 'project_manager'],
+    department: 'Sales Operations',
+  },
   procurement: {
     username: 'qa_procurement',
     password: QA_PASSWORD,
@@ -386,7 +394,7 @@ async function insertQaQuotation(
   db: Database,
   ids: QaSeedIds,
   input: {
-    key: string;
+    key: keyof typeof IDS.quotations;
     quoteNumber: string;
     subject: string;
     accountId: string;
@@ -410,14 +418,17 @@ async function insertQaQuotation(
 ) {
   const financialConfig = input.financialConfig || {};
   const commercialTerms = input.commercialTerms || {};
+  const quotationId = IDS.quotations[input.key];
   const result = await db.run(
     `INSERT INTO Quotation (
+      id,
       quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson,
       salespersonPhone, currency, revisionNo, revisionLabel, isWinningVersion, items, financialParams, terms,
       interestRate, exchangeRate, loanTermMonths, markup, vatRate, remarksVi, remarksEn,
       subtotal, taxTotal, grandTotal, status, validUntil
-    ) VALUES (?, ${input.quoteDateSql || "date('now')"}, ?, ?, ?, ?, ?, ?, 'VND', ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${input.validUntilSql || "date('now', '+15 day')"})`,
+    ) VALUES (?, ?, ${input.quoteDateSql || "date('now')"}, ?, ?, ?, ?, ?, ?, 'VND', ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${input.validUntilSql || "date('now', '+15 day')"})`,
     [
+      quotationId,
       input.quoteNumber,
       input.subject,
       input.accountId,
@@ -441,7 +452,6 @@ async function insertQaQuotation(
       input.status,
     ]
   );
-  const quotationId = String(result.lastID);
 
   for (const [index, item] of input.lineItems.entries()) {
     await db.run(

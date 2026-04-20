@@ -139,6 +139,7 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // - productAssetUpload: larger images/documents attached to products
 const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 const productAssetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+const avatarUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
 function mapGenderRecord<T extends { gender?: unknown } | null | undefined>(row: T): T {
   if (!row || typeof row !== 'object') return row;
@@ -369,6 +370,7 @@ registerUserRoutes(app, {
   requireAuth,
   requireRole,
   upload: importUpload,
+  avatarUpload,
   avatarUploadDir: path.join(__dirname, '..', 'uploads', 'avatars'),
   mapGenderRecord,
   mapGenderRecords,
@@ -528,9 +530,12 @@ registerTimeSpendRoutes(app, {
 registerPricingRoutes(app);
 
 // ─── GLOBAL ERROR HANDLER ─────────────────────────────────────────────────────
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
   console.error('[ERROR]', err.message);
   if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+    if (req.path.includes('/api/users/') && req.path.endsWith('/avatar')) {
+      return res.status(413).json({ error: 'Ảnh đại diện vượt quá giới hạn cho phép 2MB.' });
+    }
     return res.status(413).json({ error: 'File vượt quá giới hạn cho phép. Ảnh/tài liệu sản phẩm tối đa 20MB, file import tối đa 5MB.' });
   }
   res.status(Number(err?.status) || 500).json({ error: err.message || 'Internal Server Error' });

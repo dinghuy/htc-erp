@@ -30,14 +30,32 @@ export function authHeaders(token: string): HeadersInit {
   };
 }
 
+function isMutatingMethod(method?: string) {
+  const normalized = String(method || 'GET').trim().toUpperCase();
+  return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH';
+}
+
+function createFallbackIdempotencyKey() {
+  const randomId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `mutation:${randomId}`;
+}
+
 export async function fetchWithSessionAuth(token: string, url: string, options: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(options.headers || {});
+  headers.set('Authorization', `Bearer ${token}`);
+  if (options.body && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (isMutatingMethod(options.method) && !headers.has('X-Idempotency-Key')) {
+    headers.set('X-Idempotency-Key', createFallbackIdempotencyKey());
+  }
+
   const res = await fetch(url, {
     ...options,
-    headers: {
-      ...options.headers,
-      Authorization: `Bearer ${token}`,
-      ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
-    },
+    headers,
   });
 
   if (res.status === 401) {

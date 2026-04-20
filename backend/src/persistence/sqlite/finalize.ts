@@ -900,6 +900,7 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Quotation', 'calculateTotals', 'calculateTotals INTEGER DEFAULT 1');
   await ensureColumn('Quotation', 'remarksVi', 'remarksVi TEXT');
   await ensureColumn('Quotation', 'remarksEn', 'remarksEn TEXT');
+  await ensureColumn('Quotation', 'updatedAt', 'updatedAt TEXT');
   await createTypedQuotationChildTables();
   await ensureColumn('QuotationLineItem', 'offerGroupKey', "offerGroupKey TEXT DEFAULT 'group-a'");
   await ensureColumn('QuotationLineItem', 'isOption', 'isOption INTEGER DEFAULT 0');
@@ -1176,6 +1177,25 @@ export async function finalizeSqliteSchema(db: Database) {
     CREATE INDEX IF NOT EXISTS idx_approval_requested_by ON ApprovalRequest (requestedBy);
     CREATE INDEX IF NOT EXISTS idx_approval_approver_user ON ApprovalRequest (approverUserId);
     CREATE INDEX IF NOT EXISTS idx_projectdocument_thread ON ProjectDocument (threadId);
+    CREATE INDEX IF NOT EXISTS idx_erpoutbox_worker_due ON ErpOutbox (status, nextRunAt, createdAt, id);
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS IdempotencyLog (
+      id TEXT PRIMARY KEY,
+      idempotencyKey TEXT NOT NULL,
+      method TEXT NOT NULL,
+      routeKey TEXT NOT NULL,
+      actorUserId TEXT,
+      requestHash TEXT NOT NULL,
+      status TEXT NOT NULL,
+      responseStatus INTEGER,
+      responseBody TEXT,
+      expiresAt DATETIME NOT NULL,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_idempotency_scope_key ON IdempotencyLog (method, routeKey, actorUserId, idempotencyKey);
+    CREATE INDEX IF NOT EXISTS idx_idempotency_expires_at ON IdempotencyLog (expiresAt);
   `);
   await db.exec(`
     CREATE TABLE IF NOT EXISTS TaskViewPreset (

@@ -1,0 +1,95 @@
+name: UX Regression
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'backend/**'
+      - 'docs/qa/**'
+      - '.github/workflows/ux-regression.yml'
+  workflow_dispatch:
+
+jobs:
+  ux-shard:
+    name: UX shard ${{ matrix.name }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: sales-pm
+            personas: sales,project_manager
+            backend_port: 3101
+            frontend_port: 4273
+            include_smoke: '0'
+          - name: combined-procurement
+            personas: sales_pm_combined,procurement
+            backend_port: 3102
+            frontend_port: 4274
+            include_smoke: '0'
+          - name: finance-legal
+            personas: accounting,legal
+            backend_port: 3103
+            frontend_port: 4275
+            include_smoke: '0'
+          - name: director-smoke
+            personas: director
+            backend_port: 3104
+            frontend_port: 4276
+            include_smoke: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: corepack enable
+
+      - run: corepack pnpm install --frozen-lockfile
+
+      - name: Verify static gates
+        run: |
+          corepack pnpm --dir backend typecheck
+          corepack pnpm --dir frontend typecheck
+          corepack pnpm --dir frontend test:ux:contracts
+
+      - name: Run UX shard
+        shell: pwsh
+        env:
+          DB_PATH: ${{ runner.temp }}\htc-erp-${{ matrix.name }}.db
+          PORT: ${{ matrix.backend_port }}
+          FRONTEND_PORT: ${{ matrix.frontend_port }}
+          QA_BACKEND_URL: http://127.0.0.1:${{ matrix.backend_port }}
+          QA_FRONTEND_URL: http://127.0.0.1:${{ matrix.frontend_port }}
+          VITE_API_URL: http://127.0.0.1:${{ matrix.backend_port }}/api
+          QA_PERSONAS: ${{ matrix.personas }}
+          QA_INCLUDE_SMOKE: ${{ matrix.include_smoke }}
+          QA_FORCE_HEADLESS: '1'
+        run: |
+          Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "corepack pnpm --dir backend dev" -NoNewWindow
+          Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "corepack pnpm --dir frontend exec vite --configLoader native --host 127.0.0.1 --port $env:FRONTEND_PORT --strictPort" -NoNewWindow
+          Start-Sleep -Seconds 15
+          corepack pnpm --dir frontend test:ux:audit
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ux-audit-${{ matrix.name }}
+          path: frontend/artifacts/ux-audit/**
+
+  merge-reports:
+    name: Merge UX reports
+    runs-on: windows-latest
+    needs: ux-shard
+    if: always()
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ux-artifacts
+
+      - name: List UX reports
+        shell: pwsh
+        run: Get-ChildItem -Recurse ux-artifacts

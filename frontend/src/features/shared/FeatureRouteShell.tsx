@@ -1,6 +1,6 @@
 import { Suspense } from 'preact/compat';
 import type { ComponentChildren } from 'preact';
-import { tokens } from '../../ui/tokens';
+import { PageLoader } from '../../ui/PageLoader';
 import { ui } from '../../ui/styles';
 
 export function FeatureRouteShell({
@@ -14,21 +14,7 @@ export function FeatureRouteShell({
 }) {
   return (
     <div style={{ ...ui.page.shell, padding: 0, ...(maxWidth ? { maxWidth } : {}) }}>
-      <Suspense
-        fallback={
-          <div
-            style={{
-              padding: '32px',
-              textAlign: 'center',
-              color: tokens.colors.textSecondary,
-              fontSize: '14px',
-              fontWeight: 600,
-            }}
-          >
-            {fallbackMessage}
-          </div>
-        }
-      >
+      <Suspense fallback={<PageLoader message={fallbackMessage} />}>
         {children}
       </Suspense>
     </div>

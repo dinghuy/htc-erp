@@ -43,6 +43,12 @@ describe('sidebar layout width contract', () => {
     expect(source).not.toContain("maxWidth = '1400px'");
   });
 
+  it('uses the shared PageLoader for feature route suspense fallbacks', () => {
+    const source = readFrontendFile('features/shared/FeatureRouteShell.tsx');
+    expect(source).toContain("import { PageLoader } from '../../ui/PageLoader';");
+    expect(source).toContain('<PageLoader message={fallbackMessage} />');
+  });
+
   it('keeps sidebar route adapters mounted through FeatureRouteShell', () => {
     SIDEBAR_ROUTE_FILES.forEach(({ routeFile, expectedFallback }) => {
       const source = readFrontendFile(routeFile);

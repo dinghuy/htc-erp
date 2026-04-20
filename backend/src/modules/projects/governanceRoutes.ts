@@ -3,6 +3,7 @@ import { enqueueErpEvent } from '../../../erp-sync';
 import type { AuthenticatedRequest } from '../../shared/auth/httpAuth';
 import { canUserApproveRequest, resolveApprovalActingCapability } from '../../shared/auth/permissions';
 import { normalizeRoleCodes } from '../../shared/auth/roles';
+import { withRequiredIdempotency } from '../../shared/idempotency/requireIdempotency';
 import { ensureDeliveryCompletionReady, finalizeDeliveryCompletion } from './deliveryCompletion';
 import { createProjectRepository } from './repository';
 
@@ -57,7 +58,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
 
   const EDITABLE_APPROVAL_STATUSES = new Set(['pending', 'cancelled']);
 
-  app.post('/api/projects/:id/approval-requests', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(async (req: Request, res: Response) => {
+  app.post('/api/projects/:id/approval-requests', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(withRequiredIdempotency('projects:approval-request:create', async (req: Request, res: Response) => {
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const project = await projectRepository.findProjectSummaryById(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
@@ -98,7 +99,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     const row = await projectRepository.findApprovalRequestById(id);
     await logAct('Create approval request', `${title} (${requestType})`, 'Project', '🧾', '#f8fafc', '#475569', projectId, 'Project');
     res.status(201).json(row);
-  }));
+  })));
 
   app.put('/api/approval-requests/:id', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(async (req: Request, res: Response) => {
     const approvalId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -136,7 +137,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
     res.json(updated);
   }));
 
-  app.post('/api/approval-requests/:id/decision', requireAuth, ah(async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/approval-requests/:id/decision', requireAuth, ah(withRequiredIdempotency('approval-requests:decision', async (req: AuthenticatedRequest, res: Response) => {
     const approvalId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const approval = await projectRepository.findApprovalRequestById(approvalId);
     if (!approval) return res.status(404).json({ error: 'Approval request not found' });
@@ -234,7 +235,7 @@ export function registerProjectGovernanceRoutes(app: Express, deps: RegisterProj
       );
     }
     res.json(updated);
-  }));
+  })));
 
   app.delete('/api/approval-requests/:id', requireAuth, requireRole('admin', 'manager', 'sales', 'project_manager', 'director'), ah(async (req: Request, res: Response) => {
     const approvalId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;

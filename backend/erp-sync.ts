@@ -194,15 +194,16 @@ export async function runErpOutboxOnce(
   opts: { limit?: number } = {}
 ) {
   const limit = Math.max(1, Math.min(Number(opts.limit || 20), 200));
+  const nowIso = new Date().toISOString();
 
   const rows = await db.all(
     `SELECT *
      FROM ErpOutbox
      WHERE status IN ('pending', 'failed')
-       AND (nextRunAt IS NULL OR datetime(nextRunAt) <= datetime('now'))
+       AND (nextRunAt IS NULL OR nextRunAt <= ?)
      ORDER BY createdAt ASC, id ASC
      LIMIT ?`,
-    [limit]
+    [nowIso, limit]
   );
 
   let processed = 0;
@@ -213,12 +214,15 @@ export async function runErpOutboxOnce(
     processed += 1;
 
     // Best-effort "lock"
-    await db.run(
+    const claim = await db.run(
       `UPDATE ErpOutbox
        SET status = 'processing', updatedAt = datetime('now')
        WHERE id = ? AND status IN ('pending', 'failed')`,
       [row.id]
     );
+    if (Number(claim?.changes || 0) === 0) {
+      continue;
+    }
 
     const erpIsExternal = !!String(process.env.ERP_EVENTS_URL || process.env.ERP_BASE_URL || '').trim();
     const result = erpIsExternal

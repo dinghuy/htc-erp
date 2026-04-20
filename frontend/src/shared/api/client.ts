@@ -34,6 +34,25 @@ const inferredBrowserHostname =
 
 export const API_BASE = resolveApiBase((import.meta as any).env?.VITE_API_URL, inferredBrowserHostname);
 
+export function createIdempotencyKey(scope: string) {
+  const randomId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${scope}:${randomId}`;
+}
+
+export function withIdempotencyKey(options: RequestInit = {}, key = createIdempotencyKey('mutation')): RequestInit {
+  const headers = new Headers(options.headers || {});
+  if (!headers.has('X-Idempotency-Key')) {
+    headers.set('X-Idempotency-Key', key);
+  }
+  return {
+    ...options,
+    headers,
+  };
+}
+
 export async function readJsonPayload<T = unknown>(res: Response): Promise<T | null> {
   try {
     return (await res.json()) as T;

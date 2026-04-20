@@ -53,16 +53,9 @@ This file is the source-of-truth entrypoint for active documentation and plannin
 
 ## OMX Workflow Skills
 
-Use the project-local OMX skill surface under `.codex/skills/` as follows:
+This checkout does not currently ship a repo-local OMX skill surface under `.codex/skills/`.
 
-- `app-delivery-orchestrator`: default delivery entrypoint when the task needs Linear, Notion, Figma, or Playwright context
-- `frontend-change-flow`: frontend-specific implementation and verification path
-- `backend-api-change-flow`: backend/API-specific implementation and verification path
-- `release-regression-verification`: cross-surface handoff and regression verification path
-
-Treat `crm-delivery-orchestrator` as legacy compatibility only for historical `crm-app` references. It is not the default for active `htc-erp` work.
-
-If sandbox restrictions prevent direct reads from global skills under `%USERPROFILE%\.codex\skills\`, mirror only the needed skill into `tmp/skills-global/` with:
+Use the installed global skill registry instead. If sandbox restrictions prevent direct reads from global skills under `%USERPROFILE%\.codex\skills\`, mirror only the needed skill into `tmp/skills-global/` with:
 
 - `pwsh -NoLogo -NoProfile -File scripts/mirror-global-skills.ps1 -Skill <skill-name>`
 

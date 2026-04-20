@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { withRequiredIdempotency } from '../../../shared/idempotency/requireIdempotency';
 import {
   parseCreateProjectQuotationBody,
   parseCreateStandaloneQuotationBody,
@@ -23,7 +24,7 @@ export function registerQuotationMutationRoutes(params: RegisterQuotationMutatio
   const { app, deps, quotationMutationServices } = params;
   const { ah, requireAuth, requireRole, getCurrentUserId } = deps;
 
-  app.post('/api/projects/:id/quotations', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+  app.post('/api/projects/:id/quotations', requireAuth, requireRole('admin', 'manager', 'sales'), ah(withRequiredIdempotency('quotations:create-project', async (req: Request, res: Response) => {
     const actorUserId = getCurrentUserId(req);
     const projectId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const parsedBody = parseCreateProjectQuotationBody(req.body);
@@ -45,9 +46,9 @@ export function registerQuotationMutationRoutes(params: RegisterQuotationMutatio
     } catch (error: any) {
       return res.status(400).json({ error: error.message });
     }
-  }));
+  })));
 
-  app.post('/api/quotations', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+  app.post('/api/quotations', requireAuth, requireRole('admin', 'manager', 'sales'), ah(withRequiredIdempotency('quotations:create-standalone', async (req: Request, res: Response) => {
     const actorUserId = getCurrentUserId(req);
     const parsedBody = parseCreateStandaloneQuotationBody(req.body);
     if (parsedBody.ok === false) {
@@ -66,9 +67,9 @@ export function registerQuotationMutationRoutes(params: RegisterQuotationMutatio
     } catch (error: any) {
       return res.status(400).json({ error: error.message });
     }
-  }));
+  })));
 
-  app.put('/api/quotations/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+  app.put('/api/quotations/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(withRequiredIdempotency('quotations:update', async (req: Request, res: Response) => {
     const actorUserId = getCurrentUserId(req);
     const parsedBody = parseUpdateQuotationBody(req.body);
     if (parsedBody.ok === false) {
@@ -95,9 +96,9 @@ export function registerQuotationMutationRoutes(params: RegisterQuotationMutatio
       nextStatus: validation.nextStatus,
     });
     res.json(updated);
-  }));
+  })));
 
-  app.post('/api/quotations/:id/revise', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
+  app.post('/api/quotations/:id/revise', requireAuth, requireRole('admin', 'manager', 'sales'), ah(withRequiredIdempotency('quotations:revise', async (req: Request, res: Response) => {
     const quotationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const parsedBody = parseReviseQuotationBody(req.body);
     if (parsedBody.ok === false) {
@@ -113,7 +114,7 @@ export function registerQuotationMutationRoutes(params: RegisterQuotationMutatio
     });
     if (!revised) return res.status(404).json({ error: 'Quotation not found' });
     res.status(201).json(revised);
-  }));
+  })));
 
   app.delete('/api/quotations/:id', requireAuth, requireRole('admin', 'manager', 'sales'), ah(async (req: Request, res: Response) => {
     const quotationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;

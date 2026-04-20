@@ -56,6 +56,7 @@ For dense revenue-workflow editors:
 - use drag handles for reordering peer cards; avoid making inputs or whole forms accidental drag targets
 - use inline click-to-detail rows directly beneath the selected line so dense line-item fields stay close to their source row
 - hide irrelevant line inputs when a selected mode makes them non-actionable, such as hiding VAT percent for gross-price lines
+- use left accent bars or inset outlines for selected dense rows; avoid full primary borders that overlap adjacent numeric cells
 - distinguish unnamed business options with selected borders and metadata chips in the editor, but do not print fallback technical names in customer-facing previews
 - keep bilingual commercial terms as a first-class section, with Vietnamese and English fields visible together
 

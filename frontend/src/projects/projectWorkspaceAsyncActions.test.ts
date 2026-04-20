@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const clientMocks = vi.hoisted(() => ({
   requestJsonWithAuth: vi.fn(),
+  createIdempotencyKey: vi.fn((scope: string) => `${scope}:fixed`),
+  withIdempotencyKey: vi.fn((options: RequestInit = {}, key = 'fixed') => ({
+    ...options,
+    headers: {
+      ...(options.headers as Record<string, string> | undefined),
+      'X-Idempotency-Key': key,
+    },
+  })),
 }));
 const notificationMocks = vi.hoisted(() => ({
   showNotify: vi.fn(),
@@ -9,7 +17,9 @@ const notificationMocks = vi.hoisted(() => ({
 
 vi.mock('../shared/api/client', () => ({
   API_BASE: '/api',
+  createIdempotencyKey: clientMocks.createIdempotencyKey,
   requestJsonWithAuth: clientMocks.requestJsonWithAuth,
+  withIdempotencyKey: clientMocks.withIdempotencyKey,
 }));
 
 vi.mock('../Notification', () => ({
@@ -24,6 +34,8 @@ const { showNotify } = notificationMocks;
 describe('createProjectWorkspaceAsyncActions', () => {
   beforeEach(() => {
     requestJsonWithAuth.mockReset();
+    clientMocks.createIdempotencyKey.mockClear();
+    clientMocks.withIdempotencyKey.mockClear();
     showNotify.mockReset();
   });
 
@@ -108,6 +120,9 @@ describe('createProjectWorkspaceAsyncActions', () => {
       '/api/v1/threads',
       {
         method: 'POST',
+        headers: {
+          'X-Idempotency-Key': 'project-thread-create:project-1:fixed',
+        },
         body: JSON.stringify({
           entityType: 'Project',
           entityId: 'project-1',
@@ -122,6 +137,9 @@ describe('createProjectWorkspaceAsyncActions', () => {
       '/api/v1/threads/thread-2/messages',
       {
         method: 'POST',
+        headers: {
+          'X-Idempotency-Key': 'project-thread-message:project-1:fixed',
+        },
         body: JSON.stringify({ content: 'Need update' }),
       },
       'Không thể gửi message thread dự án',

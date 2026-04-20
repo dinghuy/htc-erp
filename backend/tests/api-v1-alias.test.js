@@ -125,6 +125,31 @@ async function main() {
     assert.ok(Array.isArray(authenticated.body));
   });
 
+  await run('versioned nested approval routes preserve auth and alias mapping', async () => {
+    const createApproval = await api('/api/v1/projects/1/approval-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestType: 'quotation_commercial', title: 'Approval alias check' }),
+    });
+    assert.equal(createApproval.response.status, 401);
+
+    const decideApproval = await api('/api/v1/approvals/1/decision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision: 'approved' }),
+    });
+    assert.equal(decideApproval.response.status, 401);
+  });
+
+  await run('versioned project document mutation route preserves auth and alias mapping', async () => {
+    const reviewState = await api('/api/v1/project-documents/1/review-state', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewStatus: 'approved' }),
+    });
+    assert.equal(reviewState.response.status, 401);
+  });
+
   await run('versioned ERP outbox route is mounted on the documented v1 namespace', async () => {
     const unauthenticated = await api('/api/v1/integrations/erp/outbox');
     assert.equal(unauthenticated.response.status, 401);

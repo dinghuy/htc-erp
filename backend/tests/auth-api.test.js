@@ -274,6 +274,86 @@ async function main() {
     assert.equal(avatarAttempt.response.status, 400);
   });
 
+  await run('admin user management validates email format, username uniqueness, import duplicates, and avatar size', async () => {
+    const adminLogin = await login('admin', 'Admin@789');
+    assert.equal(adminLogin.response.status, 200);
+
+    const invalidEmailCreate = await api('/api/users', {
+      method: 'POST',
+      headers: bearer(adminLogin.body.token),
+      body: JSON.stringify({
+        fullName: 'Invalid Email User',
+        email: 'invalid-email',
+        username: 'invalid.email.user',
+        password: 'Password@123',
+        role: 'Sales Executive',
+        systemRole: 'sales',
+      }),
+    });
+    assert.equal(invalidEmailCreate.response.status, 400);
+    assert.equal(invalidEmailCreate.body.code, 'INVALID_REQUEST_BODY');
+
+    const duplicateUsernameCreate = await api('/api/users', {
+      method: 'POST',
+      headers: bearer(adminLogin.body.token),
+      body: JSON.stringify({
+        fullName: 'Duplicate Username User',
+        email: 'dupe-create@example.com',
+        username: 'admin',
+        password: 'Password@123',
+        role: 'Sales Executive',
+        systemRole: 'sales',
+      }),
+    });
+    assert.equal(duplicateUsernameCreate.response.status, 409);
+    assert.equal(duplicateUsernameCreate.body.code, 'USERNAME_ALREADY_EXISTS');
+
+    const updatableUserId = await seedUser({
+      username: 'updatable-user',
+      password: 'Updatable@123',
+      systemRole: 'sales',
+      fullName: 'Updatable User',
+    });
+
+    const duplicateUsernameUpdate = await api(`/api/users/${updatableUserId}`, {
+      method: 'PUT',
+      headers: bearer(adminLogin.body.token),
+      body: JSON.stringify({
+        fullName: 'Updatable User',
+        username: 'admin',
+        role: 'Sales Executive',
+      }),
+    });
+    assert.equal(duplicateUsernameUpdate.response.status, 409);
+    assert.equal(duplicateUsernameUpdate.body.code, 'USERNAME_ALREADY_EXISTS');
+
+    const importCsv = [
+      'fullName,role,username,email,password',
+      'Imported Duplicate,Sales Executive,admin,import@example.com,Password@123',
+    ].join('\n');
+    const importForm = new FormData();
+    importForm.append('file', new Blob([importCsv], { type: 'text/csv' }), 'users-import.csv');
+    const importAttempt = await api('/api/users/import', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminLogin.body.token}` },
+      body: importForm,
+    });
+    assert.equal(importAttempt.response.status, 200);
+    assert.equal(importAttempt.body.errors, 1);
+    assert.equal(importAttempt.body.rows[0].action, 'error');
+    assert.match(importAttempt.body.rows[0].messages[0], /Username/);
+
+    const oversizedAvatar = new Uint8Array(2 * 1024 * 1024 + 1024);
+    const avatarForm = new FormData();
+    avatarForm.append('avatar', new Blob([oversizedAvatar], { type: 'image/jpeg' }), 'oversized-avatar.jpg');
+    const avatarTooLarge = await api('/api/users/1/avatar', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminLogin.body.token}` },
+      body: avatarForm,
+    });
+    assert.equal(avatarTooLarge.response.status, 413);
+  });
+
   await run('locked accounts cannot log in', async () => {
     const db = getDb();
     await db.run("UPDATE User SET accountStatus = 'locked' WHERE username = ?", ['admin']);

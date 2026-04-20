@@ -38,6 +38,26 @@ const ARTIFACT_ROOT = path.resolve(FRONTEND_ROOT, 'artifacts', 'ux-audit');
 const REPORT_STAMP = new Date().toISOString().replace(/[:.]/g, '-');
 const DEFAULT_CDP_URL = 'http://127.0.0.1:9222';
 
+function parseCsvEnv(name) {
+  return String(process.env[name] || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function selectJourneys(manifest) {
+  const journeyIds = new Set(parseCsvEnv('QA_JOURNEY_IDS'));
+  const personas = new Set(parseCsvEnv('QA_PERSONAS'));
+  if (!journeyIds.size && !personas.size) return manifest;
+  return manifest.filter((journey) => journeyIds.has(journey.id) || personas.has(journey.persona));
+}
+
+function shouldRunSmokeRoutes() {
+  const explicit = String(process.env.QA_INCLUDE_SMOKE || '').trim();
+  if (explicit) return explicit === '1' || explicit.toLowerCase() === 'true';
+  return parseCsvEnv('QA_JOURNEY_IDS').length === 0 && parseCsvEnv('QA_PERSONAS').length === 0;
+}
+
 function sanitizeFileName(value) {
   return String(value).replace(/[^a-z0-9-_]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase();
 }
@@ -307,6 +327,31 @@ async function resetToAdminHome(page, contract) {
   }
 }
 
+const PERSONA_CONTRACT_KEYS = {
+  project_manager: 'projectManager',
+  sales_pm_combined: 'salesProjectManager',
+};
+
+async function loginAsSeededPersona(page, contract, personaKey) {
+  const contractKey = PERSONA_CONTRACT_KEYS[personaKey] || personaKey;
+  const persona = contract.personas?.[contractKey];
+  if (!persona?.username || !persona?.password) {
+    throw new Error(`Missing seeded QA persona: ${personaKey}`);
+  }
+
+  await page.goto(contract.baseUrl.frontend, { waitUntil: 'domcontentloaded' });
+  const logout = page.locator(navItemSelector('Logout')).first();
+  if (await logout.count()) {
+    await logout.click();
+  }
+  await expectVisible(page, selectors.login.shell, `Login screen did not render for ${personaKey}`);
+  await page.locator(selectors.login.username).fill(persona.username);
+  await page.locator(selectors.login.password).fill(persona.password);
+  await page.locator(selectors.login.submit).click();
+  await expectVisible(page, routeSelector('Home'), `Home route did not render for ${personaKey}`);
+  await page.waitForLoadState('networkidle').catch(() => {});
+}
+
 async function selectPreviewPreset(page, presetKey, expectedRoute) {
   await expectVisible(page, selectors.layout.previewBanner, 'Preview banner missing before preset switch');
   await page.locator(previewPresetSelector(presetKey)).first().click();
@@ -518,8 +563,9 @@ async function main() {
     const results = [];
 
     await verifyUiLogin(page, contract);
+    const selectedJourneys = selectJourneys(UX_REGRESSION_MANIFEST);
 
-    for (const journey of UX_REGRESSION_MANIFEST) {
+    for (const journey of selectedJourneys) {
       const startedAt = Date.now();
       const screenshotPath = path.join(artifactDir, `${sanitizeFileName(journey.id)}.png`);
       try {
@@ -550,31 +596,33 @@ async function main() {
       }
     }
 
-    const smokeStartedAt = Date.now();
-    const smokeShot = path.join(artifactDir, 'smoke-routes.png');
-    try {
-      await resetToAdminHome(page, contract);
-      await runSmokeRoutes(page);
-      await page.screenshot({ path: smokeShot, fullPage: true });
-      results.push({
-        id: 'smoke-routes',
-        persona: 'admin',
-        status: 'passed',
-        durationMs: Date.now() - smokeStartedAt,
-        screenshot: smokeShot,
-        failureType: null,
-      });
-    } catch (error) {
-      await page.screenshot({ path: smokeShot, fullPage: true }).catch(() => {});
-      results.push({
-        id: 'smoke-routes',
-        persona: 'admin',
-        status: 'failed',
-        durationMs: Date.now() - smokeStartedAt,
-        screenshot: smokeShot,
-        error: error instanceof Error ? error.message : String(error),
-        failureType: classifyFailureType(error),
-      });
+    if (shouldRunSmokeRoutes()) {
+      const smokeStartedAt = Date.now();
+      const smokeShot = path.join(artifactDir, 'smoke-routes.png');
+      try {
+        await resetToAdminHome(page, contract);
+        await runSmokeRoutes(page);
+        await page.screenshot({ path: smokeShot, fullPage: true });
+        results.push({
+          id: 'smoke-routes',
+          persona: 'admin',
+          status: 'passed',
+          durationMs: Date.now() - smokeStartedAt,
+          screenshot: smokeShot,
+          failureType: null,
+        });
+      } catch (error) {
+        await page.screenshot({ path: smokeShot, fullPage: true }).catch(() => {});
+        results.push({
+          id: 'smoke-routes',
+          persona: 'admin',
+          status: 'failed',
+          durationMs: Date.now() - smokeStartedAt,
+          screenshot: smokeShot,
+          error: error instanceof Error ? error.message : String(error),
+          failureType: classifyFailureType(error),
+        });
+      }
     }
 
     const summary = createAuditSummary({

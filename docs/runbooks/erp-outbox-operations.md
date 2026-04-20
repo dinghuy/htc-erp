@@ -62,6 +62,13 @@ Example:
 
 - `POST /api/integrations/erp/outbox/run?limit=20`
 
+## Worker Claim Behavior
+
+- The worker selects rows with persisted status `pending` or `failed` whose `nextRunAt` is empty or due.
+- `retryable_failed` remains an API-facing label derived from persisted `failed` plus attempt count; do not store `retryable_failed` in the database.
+- Before sending, each selected row is claimed by updating its status to `processing`. If the claim update affects zero rows, the worker skips that row because another pass already claimed it.
+- Queue eligibility uses direct ISO timestamp comparison on `nextRunAt`; do not wrap the indexed column in SQLite-only datetime functions in worker queries.
+
 ## Operational Expectations
 
 - Manual sync must not create duplicate business actions for the same idempotency key

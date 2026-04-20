@@ -16,6 +16,7 @@ const API_V1_PREFIXES: Array<{ from: string; to: string }> = [
   { from: '/api/v1/quotations', to: '/api/quotations' },
   { from: '/api/v1/approvals', to: '/api/approval-requests' },
   { from: '/api/v1/sales-orders', to: '/api/sales-orders' },
+  { from: '/api/v1/project-documents', to: '/api/project-documents' },
   { from: '/api/v1/project-procurement-lines', to: '/api/project-procurement-lines' },
   { from: '/api/v1/project-inbound-lines', to: '/api/project-inbound-lines' },
   { from: '/api/v1/project-delivery-lines', to: '/api/project-delivery-lines' },

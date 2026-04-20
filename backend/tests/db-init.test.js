@@ -167,6 +167,7 @@ async function main() {
 
     const quotationCols = await db.all(`PRAGMA table_info('Quotation')`);
     const quotationColNames = quotationCols.map((col) => col.name);
+    assert.equal(quotationColNames.includes('updatedAt'), true);
     assert.equal(quotationColNames.includes('interestRate'), true);
     assert.equal(quotationColNames.includes('exchangeRate'), true);
     assert.equal(quotationColNames.includes('loanTermMonths'), true);
@@ -243,6 +244,7 @@ async function main() {
     const projectDocumentIndexes = await db.all(`PRAGMA index_list('ProjectDocument')`);
     const accountIndexes = await db.all(`PRAGMA index_list('Account')`);
     const leadIndexes = await db.all(`PRAGMA index_list('Lead')`);
+    const outboxIndexes = await db.all(`PRAGMA index_list('ErpOutbox')`);
 
     const projectIndexNames = projectIndexes.map((row) => row.name);
     const approvalIndexNames = approvalIndexes.map((row) => row.name);
@@ -253,6 +255,7 @@ async function main() {
     const projectDocumentIndexNames = projectDocumentIndexes.map((row) => row.name);
     const accountIndexNames = accountIndexes.map((row) => row.name);
     const leadIndexNames = leadIndexes.map((row) => row.name);
+    const outboxIndexNames = outboxIndexes.map((row) => row.name);
 
     assert.equal(projectIndexNames.includes('idx_project_stage'), true);
     assert.equal(approvalIndexNames.includes('idx_approval_requested_by'), true);
@@ -264,6 +267,35 @@ async function main() {
     assert.equal(projectDocumentIndexNames.includes('idx_projectdocument_thread'), true);
     assert.equal(accountIndexNames.includes('idx_account_type_created'), true);
     assert.equal(leadIndexNames.includes('idx_lead_status_created'), true);
+    assert.equal(outboxIndexNames.includes('idx_erpoutbox_worker_due'), true);
+
+    const outboxPlan = await db.all(
+      `EXPLAIN QUERY PLAN
+       SELECT *
+       FROM ErpOutbox
+       WHERE status IN ('pending', 'failed')
+         AND (nextRunAt IS NULL OR nextRunAt <= ?)
+       ORDER BY createdAt ASC, id ASC
+       LIMIT ?`,
+      [new Date().toISOString(), 20]
+    );
+    assert.equal(outboxPlan.some((row) => String(row.detail || '').includes('SCAN ErpOutbox')), false);
+    assert.equal(outboxPlan.some((row) => String(row.detail || '').includes('USING INDEX')), true);
+  });
+
+  await run('initDb creates inbound idempotency storage and lookup indexes', async () => {
+    const db = getDb();
+
+    const idempotencyTable = await db.get(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'IdempotencyLog'`
+    );
+    assert.equal(Boolean(idempotencyTable), true);
+
+    const idempotencyIndexes = await db.all(`PRAGMA index_list('IdempotencyLog')`);
+    const idempotencyIndexNames = idempotencyIndexes.map((row) => row.name);
+
+    assert.equal(idempotencyIndexNames.includes('idx_idempotency_scope_key'), true);
+    assert.equal(idempotencyIndexNames.includes('idx_idempotency_expires_at'), true);
   });
 
   await run('initDb keeps ProjectMilestone as the only active milestone table', async () => {

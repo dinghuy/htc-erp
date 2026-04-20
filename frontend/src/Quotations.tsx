@@ -3,6 +3,7 @@ import { showNotify } from './Notification';
 import { canDelete, canEdit, fetchWithAuth } from './auth';
 import { useI18n } from './i18n';
 import { consumeNavContext } from './navContext';
+import { createIdempotencyKey, withIdempotencyKey } from './shared/api/client';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { MetricCard, PageHero } from './ui/patterns';
 import { tokens } from './ui/tokens';
@@ -720,20 +721,20 @@ export function Quotations({
     try {
       let savedQuote;
       if (editingQuoteId) {
-        const res = await fetchWithAuth(token, `${API}/quotations/${editingQuoteId}`, {
+        const res = await fetchWithAuth(token, `${API}/v1/quotations/${editingQuoteId}`, withIdempotencyKey({
           method: 'PUT',
           body: JSON.stringify(body),
-        });
+        }, createIdempotencyKey(`quotation-update:${editingQuoteId}`)));
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || 'Cập nhật báo giá thất bại');
         }
         savedQuote = await res.json();
       } else {
-        const res = await fetchWithAuth(token, `${API}/quotations`, {
+        const res = await fetchWithAuth(token, `${API}/v1/quotations`, withIdempotencyKey({
           method: 'POST',
           body: JSON.stringify(body),
-        });
+        }, createIdempotencyKey('quotation-create')));
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || 'Tạo báo giá thất bại');
@@ -835,7 +836,7 @@ export function Quotations({
     }
 
     try {
-      const res = await fetchWithAuth(token, `${API}/projects/${quotation.projectId}/approvals`, {
+      const res = await fetchWithAuth(token, `${API}/v1/projects/${quotation.projectId}/approval-requests`, withIdempotencyKey({
         method: 'POST',
         body: JSON.stringify({
           quotationId: quotation.id,
@@ -845,7 +846,7 @@ export function Quotations({
           approverRole: 'director',
           note: 'Submitted from quotations list',
         }),
-      });
+      }, createIdempotencyKey(`quotation-approval:${quotation.id}`)));
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Không thể tạo approval request');

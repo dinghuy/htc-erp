@@ -148,11 +148,37 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
   }
 
   function findUserPasswordHashById(id: string) {
-    return getDbInstance().get('SELECT passwordHash FROM User WHERE id = ?', [id]) as Promise<{ passwordHash?: string | null } | undefined>;
+    return getDbInstance().get(
+      'SELECT passwordHash, username FROM User WHERE id = ?',
+      [id],
+    ) as Promise<{ passwordHash?: string | null; username?: string | null } | undefined>;
   }
 
   function findUserIdentityById(id: string) {
     return getDbInstance().get('SELECT id FROM User WHERE id = ?', [id]) as Promise<{ id: string } | undefined>;
+  }
+
+  function findUserByUsername(username: string) {
+    return getDbInstance().get(
+      `SELECT id, username
+       FROM User
+       WHERE username IS NOT NULL
+         AND TRIM(username) != ''
+         AND LOWER(TRIM(username)) = LOWER(TRIM(?))`,
+      [username],
+    ) as Promise<{ id: string; username: string } | undefined>;
+  }
+
+  function findUserByUsernameExcludingId(username: string, excludedId: string) {
+    return getDbInstance().get(
+      `SELECT id, username
+       FROM User
+       WHERE username IS NOT NULL
+         AND TRIM(username) != ''
+         AND LOWER(TRIM(username)) = LOWER(TRIM(?))
+         AND id != ?`,
+      [username, excludedId],
+    ) as Promise<{ id: string; username: string } | undefined>;
   }
 
   function createUser(input: CreateUserRecordInput) {
@@ -273,6 +299,8 @@ export function createUsersRepository(deps: CreateUsersRepositoryDeps = {}) {
     findUsersDirectoryByIds,
     findUserPasswordHashById,
     findUserIdentityById,
+    findUserByUsername,
+    findUserByUsernameExcludingId,
     createUser,
     updateUser,
     deleteUser,

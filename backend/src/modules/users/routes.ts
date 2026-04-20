@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { parseTabularRowsFromFile } from '../../shared/imports/tabular';
 import { optimizeUploadedImage } from '../../shared/uploads/imageOptimizer';
+import { sendApiError } from '../../shared/errors/apiError';
+import { parseCreateUserBody, parseUpdateUserBody } from './schemas';
 import { usersService } from './service';
 
 type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unknown>) => any;
@@ -12,6 +14,7 @@ type RegisterUserRoutesDeps = {
   requireAuth: any;
   requireRole: (...roles: string[]) => any;
   upload: any;
+  avatarUpload: any;
   avatarUploadDir: string;
   mapGenderRecord: <T extends { gender?: unknown } | null | undefined>(row: T) => T;
   mapGenderRecords: <T extends Array<{ gender?: unknown }>>(rows: T) => T;
@@ -28,6 +31,7 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
     requireAuth,
     requireRole,
     upload,
+    avatarUpload,
     avatarUploadDir,
     mapGenderRecord,
     mapGenderRecords,
@@ -73,13 +77,17 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
   }));
 
   app.post('/api/users', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
-    const row = await usersService.createUser(req.body ?? {});
+    const parsed = parseCreateUserBody(req.body);
+    if (!parsed.ok) return sendApiError(res, parsed.httpStatus, parsed.payload);
+    const row = await usersService.createUser(parsed.normalizedBody);
     res.status(201).json(mapGenderRecord(row));
   }));
 
   app.put('/api/users/:id', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
     const userId = routeParam(req.params.id);
-    const row = await usersService.updateUser(userId, req.body ?? {});
+    const parsed = parseUpdateUserBody(req.body);
+    if (!parsed.ok) return sendApiError(res, parsed.httpStatus, parsed.payload);
+    const row = await usersService.updateUser(userId, parsed.normalizedBody);
     if (!row) return res.status(404).json({ error: 'Not found' });
     res.json(mapGenderRecord(row));
   }));
@@ -92,7 +100,7 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
     res.json({ success: true });
   }));
 
-  app.post('/api/users/:id/avatar', requireAuth, upload.single('avatar'), ah(async (req: Request, res: Response) => {
+  app.post('/api/users/:id/avatar', requireAuth, avatarUpload.single('avatar'), ah(async (req: Request, res: Response) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const userId = routeParam(req.params.id);
     const currentUser = (req as any).user;

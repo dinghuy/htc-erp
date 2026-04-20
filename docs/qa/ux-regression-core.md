@@ -23,7 +23,7 @@ Local suite không dùng dữ liệu dev ngẫu nhiên. Runner sẽ reset bộ Q
 Seed tạo sẵn:
 
 - admin base user
-- persona `sales`, `project_manager`, `sales + project_manager`, `procurement`, `accounting`, `legal`, `director`, `viewer`
+- persona `sales`, `project_manager`, `sales + project_manager` (`qa_sales_pm`), `procurement`, `accounting`, `legal`, `director`, `viewer`
 - project mẫu ở stage `quoting`, `won`, `delivery`
 - approval lane `commercial`, `procurement`, `finance`, `legal`, `executive`
 - task, blocker, missing documents, timeline và support/event-log artifacts để các màn chính đều có dữ liệu thật
@@ -128,6 +128,26 @@ npm run test:ux:audit
 
 Nếu frontend không chạy ở `http://127.0.0.1:4173`, set `QA_FRONTEND_URL` trước khi chạy.
 
+Chạy một phần suite theo persona:
+
+```powershell
+cd frontend
+$env:QA_PERSONAS='accounting,legal'
+npm run test:ux:audit
+Remove-Item Env:QA_PERSONAS
+```
+
+Chạy một phần suite theo journey id:
+
+```powershell
+cd frontend
+$env:QA_JOURNEY_IDS='accounting-finance-lane-boundary,legal-approval-boundary'
+npm run test:ux:audit
+Remove-Item Env:QA_JOURNEY_IDS
+```
+
+Smoke routes mặc định chạy khi không filter. Trong CI shard, chỉ shard cuối đặt `QA_INCLUDE_SMOKE=1`; các shard còn lại đặt `QA_INCLUDE_SMOKE=0`.
+
 Chạy headed:
 
 ```bash
@@ -140,6 +160,19 @@ Artifacts sẽ nằm ở:
 - `frontend/artifacts/ux-audit/<timestamp>/ux-regression-report.json`
 - `frontend/artifacts/ux-audit/<timestamp>/ux-regression-report.md`
 - screenshot theo từng journey
+
+## CI Sharding
+
+GitHub Actions workflow: `.github/workflows/ux-regression.yml`.
+
+Shard groups:
+
+- `sales-pm`: `sales`, `project_manager`
+- `combined-procurement`: `sales_pm_combined`, `procurement`
+- `finance-legal`: `accounting`, `legal`
+- `director-smoke`: `director` plus smoke routes
+
+Each shard must use an isolated `DB_PATH`, backend port, and frontend port. Artifact names use `ux-audit-<shard-name>` and include the JSON/Markdown reports plus screenshots under `frontend/artifacts/ux-audit/**`.
 
 Khi local runner bị chặn bởi browser launch trong Codex, dùng runbook riêng:
 

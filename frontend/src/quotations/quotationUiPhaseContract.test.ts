@@ -33,6 +33,9 @@ describe('quotation UI phase contract', () => {
     expect(editorSource).toContain('showVatRate');
     expect(editorSource).toContain('Kéo để đổi thứ tự dòng trong phương án');
     expect(editorSource).toContain("minHeight: '168px'");
+    expect(editorSource).toContain('borderLeft');
+    expect(editorSource).toContain('current === itemIndex ? null : itemIndex');
+    expect(editorSource).not.toContain('Điều khoản {idx + 1}');
   });
 
   it('adds per-line currency and VAT controls from the historical quotation pricing backlog', () => {

@@ -97,6 +97,7 @@ Trong feature file:
 - `PageSectionHeader` cho section-level framing
 - `EntitySummaryCard` cho card summary có CTA + badge + meta
 - `FilterToolbar` cho cụm search/filter/action gọn
+- `PageLoader` cho Suspense fallback của route/module lazy-load; không dựng fallback inline riêng trong từng feature route
 
 Khi một màn cần “page title + subtitle + actions”, ưu tiên `PageHero` hoặc `PageHeader` đã chuẩn hóa thay vì tự dựng một block mới.
 
@@ -125,6 +126,7 @@ Khi một editor nghiệp vụ có nhiều phương án ngang hàng:
 - drag/drop card phải đi qua drag handle riêng, không biến toàn bộ form hoặc input thành vùng kéo
 - bảng line item nên ưu tiên scan nhanh; trường dài như specs/remarks chuyển sang inline click-to-detail ngay dưới dòng được chọn
 - ẩn input không còn tác dụng theo mode nghiệp vụ, ví dụ dòng gross-price không cần hiển thị VAT %
+- trạng thái selected của dòng dày đặc nên dùng left accent/inset outline thay vì viền primary bao toàn bộ gây chồng lên cell số liệu
 - action tính toán/xác nhận nên gom vào một dock ở cuối vùng editor, scoped rõ tới phương án đang chọn
 - nếu tên phương án để trống, chỉ dùng chip metadata trong editor; không render fallback kỹ thuật trong preview/PDF
 - với điều khoản song ngữ, ưu tiên bố cục hai cột Việt/Anh trên desktop và xếp dọc trên mobile
@@ -199,6 +201,7 @@ Các file hiện đang là chuẩn tham chiếu sau đợt refactor light/dark m
 
 - `frontend/src/index.css`
 - `frontend/src/ui/tokens.ts`
+- `frontend/src/ui/PageLoader.tsx`
 - `frontend/src/ui/OverlayModal.tsx`
 - `frontend/src/Products.tsx`
 - `frontend/src/ops/GanttCommandBar.tsx`

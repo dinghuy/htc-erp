@@ -1,0 +1,1 @@
+function e(e){let t=Array.isArray(e.threadPayload?.items)&&e.threadPayload?.items[0]||null,n=Array.isArray(e.messagesPayload?.items)?e.messagesPayload?.items:[];return{threadId:t?.id||null,messageCount:Number(t?.messageCount||n.length||0),latestMessage:n[0]||null,hasActiveThread:!!t?.id&&String(t?.status||`active`).toLowerCase()===`active`}}export{e as t};

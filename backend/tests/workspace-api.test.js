@@ -613,7 +613,7 @@ async function main() {
     assert.equal(secondAttempt.body.id, createApproval.body.id);
   });
 
-  await run('admin home uses admin persona and admin-only users cannot approve business requests', async () => {
+  await run('admin home stays in admin persona and cannot escalate business approvals through preview headers', async () => {
     const db = getDb();
     const adminUserId = await seedUser({
       username: 'system_admin',
@@ -668,7 +668,7 @@ async function main() {
       },
     });
     assert.equal(previewHome.response.status, 200);
-    assert.equal(previewHome.body.persona.mode, 'sales_pm_combined');
+    assert.equal(previewHome.body.persona.mode, 'admin');
 
     const previewDecision = await api(`/api/approval-requests/${approvalId}/decision`, {
       method: 'POST',

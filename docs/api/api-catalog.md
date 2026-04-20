@@ -38,6 +38,7 @@ These domains define ownership direction for the Huly-inspired Work Hub expansio
 - Responses must use stable DTOs.
 - Errors must return a consistent API error shape.
 - Mutating endpoints must document validation, side effects, and downstream ERP events.
+- Idempotent mutating endpoints accept `X-Idempotency-Key`; duplicate completed requests with the same actor, route key, method, and payload replay the cached successful response, while reused keys with different payloads return `409 IDEMPOTENCY_KEY_REUSED`.
 - Filterable list endpoints must document supported query parameters and pagination behavior.
 - ERP integration events must follow `docs/api/erp-outbox-contract.md`.
 
@@ -59,6 +60,13 @@ Current route entry point: `backend/src/modules/quotations/registerRoutes.ts`
 - `POST /api/quotations/:id/revise` -> `routes/mutationRoutes.ts`
 - `DELETE /api/quotations/:id` -> `routes/mutationRoutes.ts`
 
+Versioned aliases:
+
+- `POST /api/v1/projects/:id/quotations`
+- `POST /api/v1/quotations`
+- `PUT /api/v1/quotations/:id`
+- `POST /api/v1/quotations/:id/revise`
+
 ### Write-Path Pipeline (Mutation Endpoints)
 
 - `schemas/*`: body parse and object-shape guard
@@ -73,6 +81,8 @@ Current route entry point: `backend/src/modules/quotations/registerRoutes.ts`
 - `400 INVALID_STATUS_TRANSITION` for unsupported status or transition
 - `400 READ_ONLY` when quotation state is immutable
 - `409 STATUS_CONFLICT` when `expectedStatus` does not match current persisted status
+- `409 IDEMPOTENCY_KEY_REUSED` when the same idempotency key is reused with a different request payload
+- `409 IDEMPOTENCY_IN_PROGRESS` when a matching request is still being processed
 
 ## Core Ownership Map
 
@@ -89,6 +99,18 @@ Current route entry point: `backend/src/modules/quotations/registerRoutes.ts`
 | `/api/v1/integrations/erp/outbox` | `erp` | `backend/src/modules/erp/routes.ts` | Canonical ERP outbox namespace |
 | `/api/v1/projects/:id/activities` | `projects` | `backend/src/modules/projects/readRoutes.ts` | Project-scoped activity stream read model |
 | `/api/v1/tasks/:id/checklist` | `tasks` | `backend/src/modules/tasks/routes.ts` | Task-scoped checklist items backed by local ToDo storage |
+| `/api/v1/project-documents` | `projects` | alias via `backend/src/modules/platform/apiV1Aliases.ts` to project document mutation routes | Compatibility namespace for document review-state mutations while project document ownership converges |
+
+## Current Idempotent Mutation Coverage
+
+- `POST /api/v1/projects/:id/quotations`
+- `POST /api/v1/quotations`
+- `PUT /api/v1/quotations/:id`
+- `POST /api/v1/quotations/:id/revise`
+- `POST /api/v1/projects/:id/approval-requests`
+- `POST /api/v1/approvals/:id/decision`
+
+Compatibility note: the underlying handlers are still registered on legacy `/api/*` route files during migration, but new callers should use `/api/v1/*`.
 
 ## Planned Work Hub Ownership Direction
 

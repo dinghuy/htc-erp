@@ -1,4 +1,4 @@
-import { requestJsonWithAuth, API_BASE } from '../shared/api/client';
+import { createIdempotencyKey, requestJsonWithAuth, API_BASE, withIdempotencyKey } from '../shared/api/client';
 import { showNotify } from '../Notification';
 import type { ProjectWorkspaceTabKey } from '../shared/domain/contracts';
 import { buildDocumentThreadSummary } from './documentThreadData';
@@ -46,13 +46,16 @@ export function createProjectWorkspaceAsyncActions({
   setTab,
   goToRoute,
 }: ProjectWorkspaceAsyncActionsDeps) {
+  const withActionKey = (scope: string, options: RequestInit = {}) =>
+    withIdempotencyKey(options, createIdempotencyKey(`${scope}:${projectId}`));
+
   const createApprovalRequest = async (key: string, payload: any, successMessage: string) => {
     setBusy(key);
     try {
-      await requestJsonWithAuth(token, `${API}/projects/${projectId}/approval-requests`, {
+      await requestJsonWithAuth(token, `${API}/v1/projects/${projectId}/approval-requests`, withActionKey(key, {
         method: 'POST',
         body: JSON.stringify(payload),
-      }, 'Không thể tạo approval request');
+      }), 'Không thể tạo approval request');
       showNotify(successMessage, 'success');
       await loadWorkspace();
     } catch (error: any) {
@@ -79,7 +82,7 @@ export function createProjectWorkspaceAsyncActions({
     if (!quotationId) return showNotify('Không có báo giá phù hợp để tạo sales order', 'error');
     setBusy('create-sales-order');
     try {
-      await requestJsonWithAuth(token, `${API}/sales-orders/from-quotation/${quotationId}`, { method: 'POST' }, 'Không thể tạo sales order');
+      await requestJsonWithAuth(token, `${API}/v1/sales-orders/from-quotation/${quotationId}`, withActionKey('create-sales-order', { method: 'POST' }), 'Không thể tạo sales order');
       showNotify('Đã tạo sales order', 'success');
       await loadWorkspace();
     } catch (error: any) {
@@ -94,10 +97,10 @@ export function createProjectWorkspaceAsyncActions({
     if (!salesOrderId) return showNotify('Không có sales order để release', 'error');
     setBusy('release-sales-order');
     try {
-      await requestJsonWithAuth(token, `${API}/sales-orders/${salesOrderId}`, {
+      await requestJsonWithAuth(token, `${API}/v1/sales-orders/${salesOrderId}`, withActionKey('release-sales-order', {
         method: 'PUT',
         body: JSON.stringify({ status: 'released' }),
-      }, 'Không thể release sales order');
+      }), 'Không thể release sales order');
       showNotify('Đã release sales order', 'success');
       await loadWorkspace();
     } catch (error: any) {
@@ -119,7 +122,7 @@ export function createProjectWorkspaceAsyncActions({
   const finalizeDeliveryCompletion = async () => {
     setBusy('finalize-delivery-completion');
     try {
-      await requestJsonWithAuth(token, `${API}/projects/${projectId}/delivery-completion`, { method: 'POST' }, 'Không thể hoàn tất giao hàng');
+      await requestJsonWithAuth(token, `${API}/v1/projects/${projectId}/delivery-completion`, withActionKey('finalize-delivery-completion', { method: 'POST' }), 'Không thể hoàn tất giao hàng');
       showNotify('Đã hoàn tất giao hàng', 'success');
       await loadWorkspace();
     } catch (error: any) {
@@ -163,20 +166,20 @@ export function createProjectWorkspaceAsyncActions({
     try {
       let threadId = ui.projectThread?.threadSummary?.threadId;
       if (!threadId) {
-        const createdThread = await requestJsonWithAuth<any>(token, `${API}/v1/threads`, {
+        const createdThread = await requestJsonWithAuth<any>(token, `${API}/v1/threads`, withActionKey('project-thread-create', {
           method: 'POST',
           body: JSON.stringify({
             entityType: 'Project',
             entityId: projectId,
             title: workspace?.name || workspace?.code || 'Project thread',
           }),
-        }, 'Không thể tạo thread dự án');
+        }), 'Không thể tạo thread dự án');
         threadId = createdThread.id;
       }
-      await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, {
+      await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, withActionKey('project-thread-message', {
         method: 'POST',
         body: JSON.stringify({ content }),
-      }, 'Không thể gửi message thread dự án');
+      }), 'Không thể gửi message thread dự án');
       await openProjectThread();
     } catch (error: any) {
       showNotify(error?.message || 'Không thể gửi message thread dự án', 'error');
@@ -193,20 +196,20 @@ export function createProjectWorkspaceAsyncActions({
     try {
       let threadId = ui.documentThread.threadSummary?.threadId;
       if (!threadId) {
-        const createdThread = await requestJsonWithAuth<any>(token, `${API}/v1/threads`, {
+        const createdThread = await requestJsonWithAuth<any>(token, `${API}/v1/threads`, withActionKey('document-thread-create', {
           method: 'POST',
           body: JSON.stringify({
             entityType: 'ProjectDocument',
             entityId: ui.documentThread.document.id,
             title: ui.documentThread.document.documentName || ui.documentThread.document.documentCode || 'Document thread',
           }),
-        }, 'Không thể tạo thread hồ sơ');
+        }), 'Không thể tạo thread hồ sơ');
         threadId = createdThread.id;
       }
-      await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, {
+      await requestJsonWithAuth<any>(token, `${API}/v1/threads/${threadId}/messages`, withActionKey('document-thread-message', {
         method: 'POST',
         body: JSON.stringify({ content }),
-      }, 'Không thể gửi message thread');
+      }), 'Không thể gửi message thread');
       await openDocumentThread(ui.documentThread.document);
     } catch (error: any) {
       showNotify(error?.message || 'Không thể gửi message thread', 'error');
@@ -236,7 +239,7 @@ export function createProjectWorkspaceAsyncActions({
     if (!document?.id) return;
     setBusy('document-quick-review');
     try {
-      await requestJsonWithAuth(token, `${API}/project-documents/${document.id}/review-state`, {
+      await requestJsonWithAuth(token, `${API}/v1/project-documents/${document.id}/review-state`, withActionKey('document-quick-review', {
         method: 'PATCH',
         body: JSON.stringify({
           reviewStatus: nextStatus,
@@ -245,7 +248,7 @@ export function createProjectWorkspaceAsyncActions({
           storageKey: document.storageKey || null,
           threadId: document.threadId || null,
         }),
-      }, 'Không thể cập nhật review state');
+      }), 'Không thể cập nhật review state');
       showNotify('Đã cập nhật review state hồ sơ', 'success');
       await loadWorkspace();
     } catch (error: any) {
