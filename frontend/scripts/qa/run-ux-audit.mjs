@@ -10,7 +10,7 @@ import {
   selectors,
   routeSelector,
   navItemSelector,
-  previewPresetSelector,
+  projectWorkspaceButtonSelector,
   approvalLaneButtonSelector,
   approvalActionButtonSelector,
   workspaceTabSelector,
@@ -299,31 +299,18 @@ async function gotoAndWait(page, routeName) {
   await page.waitForLoadState('networkidle').catch(() => {});
 }
 
-async function resetToAdminHome(page, contract) {
-  await page.goto(contract.baseUrl.frontend, { waitUntil: 'domcontentloaded' });
-
-  const loginShell = page.locator(selectors.login.shell).first();
-  if (await loginShell.count()) {
-    await expectVisible(page, selectors.login.shell, 'Login screen did not render while resetting admin state');
-    await page.locator(selectors.login.username).fill(contract.admin.username);
-    await page.locator(selectors.login.password).fill(contract.admin.password);
-    await page.locator(selectors.login.submit).click();
+async function resetToSignedOut(page, frontendUrl) {
+  await page.goto(frontendUrl, { waitUntil: 'domcontentloaded' });
+  const logout = page.locator(navItemSelector('Logout')).first();
+  if (await logout.count()) {
+    await logout.click();
+    await expectVisible(page, selectors.login.shell, 'Login screen did not render after logout reset');
+    return;
   }
 
-  await expectVisible(page, routeSelector('Home'), 'Home route did not render while resetting admin state');
-
-  const backToAdmin = page.locator(selectors.layout.previewBackToAdmin);
-  if (await backToAdmin.count()) {
-    await backToAdmin.first().click();
-    await page.waitForTimeout(100);
-  }
-
-  await gotoAndWait(page, 'Home');
-  await expectVisible(page, selectors.layout.previewBanner, 'Preview banner missing in base admin state');
-
-  const workspaceClose = page.locator(selectors.workspace.close);
+  const workspaceClose = page.locator(selectors.workspace.close).first();
   if (await workspaceClose.count()) {
-    await workspaceClose.first().click();
+    await workspaceClose.click();
   }
 }
 
@@ -352,26 +339,14 @@ async function loginAsSeededPersona(page, contract, personaKey) {
   await page.waitForLoadState('networkidle').catch(() => {});
 }
 
-async function selectPreviewPreset(page, presetKey, expectedRoute) {
-  await expectVisible(page, selectors.layout.previewBanner, 'Preview banner missing before preset switch');
-  await page.locator(previewPresetSelector(presetKey)).first().click();
-  await expectVisible(page, routeSelector(expectedRoute), `Route ${expectedRoute} did not render after preset ${presetKey}`);
-  await expectVisible(page, selectors.layout.previewBanner, 'Preview banner disappeared unexpectedly');
-  await page.waitForLoadState('networkidle').catch(() => {});
-}
-
-async function openSettingsFromPreview(page) {
-  await expectVisible(page, selectors.layout.previewOpenSettings, 'Preview settings button missing');
-  await page.locator(selectors.layout.previewOpenSettings).click();
-  await expectVisible(page, routeSelector('Settings'), 'Settings route did not render from preview banner');
-  await expectVisible(page, selectors.settings.previewPanel, 'Settings preview panel missing');
-  await page.waitForLoadState('networkidle').catch(() => {});
-}
-
-async function openRepresentativeWorkspace(page) {
-  await expectVisible(page, selectors.settings.previewOpenWorkspace, 'Open representative workspace button missing');
-  await page.locator(selectors.settings.previewOpenWorkspace).click();
-  await expectVisible(page, routeSelector('Projects'), 'Projects route did not render after opening representative workspace');
+async function openRepresentativeWorkspace(page, contract, projectKey) {
+  const projectId = contract.sampleIds?.projects?.[projectKey];
+  if (!projectId) {
+    throw new Error(`Missing representative project id for ${projectKey}`);
+  }
+  await gotoAndWait(page, 'Projects');
+  await expectVisible(page, projectWorkspaceButtonSelector(projectId), `Representative workspace button missing for ${projectKey}`);
+  await page.locator(projectWorkspaceButtonSelector(projectId)).first().click();
   await expectVisible(page, selectors.workspace.modal, 'Representative project workspace did not open');
   await page.waitForLoadState('networkidle').catch(() => {});
   await page.waitForTimeout(250);
@@ -395,6 +370,9 @@ async function verifyUiLogin(page, contract) {
 }
 
 async function verifyManifestBaseline(page, journey) {
+  if (!journey) {
+    throw new Error('Missing manifest definition for journey verification');
+  }
   for (const selector of journey.expectedVisible) {
     await expectVisible(page, selector, `Journey ${journey.id} expected visible selector missing: ${selector}`);
   }
@@ -403,24 +381,12 @@ async function verifyManifestBaseline(page, journey) {
   }
 }
 
-async function runAdminPreviewViewerEscape(page) {
-  await selectPreviewPreset(page, 'viewer', 'Home');
-  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST[0]);
-  await openSettingsFromPreview(page);
-  await page.locator(previewPresetSelector('sales')).first().click();
-  await expectVisible(page, routeSelector('My Work'), 'Sales preview did not reach My Work from Settings');
-  await expectVisible(page, selectors.layout.previewBackToAdmin, 'Back to Admin missing after sales preview');
-  await page.locator(selectors.layout.previewBackToAdmin).click();
-  await expectVisible(page, selectors.layout.previewBanner, 'Preview banner should return to the admin control rail after Back to Admin');
-  await expectVisible(page, navItemSelector('Users'), 'Admin nav did not recover after leaving preview');
-}
-
 async function runSalesJourney(page, contract) {
-  await selectPreviewPreset(page, 'sales', 'My Work');
-  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST[1]);
+  await loginAsSeededPersona(page, contract, 'sales');
+  await gotoAndWait(page, 'My Work');
+  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST.find((journey) => journey.id === 'sales-commercial-guardrails'));
   await assertTextContains(page, selectors.myWork.focusBadge, 'commercial', 'Sales preview did not focus commercial queue');
-  await openSettingsFromPreview(page);
-  await openRepresentativeWorkspace(page);
+  await openRepresentativeWorkspace(page, contract, 'quoting');
   await expectVisible(page, workspaceTabSelector('commercial'), 'Sales workspace missing commercial tab');
   await expectHidden(page, workspaceTabSelector('finance'), 'Sales workspace exposed finance tab');
   await expectHidden(page, workspaceTabSelector('legal'), 'Sales workspace exposed legal tab');
@@ -431,89 +397,90 @@ async function runSalesJourney(page, contract) {
   await expectHidden(page, approvalActionButtonSelector(contract.sampleIds.approvals.finance, 'approve'), 'Sales preview should not approve finance lane');
   await page.locator(approvalLaneButtonSelector('legal')).click();
   await expectHidden(page, approvalActionButtonSelector(contract.sampleIds.approvals.legal, 'approve'), 'Sales preview should not approve legal lane');
-  await page.locator(selectors.layout.previewBackToAdmin).click();
 }
 
-async function runPmJourney(page) {
-  await selectPreviewPreset(page, 'project_manager', 'My Work');
-  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST[2]);
+async function runPmJourney(page, contract) {
+  await loginAsSeededPersona(page, contract, 'project_manager');
+  await gotoAndWait(page, 'My Work');
+  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST.find((journey) => journey.id === 'pm-execution-read-only-commercial'));
   await assertTextContains(page, selectors.myWork.focusBadge, 'execution', 'PM preview did not focus execution queue');
-  await openSettingsFromPreview(page);
-  await openRepresentativeWorkspace(page);
+  await openRepresentativeWorkspace(page, contract, 'delivery');
   await expectVisible(page, workspaceTabSelector('timeline'), 'PM workspace missing timeline tab');
   await expectVisible(page, workspaceTabSelector('delivery'), 'PM workspace missing delivery tab');
   await page.locator(workspaceTabSelector('commercial')).click();
   await assertTextContains(page, selectors.workspace.previewNotice, 'read-only', 'PM commercial tab should remain read-only');
   await closeRepresentativeWorkspace(page);
-  await page.locator(selectors.layout.previewBackToAdmin).click();
 }
 
-async function runSalesPmJourney(page) {
-  await selectPreviewPreset(page, 'sales_pm_combined', 'My Work');
-  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST[3]);
+async function runSalesPmJourney(page, contract) {
+  await loginAsSeededPersona(page, contract, 'sales_pm_combined');
+  await gotoAndWait(page, 'My Work');
+  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST.find((journey) => journey.id === 'sales-pm-unified-flow'));
   await assertTextContains(page, selectors.myWork.focusBadge, 'combined', 'Sales + PM preview did not focus combined queue');
-  await openSettingsFromPreview(page);
-  await openRepresentativeWorkspace(page);
+  await openRepresentativeWorkspace(page, contract, 'won');
   await expectVisible(page, workspaceTabSelector('commercial'), 'Sales + PM workspace missing commercial tab');
   await expectVisible(page, workspaceTabSelector('timeline'), 'Sales + PM workspace missing timeline tab');
   await closeRepresentativeWorkspace(page);
-  await page.locator(selectors.layout.previewBackToAdmin).click();
 }
 
-async function runProcurementJourney(page) {
-  await selectPreviewPreset(page, 'procurement', 'Inbox');
-  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST[4]);
+async function runProcurementJourney(page, contract) {
+  await loginAsSeededPersona(page, contract, 'procurement');
+  await gotoAndWait(page, 'Inbox');
+  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST.find((journey) => journey.id === 'procurement-exception-workspace'));
   await assertTextContains(page, selectors.inbox.focusBadge, 'procurement', 'Procurement preview did not focus procurement inbox');
-  await openSettingsFromPreview(page);
-  await openRepresentativeWorkspace(page);
+  await openRepresentativeWorkspace(page, contract, 'delivery');
   await expectVisible(page, workspaceTabSelector('procurement'), 'Procurement workspace missing procurement tab');
   await expectVisible(page, workspaceTabSelector('delivery'), 'Procurement workspace missing delivery tab');
   await expectHidden(page, workspaceTabSelector('commercial'), 'Procurement workspace exposed commercial tab');
+  await expectHidden(page, workspaceTabSelector('finance'), 'Procurement workspace exposed finance tab');
+  await expectHidden(page, workspaceTabSelector('legal'), 'Procurement workspace exposed legal tab');
   await closeRepresentativeWorkspace(page);
-  await page.locator(selectors.layout.previewBackToAdmin).click();
 }
 
 async function runAccountingJourney(page, contract) {
-  await selectPreviewPreset(page, 'accounting', 'Approvals');
-  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST[5]);
+  await loginAsSeededPersona(page, contract, 'accounting');
+  await gotoAndWait(page, 'Approvals');
+  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST.find((journey) => journey.id === 'accounting-finance-lane-boundary'));
   await assertTextContains(page, selectors.approvals.focusBadge, 'finance', 'Accounting preview did not focus finance lane');
   await expectVisible(page, approvalActionButtonSelector(contract.sampleIds.approvals.finance, 'approve'), 'Accounting preview should approve finance lane');
   await page.locator(approvalLaneButtonSelector('legal')).click();
   await expectHidden(page, approvalActionButtonSelector(contract.sampleIds.approvals.legal, 'approve'), 'Accounting preview should not approve legal lane');
-  await openSettingsFromPreview(page);
-  await openRepresentativeWorkspace(page);
+  await openRepresentativeWorkspace(page, contract, 'delivery');
   await expectVisible(page, workspaceTabSelector('finance'), 'Accounting workspace missing finance tab');
   await expectHidden(page, workspaceTabSelector('legal'), 'Accounting workspace exposed legal tab');
   await closeRepresentativeWorkspace(page);
-  await page.locator(selectors.layout.previewBackToAdmin).click();
 }
 
 async function runLegalJourney(page, contract) {
-  await selectPreviewPreset(page, 'legal', 'Approvals');
-  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST[6]);
+  await loginAsSeededPersona(page, contract, 'legal');
+  await gotoAndWait(page, 'Approvals');
+  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST.find((journey) => journey.id === 'legal-approval-boundary'));
   await assertTextContains(page, selectors.approvals.focusBadge, 'legal', 'Legal preview did not focus legal lane');
   await expectVisible(page, approvalActionButtonSelector(contract.sampleIds.approvals.legal, 'approve'), 'Legal preview should approve legal lane');
   await page.locator(approvalLaneButtonSelector('finance')).click();
   await expectHidden(page, approvalActionButtonSelector(contract.sampleIds.approvals.finance, 'approve'), 'Legal preview should not approve finance lane');
-  await openSettingsFromPreview(page);
-  await openRepresentativeWorkspace(page);
+  await openRepresentativeWorkspace(page, contract, 'won');
   await expectVisible(page, workspaceTabSelector('legal'), 'Legal workspace missing legal tab');
   await expectHidden(page, workspaceTabSelector('finance'), 'Legal workspace exposed finance tab');
   await closeRepresentativeWorkspace(page);
-  await page.locator(selectors.layout.previewBackToAdmin).click();
 }
 
-async function runDirectorJourney(page) {
-  await selectPreviewPreset(page, 'director', 'Approvals');
-  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST[7]);
+async function runDirectorJourney(page, contract) {
+  await loginAsSeededPersona(page, contract, 'director');
+  await gotoAndWait(page, 'Approvals');
+  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST.find((journey) => journey.id === 'director-executive-cockpit'));
   await assertTextContains(page, selectors.approvals.focusBadge, 'executive', 'Director preview did not focus executive lane');
   await gotoAndWait(page, 'Reports');
   await expectVisible(page, routeSelector('Reports'), 'Director preview did not reach Reports');
-  await openSettingsFromPreview(page);
-  await openRepresentativeWorkspace(page);
+  await openRepresentativeWorkspace(page, contract, 'won');
   await expectVisible(page, workspaceTabSelector('overview'), 'Director workspace missing overview tab');
   await closeRepresentativeWorkspace(page);
-  await page.locator(selectors.layout.previewBackToAdmin).click();
+}
+
+async function runAdminSettingsJourney(page, contract) {
+  await loginAsSeededPersona(page, contract, 'admin');
+  await gotoAndWait(page, 'Settings');
+  await verifyManifestBaseline(page, UX_REGRESSION_MANIFEST.find((journey) => journey.id === 'admin-settings-real-account'));
 }
 
 async function runSmokeRoutes(page) {
@@ -523,7 +490,7 @@ async function runSmokeRoutes(page) {
 }
 
 const JOURNEY_HANDLERS = {
-  'admin-preview-viewer-escape': runAdminPreviewViewerEscape,
+  'admin-settings-real-account': runAdminSettingsJourney,
   'sales-commercial-guardrails': runSalesJourney,
   'pm-execution-read-only-commercial': runPmJourney,
   'sales-pm-unified-flow': runSalesPmJourney,
@@ -569,7 +536,7 @@ async function main() {
       const startedAt = Date.now();
       const screenshotPath = path.join(artifactDir, `${sanitizeFileName(journey.id)}.png`);
       try {
-        await resetToAdminHome(page, contract);
+        await resetToSignedOut(page, contract.baseUrl.frontend);
         await JOURNEY_HANDLERS[journey.id](page, contract);
         await page.screenshot({ path: screenshotPath, fullPage: true });
         results.push({
@@ -600,7 +567,8 @@ async function main() {
       const smokeStartedAt = Date.now();
       const smokeShot = path.join(artifactDir, 'smoke-routes.png');
       try {
-        await resetToAdminHome(page, contract);
+        await resetToSignedOut(page, contract.baseUrl.frontend);
+        await loginAsSeededPersona(page, contract, 'admin');
         await runSmokeRoutes(page);
         await page.screenshot({ path: smokeShot, fullPage: true });
         results.push({

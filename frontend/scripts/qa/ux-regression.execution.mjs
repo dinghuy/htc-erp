@@ -1,36 +1,34 @@
 import { UX_REGRESSION_MANIFEST, UX_SMOKE_ROUTES } from './ux-regression.manifest.mjs';
 
 export const UX_AUDIT_EXECUTION_METADATA = {
-  'admin-preview-viewer-escape': {
+  'admin-settings-real-account': {
     steps: [
-      'Select Viewer preview preset from banner.',
-      'Confirm Home renders in read-only persona mode.',
-      'Open Settings from preview banner.',
-      'Switch preset to Sales from Settings preview panel.',
-      'Use Back to Admin and confirm admin navigation is restored.',
+      'Login as qa_admin.',
+      'Open Settings from navigation.',
+      'Confirm admin lane renders operational summary, exposure, and runtime controls.',
     ],
   },
   'sales-commercial-guardrails': {
     steps: [
-      'Select Sales preview preset.',
+      'Login as qa_sales.',
       'Confirm My Work commercial focus badge.',
-      'Open representative workspace from Settings.',
+      'Open representative workspace from Projects.',
       'Verify commercial tab is visible while finance/legal tabs stay hidden.',
       'Open Approvals and verify finance/legal approve actions stay hidden.',
     ],
   },
   'pm-execution-read-only-commercial': {
     steps: [
-      'Select Project Manager preview preset.',
+      'Login as qa_pm.',
       'Confirm My Work execution focus badge.',
       'Open representative workspace.',
       'Verify timeline and delivery tabs are visible.',
-      'Open commercial tab and confirm read-only preview notice.',
+      'Open commercial tab and confirm read-only workspace notice.',
     ],
   },
   'sales-pm-unified-flow': {
     steps: [
-      'Select Sales + PM preview preset.',
+      'Login as qa_sales_pm.',
       'Confirm combined focus badge on My Work.',
       'Open representative workspace.',
       'Verify both commercial and timeline tabs exist without mode switching.',
@@ -38,15 +36,15 @@ export const UX_AUDIT_EXECUTION_METADATA = {
   },
   'procurement-exception-workspace': {
     steps: [
-      'Select Procurement preview preset.',
+      'Login as qa_procurement.',
       'Confirm Inbox procurement focus badge.',
       'Open representative workspace.',
-      'Verify procurement and delivery tabs are visible while commercial stays hidden.',
+      'Verify procurement and delivery tabs are visible while commercial/finance/legal stay hidden.',
     ],
   },
   'accounting-finance-lane-boundary': {
     steps: [
-      'Select Accounting preview preset.',
+      'Login as qa_accounting.',
       'Confirm Approvals finance focus badge.',
       'Verify finance approve action exists while legal approve action does not.',
       'Open representative workspace and confirm finance tab is visible while legal stays hidden.',
@@ -54,7 +52,7 @@ export const UX_AUDIT_EXECUTION_METADATA = {
   },
   'legal-approval-boundary': {
     steps: [
-      'Select Legal preview preset.',
+      'Login as qa_legal.',
       'Confirm Approvals legal focus badge.',
       'Verify legal approve action exists while finance approve action does not.',
       'Open representative workspace and confirm legal tab is visible while finance stays hidden.',
@@ -62,7 +60,7 @@ export const UX_AUDIT_EXECUTION_METADATA = {
   },
   'director-executive-cockpit': {
     steps: [
-      'Select Director preview preset.',
+      'Login as qa_director.',
       'Confirm executive lane focus in Approvals.',
       'Navigate to Reports cockpit.',
       'Open representative workspace and confirm overview tab stays available.',

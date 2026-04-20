@@ -2,25 +2,24 @@ import {
   selectors,
   routeSelector,
   navItemSelector,
-  previewPresetSelector,
   workspaceTabSelector,
 } from './selector-contract.mjs';
 
 export const UX_REGRESSION_MANIFEST = [
   {
-    id: 'admin-preview-viewer-escape',
-    persona: 'viewer',
-    entryRoute: 'Home',
-    preconditions: ['Login as admin', 'Preview Viewer from preview banner'],
-    notes: 'Regression anchor for the original preview trap: viewer preview must still expose Settings and Back to Admin.',
+    id: 'admin-settings-real-account',
+    persona: 'admin',
+    entryRoute: 'Settings',
+    preconditions: ['Login as qa_admin', 'Open Settings'],
+    notes: 'Regression anchor cho admin surface sau khi bỏ runtime role preview khỏi app shell.',
     expectedVisible: [
-      selectors.layout.previewBanner,
-      selectors.layout.previewOpenSettings,
-      selectors.layout.previewBackToAdmin,
-      previewPresetSelector('viewer'),
+      routeSelector('Settings'),
+      selectors.settings.laneNav,
+      selectors.settings.adminSummaryCard,
+      selectors.settings.adminRuntimeCard,
     ],
-    expectedHidden: [navItemSelector('Users')],
-    escapeActions: ['Open Settings from preview banner', 'Switch preset from preview banner', 'Back to Admin'],
+    expectedHidden: [],
+    escapeActions: ['Navigate to Home', 'Logout'],
   },
   {
     id: 'sales-commercial-guardrails',
@@ -66,7 +65,7 @@ export const UX_REGRESSION_MANIFEST = [
     persona: 'procurement',
     entryRoute: 'Inbox',
     preconditions: ['Login as qa_procurement', 'Open representative workspace'],
-    notes: 'Procurement must focus exception handling and procurement/delivery visibility without pricing or finance leakage.',
+    notes: 'Procurement must focus exception handling and procurement/delivery visibility without commercial, finance, or legal leakage.',
     expectedVisible: [
       routeSelector('Inbox'),
       selectors.inbox.focusBadge,
