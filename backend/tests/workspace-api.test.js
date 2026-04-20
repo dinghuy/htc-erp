@@ -2,6 +2,7 @@ require('ts-node/register');
 
 const assert = require('node:assert/strict');
 const bcrypt = require('bcryptjs');
+const { randomUUID } = require('node:crypto');
 const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -87,12 +88,13 @@ async function insertProject({ code, name, managerId, accountId, projectStage, s
 
 async function insertQuotation({ quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion }) {
   const db = getDb();
-  const result = await db.run(
-    `INSERT INTO Quotation (quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion],
+  const id = randomUUID();
+  await db.run(
+    `INSERT INTO Quotation (id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, quoteNumber, subject, accountId, projectId, status, grandTotal, isWinningVersion],
   );
-  return result.lastID;
+  return id;
 }
 
 async function insertTaskRow({ projectId, name, assigneeId, status, priority, dueDate, quotationId, taskType, department, blockedReason }) {

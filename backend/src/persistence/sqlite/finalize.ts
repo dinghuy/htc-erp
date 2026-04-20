@@ -259,16 +259,20 @@ export async function finalizeSqliteSchema(db: Database) {
   const createTypedQuotationChildTables = async () => {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS QuotationLineItem (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        quotationId INTEGER NOT NULL,
+        id TEXT PRIMARY KEY,
+        quotationId TEXT NOT NULL,
         sortOrder INTEGER DEFAULT 0,
         sku TEXT,
         name TEXT,
         unit TEXT,
+        currency TEXT DEFAULT 'VND',
+        vatMode TEXT DEFAULT 'excluded',
+        vatRate REAL DEFAULT 8,
         technicalSpecs TEXT,
         remarks TEXT,
         quantity REAL DEFAULT 1,
         unitPrice REAL DEFAULT 0,
+        isOption INTEGER DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(quotationId) REFERENCES Quotation(id) ON DELETE CASCADE
@@ -277,8 +281,8 @@ export async function finalizeSqliteSchema(db: Database) {
 
     await db.exec(`
       CREATE TABLE IF NOT EXISTS QuotationTermItem (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        quotationId INTEGER NOT NULL,
+        id TEXT PRIMARY KEY,
+        quotationId TEXT NOT NULL,
         sortOrder INTEGER DEFAULT 0,
         labelViPrint TEXT,
         labelEn TEXT,
@@ -308,6 +312,8 @@ export async function finalizeSqliteSchema(db: Database) {
     for (const row of quotationRows) {
       const quotationId = String(row?.id || '').trim();
       if (!quotationId) continue;
+      const financialConfig = parseLegacyQuotationFinancialConfig(row.financialParams);
+      const commercialTerms = parseLegacyQuotationCommercialTerms(row.terms);
 
       const existingLineItemCount = await db.get(
         `SELECT COUNT(*) as c FROM QuotationLineItem WHERE quotationId = ?`,
@@ -318,43 +324,65 @@ export async function finalizeSqliteSchema(db: Database) {
         for (const item of lineItems) {
           await db.run(
             `INSERT INTO QuotationLineItem (
-              quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
+              quotationId, sortOrder, sku, name, unit, currency, vatMode, vatRate, technicalSpecs, remarks, quantity, unitPrice, isOption, createdAt, updatedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')), datetime('now'))`,
             [
               quotationId,
               item.sortOrder,
               item.sku,
               item.name,
               item.unit,
+              item.currency || row.currency || 'VND',
+              item.vatMode === 'included' ? 'included' : 'excluded',
+              item.vatRate ?? financialConfig.vatRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate,
               item.technicalSpecs,
               item.remarks,
               item.quantity,
               item.unitPrice,
+              item.isOption ? 1 : 0,
               row.createdAt || null,
             ]
           );
         }
       }
 
-      const financialConfig = parseLegacyQuotationFinancialConfig(row.financialParams);
-      const commercialTerms = parseLegacyQuotationCommercialTerms(row.terms);
+      const hasLegacyFinancialParams = typeof row.financialParams === 'string' && row.financialParams.trim().length > 0;
+      const hasLegacyTerms = typeof row.terms === 'string' && row.terms.trim().length > 0;
       await db.run(
         `UPDATE Quotation
-         SET interestRate = COALESCE(interestRate, ?),
-             exchangeRate = COALESCE(exchangeRate, ?),
-             loanTermMonths = COALESCE(loanTermMonths, ?),
-             markup = COALESCE(markup, ?),
-             vatRate = COALESCE(vatRate, ?),
-             remarksVi = COALESCE(remarksVi, ?),
-             remarksEn = COALESCE(remarksEn, ?)
+         SET interestRate = CASE WHEN ? THEN ? ELSE COALESCE(interestRate, ?) END,
+             exchangeRate = CASE WHEN ? THEN ? ELSE COALESCE(exchangeRate, ?) END,
+             loanTermMonths = CASE WHEN ? THEN ? ELSE COALESCE(loanTermMonths, ?) END,
+             markup = CASE WHEN ? THEN ? ELSE COALESCE(markup, ?) END,
+             vatRate = CASE WHEN ? THEN ? ELSE COALESCE(vatRate, ?) END,
+             calculateTotals = CASE WHEN ? THEN ? ELSE COALESCE(calculateTotals, ?) END,
+             remarksVi = CASE WHEN ? THEN ? ELSE COALESCE(remarksVi, ?) END,
+             remarksEn = CASE WHEN ? THEN ? ELSE COALESCE(remarksEn, ?) END
          WHERE id = ?`,
         [
+          hasLegacyFinancialParams ? 1 : 0,
           financialConfig.interestRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.interestRate,
+          financialConfig.interestRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.interestRate,
+          hasLegacyFinancialParams ? 1 : 0,
           financialConfig.exchangeRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.exchangeRate,
+          financialConfig.exchangeRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.exchangeRate,
+          hasLegacyFinancialParams ? 1 : 0,
           financialConfig.loanTermMonths ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.loanTermMonths,
+          financialConfig.loanTermMonths ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.loanTermMonths,
+          hasLegacyFinancialParams ? 1 : 0,
           financialConfig.markup ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.markup,
+          financialConfig.markup ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.markup,
+          hasLegacyFinancialParams ? 1 : 0,
           financialConfig.vatRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate,
+          financialConfig.vatRate ?? DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate,
+          hasLegacyFinancialParams ? 1 : 0,
+          financialConfig.calculateTotals ? 1 : 0,
+          DEFAULT_QUOTATION_FINANCIAL_CONFIG.calculateTotals ? 1 : 0,
+          hasLegacyTerms ? 1 : 0,
           commercialTerms.remarksVi ?? null,
+          commercialTerms.remarksVi ?? null,
+          hasLegacyTerms ? 1 : 0,
+          commercialTerms.remarksEn ?? null,
           commercialTerms.remarksEn ?? null,
           quotationId,
         ]
@@ -820,8 +848,14 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Quotation', 'loanTermMonths', 'loanTermMonths INTEGER DEFAULT 36');
   await ensureColumn('Quotation', 'markup', 'markup REAL DEFAULT 15');
   await ensureColumn('Quotation', 'vatRate', 'vatRate REAL DEFAULT 8');
+  await ensureColumn('Quotation', 'calculateTotals', 'calculateTotals INTEGER DEFAULT 1');
   await ensureColumn('Quotation', 'remarksVi', 'remarksVi TEXT');
   await ensureColumn('Quotation', 'remarksEn', 'remarksEn TEXT');
+  await createTypedQuotationChildTables();
+  await ensureColumn('QuotationLineItem', 'isOption', 'isOption INTEGER DEFAULT 0');
+  await ensureColumn('QuotationLineItem', 'currency', "currency TEXT DEFAULT 'VND'");
+  await ensureColumn('QuotationLineItem', 'vatMode', "vatMode TEXT DEFAULT 'excluded'");
+  await ensureColumn('QuotationLineItem', 'vatRate', 'vatRate REAL DEFAULT 8');
   await ensureColumn('SupplierQuote', 'projectId', 'projectId TEXT');
   await ensureColumn('SupplierQuote', 'linkedQuotationId', 'linkedQuotationId TEXT');
   await ensureColumn('SupplierQuote', 'changeReason', 'changeReason TEXT');

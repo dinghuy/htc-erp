@@ -176,7 +176,8 @@ async function main() {
     assert.ok(row);
     assert.deepEqual(row.specifications, { text: 'plain legacy specification text' });
     assert.deepEqual(row.media, []);
-    assert.deepEqual(row.qbuData, {});
+    assert.equal(row.qbuData.totalAmount, 0);
+    assert.deepEqual(row.qbuData.lines, []);
   });
 
   await run('legacy product rows do not crash GET /api/products/:id and return safe fallback types', async () => {
@@ -186,7 +187,47 @@ async function main() {
     assert.equal(String(result.body.id), legacyProductOneId);
     assert.deepEqual(result.body.specifications, { text: 'plain legacy specification text' });
     assert.deepEqual(result.body.media, []);
-    assert.deepEqual(result.body.qbuData, {});
+    assert.equal(result.body.qbuData.totalAmount, 0);
+    assert.deepEqual(result.body.qbuData.lines, []);
+  });
+
+  await run('POST /api/products/qbu/preview returns quotation-summary style financial preview for workbook data', async () => {
+    const preview = await api('/api/products/qbu/preview', withAuth({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        basePrice: 120000,
+        currency: 'USD',
+        qbuData: {
+          incoterm: 'EXW',
+          basisCurrency: 'USD',
+          lines: [
+            { id: 'line-main', name: 'Giá Ex-works', group: 'main', amount: 80000, currency: 'USD', provenance: 'manual', legacyField: 'exWorks' },
+            { id: 'line-freight', name: 'Phí vận tải', group: 'freight', amount: 5000, currency: 'USD', provenance: 'manual', legacyField: 'shipping' },
+          ],
+          financialDefaults: {
+            vatRate: 0.08,
+            citRate: 0.2,
+            loanInterestDays: 240,
+            loanInterestRate: 0.08,
+            sellFxRate: 25500,
+            buyFxRate: 26300,
+            tpcType: null,
+            tpcRate: 0,
+            discountRate: 0,
+          },
+        },
+      }),
+    }));
+
+    assert.equal(preview.response.status, 200);
+    assert.equal(preview.body.normalizedQbuData.incoterm, 'EXW');
+    assert.equal(preview.body.normalizedQbuData.lines.length, 2);
+    assert.ok(preview.body.preview.totalSell > 0);
+    assert.ok(preview.body.preview.totalCost > 0);
+    assert.ok(Object.prototype.hasOwnProperty.call(preview.body.preview, 'profitBeforeTax'));
+    assert.ok(Object.prototype.hasOwnProperty.call(preview.body.preview, 'netProfit'));
+    assert.ok(Object.prototype.hasOwnProperty.call(preview.body.preview, 'overallGm'));
   });
 
   await run('legacy media is split into productImages and productDocuments fallback fields', async () => {

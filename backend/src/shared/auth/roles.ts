@@ -112,20 +112,9 @@ export function userHasAnyRole(
   user: {
     systemRole?: unknown;
     roleCodes?: unknown;
-    baseRoleCodes?: unknown;
-    isRolePreviewActive?: boolean;
   } | null | undefined,
   requiredRoles: string[],
 ): boolean {
-  // Base admin always passes all role checks regardless of active preview role.
-  // Preview only changes the effective UI perspective, not the underlying admin identity.
-  if (user?.isRolePreviewActive) {
-    const baseRoles = normalizeRoleCodes(user?.baseRoleCodes);
-    if (baseRoles.includes('admin')) {
-      return true;
-    }
-  }
-
   const normalizedUserRoles = normalizeRoleCodes(user?.roleCodes, user?.systemRole);
   if (normalizedUserRoles.includes('admin')) {
     return true;

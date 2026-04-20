@@ -15,8 +15,7 @@ const QA_BOOTSTRAP_SECRET = process.env.QA_BOOTSTRAP_SECRET?.trim() || 'ux-seed-
 
 function canAccessQaRoute(req: AuthenticatedRequest) {
   const activeRoles = Array.isArray(req.user?.roleCodes) ? req.user?.roleCodes : [];
-  const baseRoles = Array.isArray(req.user?.baseRoleCodes) ? req.user?.baseRoleCodes : [];
-  return activeRoles.includes('admin') || baseRoles.includes('admin');
+  return activeRoles.includes('admin');
 }
 
 function assertQaRouteAvailable(req: AuthenticatedRequest, res: Response) {

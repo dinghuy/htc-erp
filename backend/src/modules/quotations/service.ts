@@ -67,6 +67,35 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
     }
   }
 
+  async function resolvePersistableParentQuotationId(input: {
+    db: any;
+    quotationId?: string | null;
+    parentQuotationId: string | null;
+    wasExplicit: boolean;
+  }) {
+    const { db, quotationId, parentQuotationId, wasExplicit } = input;
+    if (!parentQuotationId) {
+      return null;
+    }
+
+    if (quotationId && String(quotationId) === String(parentQuotationId)) {
+      throw createValidationError('parentQuotationId cannot reference the same quotation');
+    }
+
+    const parent = await db.get('SELECT id FROM Quotation WHERE id = ?', [parentQuotationId]);
+    if (parent) {
+      return String(parent.id);
+    }
+
+    if (wasExplicit) {
+      throw createValidationError('Invalid parentQuotationId');
+    }
+
+    // Self-heal stale hidden revision links from historical data so routine draft saves do not
+    // fail behind an invisible FK violation that the current UI cannot edit.
+    return null;
+  }
+
   async function withTransaction<T>(db: any, operation: () => Promise<T>) {
     await db.exec('BEGIN');
     try {
@@ -107,7 +136,7 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       financialConfig,
       commercialTerms,
       validUntil,
-      parentQuotationId,
+      parentQuotationId: rawParentQuotationId,
       requestedRevisionNo,
       revisionLabel,
       changeReason,
@@ -119,6 +148,11 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
     } = mapped;
 
     await validateQuotationReferences(db, { accountId, contactId });
+    const parentQuotationId = await resolvePersistableParentQuotationId({
+      db,
+      parentQuotationId: rawParentQuotationId,
+      wasExplicit: rawParentQuotationId !== null,
+    });
 
     const nextRevisionNo = Number.isFinite(Number(requestedRevisionNo ?? NaN))
       ? Number(requestedRevisionNo)
@@ -220,7 +254,7 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
       financialConfig,
       commercialTerms,
       validUntil,
-      parentQuotationId,
+      parentQuotationId: rawParentQuotationId,
       requestedRevisionNo,
       revisionLabel,
       changeReason,
@@ -248,6 +282,12 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
         projectStatus,
       }, input.actorUserId);
     }
+
+    const parentQuotationId = await resolvePersistableParentQuotationId({
+      db,
+      parentQuotationId: rawParentQuotationId,
+      wasExplicit: rawParentQuotationId !== null,
+    });
 
     const nextRevisionNo = Number.isFinite(Number(requestedRevisionNo ?? NaN))
       ? Number(requestedRevisionNo)
@@ -383,11 +423,27 @@ export function createQuotationMutationServices(deps: CreateQuotationMutationSer
     nextStatus: unknown;
   }) {
     const db = getDb();
-    const mappedUpdate = mapUpdateQuotationInput({
+    const hasExplicitParentQuotationId = Object.prototype.hasOwnProperty.call(input.body || {}, 'parentQuotationId');
+    const baseMappedUpdate = mapUpdateQuotationInput({
       body: input.body,
       current: input.current,
       nextStatus: input.nextStatus,
       buildRevisionLabel,
+    });
+    const parentQuotationId = await resolvePersistableParentQuotationId({
+      db,
+      quotationId: input.quotationId,
+      parentQuotationId: baseMappedUpdate.parentQuotationId,
+      wasExplicit: hasExplicitParentQuotationId,
+    });
+    const mappedUpdate = {
+      ...baseMappedUpdate,
+      parentQuotationId,
+    };
+
+    await validateQuotationReferences(db, {
+      accountId: mappedUpdate.accountId,
+      contactId: mappedUpdate.contactId,
     });
 
     await withTransaction(db, async () => {

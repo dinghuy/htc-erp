@@ -11,6 +11,7 @@ type MapUpdateQuotationInputParams = {
 
 export function mapUpdateQuotationInput(params: MapUpdateQuotationInputParams) {
   const { body, current, nextStatus, buildRevisionLabel } = params;
+  const hasParentQuotationIdField = Object.prototype.hasOwnProperty.call(body ?? {}, 'parentQuotationId');
   const currentRevisionNo = Number.isFinite(Number(current?.revisionNo)) ? Number(current.revisionNo) : 1;
   const revisionNo = Number.isFinite(Number(body?.revisionNo)) ? Number(body.revisionNo) : currentRevisionNo;
   const typedState = buildTypedQuotationStateFromBody({
@@ -30,7 +31,7 @@ export function mapUpdateQuotationInput(params: MapUpdateQuotationInputParams) {
     currency: body?.currency,
     revisionNo,
     revisionLabel: body?.revisionLabel || current?.revisionLabel || buildRevisionLabel(currentRevisionNo),
-    parentQuotationId: body?.parentQuotationId || current?.parentQuotationId || null,
+    parentQuotationId: hasParentQuotationIdField ? normalizeText(body?.parentQuotationId) : (current?.parentQuotationId || null),
     changeReason: body?.changeReason || current?.changeReason || null,
     isWinningVersion: typeof body?.isWinningVersion === 'boolean' || typeof body?.isWinningVersion === 'number'
       ? Number(body.isWinningVersion ? 1 : 0)

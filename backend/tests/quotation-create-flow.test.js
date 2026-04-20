@@ -177,8 +177,8 @@ async function main() {
     const mapped = mapUpdateQuotationInput({
       body: {
         projectId: ' project-9 ',
-        lineItems: [{ sku: 'A' }],
-        financialConfig: { exchangeRate: 26000 },
+        lineItems: [{ sku: 'A', currency: 'USD', vatMode: 'included', vatRate: 10 }],
+        financialConfig: { exchangeRate: 26000, calculateTotals: false },
         commercialTerms: { remarksVi: 'Term remark', termItems: [{ labelViPrint: 'Thanh toán', labelEn: 'Payment', textVi: '50/50' }] },
       },
       current: {
@@ -188,7 +188,7 @@ async function main() {
         changeReason: null,
         isWinningVersion: 1,
         lineItems: [],
-        financialConfig: { interestRate: 8.5, exchangeRate: 25400, loanTermMonths: 36, markup: 15, vatRate: 8 },
+        financialConfig: { interestRate: 8.5, exchangeRate: 25400, loanTermMonths: 36, markup: 15, vatRate: 8, calculateTotals: true },
         commercialTerms: { remarksVi: null, remarksEn: null, termItems: [] },
       },
       nextStatus: 'accepted',
@@ -199,9 +199,32 @@ async function main() {
     assert.equal(mapped.revisionNo, 3);
     assert.equal(mapped.revisionLabel, 'R3');
     assert.equal(mapped.status, 'won');
-    assert.deepEqual(mapped.lineItems, [{ sku: 'A', sortOrder: 0, name: null, unit: 'Chiếc', technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null }]);
+    assert.deepEqual(mapped.lineItems, [{ sku: 'A', sortOrder: 0, name: null, unit: 'Chiếc', currency: 'USD', vatMode: 'included', vatRate: 10, technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null, isOption: false }]);
     assert.equal(mapped.financialConfig.exchangeRate, 26000);
+    assert.equal(mapped.financialConfig.calculateTotals, false);
     assert.equal(mapped.commercialTerms.termItems[0].textVi, '50/50');
+  });
+
+  await run('update mapper allows explicit parentQuotationId clearing', async () => {
+    const mapped = mapUpdateQuotationInput({
+      body: {
+        parentQuotationId: null,
+      },
+      current: {
+        revisionNo: 2,
+        revisionLabel: 'R2',
+        parentQuotationId: 'q-parent',
+        changeReason: 'legacy revision',
+        isWinningVersion: 0,
+        lineItems: [],
+        financialConfig: { interestRate: 8.5, exchangeRate: 25400, loanTermMonths: 36, markup: 15, vatRate: 8, calculateTotals: true },
+        commercialTerms: { remarksVi: null, remarksEn: null, termItems: [] },
+      },
+      nextStatus: 'draft',
+      buildRevisionLabel: (no) => `R${no}`,
+    });
+
+    assert.equal(mapped.parentQuotationId, null);
   });
 
   await run('revise mapper builds draft revision payload from source + overrides', async () => {
@@ -219,7 +242,7 @@ async function main() {
         currency: 'VND',
         opportunityId: 'opp-1',
         lineItems: [{ sku: 'SKU-1' }],
-        financialConfig: { interestRate: 8.5, exchangeRate: 25400, loanTermMonths: 36, markup: 15, vatRate: 8 },
+        financialConfig: { interestRate: 8.5, exchangeRate: 25400, loanTermMonths: 36, markup: 15, vatRate: 8, calculateTotals: true },
         commercialTerms: {
           remarksVi: null,
           remarksEn: null,
@@ -249,8 +272,9 @@ async function main() {
     assert.equal(mapped.subject, 'Revised');
     assert.equal(mapped.subtotal, 200);
     assert.equal(mapped.taxTotal, 8);
-    assert.deepEqual(mapped.lineItems, [{ sku: 'SKU-1', sortOrder: 0, name: null, unit: 'Chiếc', technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null }]);
+    assert.deepEqual(mapped.lineItems, [{ sku: 'SKU-1', sortOrder: 0, name: null, unit: 'Chiếc', currency: 'VND', vatMode: 'excluded', vatRate: 8, technicalSpecs: null, remarks: null, quantity: 1, unitPrice: 0, id: null, isOption: false }]);
     assert.equal(mapped.financialConfig.exchangeRate, 25400);
+    assert.equal(mapped.financialConfig.calculateTotals, true);
     assert.equal(mapped.commercialTerms.termItems[0].textVi, '100%');
   });
 

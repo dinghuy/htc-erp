@@ -37,24 +37,13 @@ export const requireAuth = (req: AuthenticatedRequest, res: Response, next: Next
 
   try {
     const payload = jwt.verify(auth.slice(7), getJwtSecret()) as AuthenticatedUser;
-    const baseRoleCodes = normalizeRoleCodes(payload.roleCodes, payload.systemRole);
-    const baseSystemRole = resolvePrimaryRole(baseRoleCodes, payload.systemRole);
-    const previewHeader = String(req.headers['x-role-preview'] || '').trim();
-    const previewRoleCodes = baseRoleCodes.includes('admin') && previewHeader
-      ? normalizeRoleCodes(previewHeader).filter((roleCode) => roleCode !== 'admin')
-      : [];
-    const previewSystemRole = previewRoleCodes.length > 0
-      ? resolvePrimaryRole(previewRoleCodes, previewRoleCodes[0])
-      : baseSystemRole;
+    const normalizedRoleCodes = normalizeRoleCodes(payload.roleCodes, payload.systemRole);
+    const systemRole = resolvePrimaryRole(normalizedRoleCodes, payload.systemRole);
 
     req.user = {
       ...payload,
-      baseSystemRole,
-      baseRoleCodes,
-      previewRoleCodes: previewRoleCodes.length > 0 ? previewRoleCodes : undefined,
-      isRolePreviewActive: previewRoleCodes.length > 0,
-      systemRole: previewSystemRole,
-      roleCodes: previewRoleCodes.length > 0 ? previewRoleCodes : baseRoleCodes,
+      systemRole,
+      roleCodes: normalizedRoleCodes,
     };
     next();
   } catch {

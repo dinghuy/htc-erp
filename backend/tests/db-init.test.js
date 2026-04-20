@@ -92,6 +92,9 @@ async function createLegacyPricingSchema() {
           sku: 'SKU-001',
           name: 'Legacy item',
           unit: 'Chiếc',
+          currency: 'USD',
+          vatMode: 'included',
+          vatRate: 10,
           technicalSpecs: 'Spec',
           remarks: 'Remark',
           quantity: 2,
@@ -104,6 +107,7 @@ async function createLegacyPricingSchema() {
         loanTermMonths: 36,
         markup: 15,
         vatRate: 8,
+        calculateTotals: false,
       }),
       JSON.stringify({
         remarks: 'Legacy remarks vi',
@@ -168,11 +172,12 @@ async function main() {
     assert.equal(quotationColNames.includes('loanTermMonths'), true);
     assert.equal(quotationColNames.includes('markup'), true);
     assert.equal(quotationColNames.includes('vatRate'), true);
+    assert.equal(quotationColNames.includes('calculateTotals'), true);
     assert.equal(quotationColNames.includes('remarksVi'), true);
     assert.equal(quotationColNames.includes('remarksEn'), true);
 
     const lineItems = await db.all(
-      `SELECT sku, name, unit, technicalSpecs, remarks, quantity, unitPrice
+      `SELECT sku, name, unit, currency, vatMode, vatRate, technicalSpecs, remarks, quantity, unitPrice, isOption
        FROM QuotationLineItem
        WHERE quotationId = ?
        ORDER BY sortOrder ASC, createdAt ASC`,
@@ -180,11 +185,15 @@ async function main() {
     );
     assert.equal(lineItems.length, 1);
     assert.equal(lineItems[0].sku, 'SKU-001');
+    assert.equal(lineItems[0].currency, 'USD');
+    assert.equal(lineItems[0].vatMode, 'included');
+    assert.equal(lineItems[0].vatRate, 10);
     assert.equal(lineItems[0].quantity, 2);
     assert.equal(lineItems[0].unitPrice, 125000);
+    assert.equal(lineItems[0].isOption, 0);
 
     const quotationHeader = await db.get(
-      `SELECT interestRate, exchangeRate, loanTermMonths, markup, vatRate, remarksVi, remarksEn
+      `SELECT interestRate, exchangeRate, loanTermMonths, markup, vatRate, calculateTotals, remarksVi, remarksEn
        FROM Quotation
        WHERE id = ?`,
       ['legacy-quotation-1']
@@ -194,6 +203,7 @@ async function main() {
     assert.equal(quotationHeader.loanTermMonths, 36);
     assert.equal(quotationHeader.markup, 15);
     assert.equal(quotationHeader.vatRate, 8);
+    assert.equal(quotationHeader.calculateTotals, 0);
     assert.equal(quotationHeader.remarksVi, 'Legacy remarks vi');
     assert.equal(quotationHeader.remarksEn, 'Legacy remarks en');
 

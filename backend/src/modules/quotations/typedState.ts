@@ -4,10 +4,14 @@ export type QuotationLineItemInput = {
   sku?: string | null;
   name?: string | null;
   unit?: string | null;
+  currency?: string | null;
+  vatMode?: 'included' | 'excluded' | null;
+  vatRate?: number | null;
   technicalSpecs?: string | null;
   remarks?: string | null;
   quantity?: number | null;
   unitPrice?: number | null;
+  isOption?: boolean | null;
 };
 
 export type QuotationLineItemRecord = {
@@ -16,10 +20,14 @@ export type QuotationLineItemRecord = {
   sku: string | null;
   name: string | null;
   unit: string | null;
+  currency: string;
+  vatMode: 'included' | 'excluded';
+  vatRate: number;
   technicalSpecs: string | null;
   remarks: string | null;
   quantity: number;
   unitPrice: number;
+  isOption: boolean;
 };
 
 export type QuotationFinancialConfig = {
@@ -28,6 +36,7 @@ export type QuotationFinancialConfig = {
   loanTermMonths: number;
   markup: number;
   vatRate: number;
+  calculateTotals: boolean;
 };
 
 export type QuotationCommercialTermItemInput = {
@@ -60,6 +69,7 @@ export const DEFAULT_QUOTATION_FINANCIAL_CONFIG: QuotationFinancialConfig = {
   loanTermMonths: 36,
   markup: 15,
   vatRate: 8,
+  calculateTotals: true,
 };
 
 function normalizeText(value: unknown) {
@@ -70,6 +80,17 @@ function normalizeText(value: unknown) {
 function normalizeNumber(value: unknown, fallback: number) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function normalizeBoolean(value: unknown, fallback: boolean) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  return fallback;
 }
 
 function parseJsonObject(raw: unknown) {
@@ -94,17 +115,24 @@ function parseJsonArray(raw: unknown) {
   }
 }
 
-export function normalizeQuotationLineItems(raw: unknown): QuotationLineItemInput[] {
+export function normalizeQuotationLineItems(
+  raw: unknown,
+  defaults: { currency?: string | null; vatRate?: number | null } = {},
+): QuotationLineItemInput[] {
   return parseJsonArray(raw).map((item: any, index: number) => ({
     id: normalizeText(item?.id),
     sortOrder: Number.isFinite(Number(item?.sortOrder)) ? Number(item.sortOrder) : index,
     sku: normalizeText(item?.sku),
     name: normalizeText(item?.name),
     unit: normalizeText(item?.unit) || 'Chiếc',
+    currency: normalizeText(item?.currency) || normalizeText(defaults.currency) || 'VND',
+    vatMode: item?.vatMode === 'included' ? 'included' : 'excluded',
+    vatRate: normalizeNumber(item?.vatRate, normalizeNumber(defaults.vatRate, DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate)),
     technicalSpecs: normalizeText(item?.technicalSpecs),
     remarks: normalizeText(item?.remarks),
     quantity: normalizeNumber(item?.quantity, 1),
     unitPrice: normalizeNumber(item?.unitPrice, 0),
+    isOption: normalizeBoolean(item?.isOption, false),
   }));
 }
 
@@ -116,6 +144,7 @@ export function normalizeQuotationFinancialConfig(raw: unknown): QuotationFinanc
     loanTermMonths: normalizeNumber(source.loanTermMonths, DEFAULT_QUOTATION_FINANCIAL_CONFIG.loanTermMonths),
     markup: normalizeNumber(source.markup, DEFAULT_QUOTATION_FINANCIAL_CONFIG.markup),
     vatRate: normalizeNumber(source.vatRate, DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate),
+    calculateTotals: normalizeBoolean(source.calculateTotals, DEFAULT_QUOTATION_FINANCIAL_CONFIG.calculateTotals),
   };
 }
 
@@ -174,9 +203,13 @@ export function parseLegacyQuotationCommercialTerms(raw: unknown) {
 }
 
 export function buildTypedQuotationStateFromBody(body: any) {
+  const financialConfig = normalizeQuotationFinancialConfig(body?.financialConfig);
   return {
-    lineItems: normalizeQuotationLineItems(body?.lineItems),
-    financialConfig: normalizeQuotationFinancialConfig(body?.financialConfig),
+    lineItems: normalizeQuotationLineItems(body?.lineItems, {
+      currency: body?.currency,
+      vatRate: financialConfig.vatRate,
+    }),
+    financialConfig,
     commercialTerms: normalizeQuotationCommercialTerms(body?.commercialTerms),
   };
 }

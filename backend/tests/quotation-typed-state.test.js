@@ -48,6 +48,9 @@ async function main() {
       quantity: 3,
       unitPrice: 15000,
       unit: 'Chiếc',
+      currency: 'USD',
+      vatMode: 'included',
+      vatRate: 10,
     }]);
     assert.equal(items[0].sku, 'EV-001');
     assert.equal(items[0].name, 'Electric Charger');
@@ -55,12 +58,19 @@ async function main() {
     assert.equal(items[0].remarks, 'CE certified');
     assert.equal(items[0].quantity, 3);
     assert.equal(items[0].unitPrice, 15000);
+    assert.equal(items[0].isOption, false);
+    assert.equal(items[0].currency, 'USD');
+    assert.equal(items[0].vatMode, 'included');
+    assert.equal(items[0].vatRate, 10);
   });
 
   await run('normalizeQuotationLineItems – defaults quantity=1 and unitPrice=0', async () => {
     const items = normalizeQuotationLineItems([{ sku: 'SKU-A' }]);
     assert.equal(items[0].quantity, 1);
     assert.equal(items[0].unitPrice, 0);
+    assert.equal(items[0].currency, 'VND');
+    assert.equal(items[0].vatMode, 'excluded');
+    assert.equal(items[0].vatRate, DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate);
   });
 
   await run('normalizeQuotationLineItems – handles non-numeric values gracefully', async () => {
@@ -76,6 +86,11 @@ async function main() {
     ]);
     assert.equal(items[0].sortOrder, 0);
     assert.equal(items[1].sortOrder, 1);
+  });
+
+  await run('normalizeQuotationLineItems – normalizes optional-offer flag', async () => {
+    const items = normalizeQuotationLineItems([{ sku: 'OPT-1', isOption: true }]);
+    assert.equal(items[0].isOption, true);
   });
 
   await run('normalizeQuotationLineItems – parses JSON string input', async () => {
@@ -96,12 +111,14 @@ async function main() {
     assert.equal(config.exchangeRate, DEFAULT_QUOTATION_FINANCIAL_CONFIG.exchangeRate);
     assert.equal(config.vatRate, DEFAULT_QUOTATION_FINANCIAL_CONFIG.vatRate);
     assert.equal(config.markup, DEFAULT_QUOTATION_FINANCIAL_CONFIG.markup);
+    assert.equal(config.calculateTotals, DEFAULT_QUOTATION_FINANCIAL_CONFIG.calculateTotals);
   });
 
   await run('normalizeQuotationFinancialConfig – overrides individual fields', async () => {
-    const config = normalizeQuotationFinancialConfig({ exchangeRate: 26000, vatRate: 10 });
+    const config = normalizeQuotationFinancialConfig({ exchangeRate: 26000, vatRate: 10, calculateTotals: false });
     assert.equal(config.exchangeRate, 26000);
     assert.equal(config.vatRate, 10);
+    assert.equal(config.calculateTotals, false);
     assert.equal(config.markup, DEFAULT_QUOTATION_FINANCIAL_CONFIG.markup); // fallback
   });
 
@@ -203,12 +220,16 @@ async function main() {
 
   await run('buildTypedQuotationStateFromBody – builds all three typed sub-states', async () => {
     const body = {
-      lineItems: [{ sku: 'P1', name: 'Product 1', quantity: 2, unitPrice: 500 }],
-      financialConfig: { exchangeRate: 26500 },
+      lineItems: [{ sku: 'P1', name: 'Product 1', quantity: 2.5, unitPrice: 500, currency: 'USD', vatMode: 'included' }],
+      financialConfig: { exchangeRate: 26500, vatRate: 10 },
       commercialTerms: { remarksVi: 'VAT note' },
     };
     const state = buildTypedQuotationStateFromBody(body);
     assert.equal(state.lineItems[0].sku, 'P1');
+    assert.equal(state.lineItems[0].quantity, 2.5);
+    assert.equal(state.lineItems[0].currency, 'USD');
+    assert.equal(state.lineItems[0].vatMode, 'included');
+    assert.equal(state.lineItems[0].vatRate, 10);
     assert.equal(state.financialConfig.exchangeRate, 26500);
     assert.equal(state.commercialTerms.remarksVi, 'VAT note');
   });

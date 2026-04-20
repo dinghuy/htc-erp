@@ -18,19 +18,18 @@ export async function createSupplierQuote(db: any, input: SupplierQuoteCreateInp
   const database = db || getDb();
   const id = uuidv4();
 
-  const normalizeNumericId = (value: unknown): number | null => {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const normalizeId = (value: unknown): string | null => {
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
     if (typeof value === 'string') {
       const trimmed = value.trim();
-      if (!trimmed) return null;
-      const parsed = Number(trimmed);
-      if (Number.isFinite(parsed)) return parsed;
+      return trimmed || null;
     }
     return null;
   };
 
-  const projectId = normalizeNumericId(input.projectId);
-  const linkedQuotationId = normalizeNumericId(input.linkedQuotationId);
+  const supplierId = normalizeId(input.supplierId);
+  const projectId = normalizeId(input.projectId);
+  const linkedQuotationId = normalizeId(input.linkedQuotationId);
 
   if (linkedQuotationId !== null && projectId !== null) {
     const linkedQuotation = await database.get(
@@ -49,7 +48,7 @@ export async function createSupplierQuote(db: any, input: SupplierQuoteCreateInp
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
-      input.supplierId,
+      supplierId,
       projectId,
       linkedQuotationId,
       input.category,

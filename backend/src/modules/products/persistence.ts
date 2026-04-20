@@ -1,3 +1,5 @@
+import { normalizeProductQbuData } from './qbuWorkbook';
+
 type ProductAssetKind = 'image' | 'video' | 'document';
 
 type ExchangeRatePayload = {
@@ -9,7 +11,7 @@ type ExchangeRatePayload = {
 
 export type QbuSnapshotState = {
   qbuDataStr: string;
-  qbuUpdatedAt: string;
+  qbuUpdatedAt: string | null;
   qbuRateSource: string | null;
   qbuRateDate: string | null;
   qbuRateValue: number | null;
@@ -55,6 +57,16 @@ export async function buildQbuSnapshotState(
   qbuData: Record<string, unknown>,
   getLatestExchangeRatePayload: (baseCurrency: string, quoteCurrency: string) => Promise<ExchangeRatePayload>
 ): Promise<QbuSnapshotState> {
+  const normalizedQbuData = normalizeProductQbuData(qbuData);
+  if (normalizedQbuData.lines.length === 0 && normalizedQbuData.totalAmount === 0) {
+    return {
+      qbuDataStr: JSON.stringify({}),
+      qbuUpdatedAt: null,
+      qbuRateSource: null,
+      qbuRateDate: null,
+      qbuRateValue: null,
+    };
+  }
   const latestRate = await getLatestExchangeRatePayload('USD', 'VND');
   const latestHasSnapshot = latestRate.warnings?.includes('RATE_MISSING') !== true
     && latestRate.rate !== null
@@ -64,7 +76,7 @@ export async function buildQbuSnapshotState(
   if (latestHasSnapshot) {
     return {
       qbuDataStr: JSON.stringify({
-        ...qbuData,
+        ...normalizedQbuData,
         rateSnapshot: {
           source: latestRate.source,
           date: latestRate.effectiveDate,
@@ -80,7 +92,7 @@ export async function buildQbuSnapshotState(
 
   return {
     qbuDataStr: JSON.stringify({
-      ...qbuData,
+      ...normalizedQbuData,
       rateSnapshot: null,
     }),
     qbuUpdatedAt,

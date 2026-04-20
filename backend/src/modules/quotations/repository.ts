@@ -1,4 +1,5 @@
 import { getDb } from '../../../sqlite-db';
+import { v4 as uuidv4 } from 'uuid';
 import {
   buildPdfTermsFromCommercialTerms,
   buildTypedQuotationStateFromBody,
@@ -63,10 +64,14 @@ function normalizeLineItemRow(row: any) {
     sku: row?.sku || null,
     name: row?.name || null,
     unit: row?.unit || null,
+    currency: row?.currency || 'VND',
+    vatMode: row?.vatMode === 'included' ? 'included' : 'excluded',
+    vatRate: Number.isFinite(Number(row?.vatRate)) ? Number(row.vatRate) : 8,
     technicalSpecs: row?.technicalSpecs || null,
     remarks: row?.remarks || null,
     quantity: Number.isFinite(Number(row?.quantity)) ? Number(row.quantity) : 1,
     unitPrice: Number.isFinite(Number(row?.unitPrice)) ? Number(row.unitPrice) : 0,
+    isOption: Number(row?.isOption) === 1,
   };
 }
 
@@ -93,7 +98,7 @@ async function readTypedState(db: DatabaseLike, sourceRow: any) {
 
   const [lineItemRows, financialConfigRow, termProfileRow, termItemRows] = await Promise.all([
     db.all(
-      `SELECT id, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice
+      `SELECT id, sortOrder, sku, name, unit, currency, vatMode, vatRate, technicalSpecs, remarks, quantity, unitPrice, isOption
        FROM QuotationLineItem
        WHERE quotationId = ?
        ORDER BY sortOrder ASC, createdAt ASC`,
@@ -105,6 +110,7 @@ async function readTypedState(db: DatabaseLike, sourceRow: any) {
       loanTermMonths: sourceRow?.loanTermMonths,
       markup: sourceRow?.markup,
       vatRate: sourceRow?.vatRate,
+      calculateTotals: sourceRow?.calculateTotals,
     }),
     Promise.resolve({
       remarksVi: sourceRow?.remarksVi,
@@ -156,18 +162,23 @@ async function replaceTypedState(db: DatabaseLike, quotationId: string, record: 
   for (const [index, lineItem] of record.lineItems.entries()) {
     await db.run(
       `INSERT INTO QuotationLineItem (
-        quotationId, sortOrder, sku, name, unit, technicalSpecs, remarks, quantity, unitPrice, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        id, quotationId, sortOrder, sku, name, unit, currency, vatMode, vatRate, technicalSpecs, remarks, quantity, unitPrice, isOption, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
+        lineItem.id || uuidv4(),
         quotationId,
         Number.isFinite(Number(lineItem.sortOrder)) ? Number(lineItem.sortOrder) : index,
         lineItem.sku || null,
         lineItem.name || null,
         lineItem.unit || null,
+        lineItem.currency || 'VND',
+        lineItem.vatMode === 'included' ? 'included' : 'excluded',
+        Number.isFinite(Number(lineItem.vatRate)) ? Number(lineItem.vatRate) : record.financialConfig.vatRate,
         lineItem.technicalSpecs || null,
         lineItem.remarks || null,
         Number.isFinite(Number(lineItem.quantity)) ? Number(lineItem.quantity) : 1,
         Number.isFinite(Number(lineItem.unitPrice)) ? Number(lineItem.unitPrice) : 0,
+        lineItem.isOption ? 1 : 0,
       ]
     );
   }
@@ -176,9 +187,10 @@ async function replaceTypedState(db: DatabaseLike, quotationId: string, record: 
   for (const [index, termItem] of record.commercialTerms.termItems.entries()) {
     await db.run(
       `INSERT INTO QuotationTermItem (
-        quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        id, quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
+        termItem.id || uuidv4(),
         quotationId,
         Number.isFinite(Number(termItem.sortOrder)) ? Number(termItem.sortOrder) : index,
         termItem.labelViPrint || null,
@@ -222,12 +234,13 @@ export function createQuotationRepository() {
 
   async function insert(record: QuotationRecord, db?: DatabaseLike) {
     const resolvedDb = resolveDb(db);
-    const result = await resolvedDb.run(
+    const quotationId = record.id || uuidv4();
+    await resolvedDb.run(
       `INSERT INTO Quotation (
-        id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson, salespersonPhone, currency, opportunityId, revisionNo, revisionLabel, parentQuotationId, changeReason, isWinningVersion, items, financialParams, terms, interestRate, exchangeRate, loanTermMonths, markup, vatRate, remarksVi, remarksEn, subtotal, taxTotal, grandTotal, status, validUntil
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, quoteNumber, quoteDate, subject, accountId, contactId, projectId, salesperson, salespersonPhone, currency, opportunityId, revisionNo, revisionLabel, parentQuotationId, changeReason, isWinningVersion, items, financialParams, terms, interestRate, exchangeRate, loanTermMonths, markup, vatRate, calculateTotals, remarksVi, remarksEn, subtotal, taxTotal, grandTotal, status, validUntil
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        record.id,
+        quotationId,
         record.quoteNumber,
         record.quoteDate,
         record.subject,
@@ -248,6 +261,7 @@ export function createQuotationRepository() {
         record.financialConfig.loanTermMonths,
         record.financialConfig.markup,
         record.financialConfig.vatRate,
+        record.financialConfig.calculateTotals ? 1 : 0,
         record.commercialTerms.remarksVi || null,
         record.commercialTerms.remarksEn || null,
         record.subtotal,
@@ -257,7 +271,6 @@ export function createQuotationRepository() {
         record.validUntil,
       ]
     );
-    const quotationId = record.id ?? String(result?.lastID || '');
     await replaceTypedState(resolvedDb, quotationId, record);
     return quotationId;
   }
@@ -268,7 +281,7 @@ export function createQuotationRepository() {
       `UPDATE Quotation
        SET quoteDate = ?, subject = ?, accountId = ?, contactId = ?, projectId = ?, salesperson = ?, salespersonPhone = ?, currency = ?,
            revisionNo = ?, revisionLabel = ?, parentQuotationId = ?, changeReason = ?, isWinningVersion = ?, items = NULL, financialParams = NULL, terms = NULL,
-           interestRate = ?, exchangeRate = ?, loanTermMonths = ?, markup = ?, vatRate = ?, remarksVi = ?, remarksEn = ?,
+           interestRate = ?, exchangeRate = ?, loanTermMonths = ?, markup = ?, vatRate = ?, calculateTotals = ?, remarksVi = ?, remarksEn = ?,
            subtotal = ?, taxTotal = ?, grandTotal = ?, status = ?, validUntil = ?
        WHERE id = ?`,
       [
@@ -290,6 +303,7 @@ export function createQuotationRepository() {
         record.financialConfig.loanTermMonths,
         record.financialConfig.markup,
         record.financialConfig.vatRate,
+        record.financialConfig.calculateTotals ? 1 : 0,
         record.commercialTerms.remarksVi || null,
         record.commercialTerms.remarksEn || null,
         record.subtotal,

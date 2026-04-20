@@ -1481,6 +1481,135 @@ async function main() {
     assert.equal(list.body.filter((item) => item.quoteNumber === 'Q-NO-GRAND-001').length, 1);
   });
 
+  await run('standalone quotation update rejects contact not linked to selected account', async () => {
+    const accountA = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Update Quotation Account A',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(accountA.response.status, 201);
+
+    const accountB = await api('/api/accounts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        companyName: 'Update Quotation Account B',
+        accountType: 'Customer',
+        status: 'active',
+      }),
+    });
+    assert.equal(accountB.response.status, 201);
+
+    const contactB = await api('/api/contacts', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        accountId: accountB.body.id,
+        lastName: 'Update',
+        firstName: 'Mismatch',
+        email: 'update-quotation-mismatch@example.com',
+      }),
+    });
+    assert.equal(contactB.response.status, 201);
+
+    const create = await api('/api/quotations', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-UPDATE-CONTACT-MISMATCH-001',
+        subject: 'Quotation update validation seed',
+        currency: 'VND',
+        accountId: String(accountA.body.id),
+        subtotal: 2100,
+        taxTotal: 168,
+        grandTotal: 2268,
+        status: 'draft',
+        autoCreateProject: false,
+      }),
+    });
+    assert.equal(create.response.status, 201);
+
+    const update = await api(`/api/quotations/${create.body.id}`, {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: create.body.quoteNumber,
+        quoteDate: create.body.quoteDate,
+        subject: create.body.subject,
+        accountId: String(accountA.body.id),
+        contactId: String(contactB.body.id),
+        salesperson: create.body.salesperson,
+        salespersonPhone: create.body.salespersonPhone,
+        currency: create.body.currency,
+        lineItems: create.body.lineItems,
+        financialConfig: create.body.financialConfig,
+        commercialTerms: create.body.commercialTerms,
+        subtotal: create.body.subtotal,
+        taxTotal: create.body.taxTotal,
+        grandTotal: create.body.grandTotal,
+        status: create.body.status,
+        validUntil: create.body.validUntil,
+      }),
+    });
+
+    assert.equal(update.response.status, 400);
+    assert.deepEqual(update.body, { error: 'contactId does not belong to accountId' });
+  });
+
+  await run('standalone quotation update clears stale hidden parent reference when request omits parentQuotationId', async () => {
+    const create = await api('/api/quotations', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: 'Q-STALE-PARENT-001',
+        subject: 'Quotation with stale parent should still save draft',
+        currency: 'VND',
+        subtotal: 2200,
+        taxTotal: 176,
+        grandTotal: 2376,
+        status: 'draft',
+        autoCreateProject: false,
+      }),
+    });
+    assert.equal(create.response.status, 201);
+
+    const db = getDb();
+    await db.exec('PRAGMA foreign_keys = OFF');
+    await db.run('UPDATE Quotation SET parentQuotationId = ? WHERE id = ?', ['99999999', create.body.id]);
+    await db.exec('PRAGMA foreign_keys = ON');
+
+    const update = await api(`/api/quotations/${create.body.id}`, {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify({
+        quoteNumber: create.body.quoteNumber,
+        quoteDate: create.body.quoteDate,
+        subject: 'Updated after stale parent repair',
+        accountId: create.body.accountId,
+        contactId: create.body.contactId,
+        salesperson: create.body.salesperson,
+        salespersonPhone: create.body.salespersonPhone,
+        currency: create.body.currency,
+        lineItems: create.body.lineItems,
+        financialConfig: create.body.financialConfig,
+        commercialTerms: create.body.commercialTerms,
+        subtotal: create.body.subtotal,
+        taxTotal: create.body.taxTotal,
+        grandTotal: create.body.grandTotal,
+        status: create.body.status,
+        validUntil: create.body.validUntil,
+      }),
+    });
+
+    assert.equal(update.response.status, 200);
+    assert.equal(update.body.subject, 'Updated after stale parent repair');
+    assert.equal(update.body.parentQuotationId, null);
+  });
+
   await run('quotation detail exposes typed payloads and sales order creation snapshots typed line items', async () => {
     const create = await api('/api/quotations', {
       method: 'POST',
@@ -1539,14 +1668,17 @@ async function main() {
 
     assert.equal(create.response.status, 201);
     assert.ok(create.body.id);
+    assert.match(create.body.id, /^[0-9a-f-]{20,}$/i);
     assert.ok(Array.isArray(create.body.lineItems));
     assert.equal(create.body.lineItems.length, 2);
+    assert.ok(create.body.lineItems.every((item) => typeof item.id === 'string' && item.id.length > 0));
     assert.deepEqual(create.body.financialConfig, {
       interestRate: 8.5,
       exchangeRate: 25400,
       loanTermMonths: 36,
       markup: 15,
       vatRate: 8,
+      calculateTotals: true,
     });
     assert.equal(create.body.commercialTerms.remarksVi, 'Ghi chú điều khoản');
     assert.equal(create.body.commercialTerms.termItems.length, 1);

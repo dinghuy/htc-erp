@@ -1,3 +1,5 @@
+import { normalizeProductQbuData } from '../../modules/products/qbuWorkbook';
+
 export function parseJsonObject<T extends Record<string, any> | null>(raw: unknown, fallback: T): T {
   if (typeof raw !== 'string' || !raw.trim()) {
     return fallback;
@@ -189,7 +191,7 @@ export function createCrmSerializationServices() {
       productImages: productImages.length ? productImages : legacyAssets.productImages,
       productVideos: productVideos.length ? productVideos : legacyAssets.productVideos,
       productDocuments: productDocuments.length ? productDocuments : legacyAssets.productDocuments,
-      qbuData: parseJsonObject(row?.qbuData, {}),
+      qbuData: normalizeProductQbuData(parseJsonObject(row?.qbuData, {})),
     };
   }
 

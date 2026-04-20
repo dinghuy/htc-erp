@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { createProductImportService } from './importService';
+import { buildProductQbuFinancialPreview } from './qbuWorkbook';
 import { createProductRepository } from './repository';
 import { createProductService } from './service';
 import { optimizeUploadedImage } from '../../shared/uploads/imageOptimizer';
@@ -185,6 +186,16 @@ export function registerProductRoutes(app: Express, deps: RegisterProductRoutesD
       return res.status(400).json({ error: 'Invalid qbuData. Expected an object.' });
     }
     res.json(serializeProductRow(result.row));
+  }));
+
+  app.post('/api/products/qbu/preview', requireAuth, ah(async (req: Request, res: Response) => {
+    const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const result = buildProductQbuFinancialPreview({
+      qbuData: payload.qbuData || {},
+      basePrice: payload.basePrice,
+      currency: payload.currency,
+    });
+    res.json(result);
   }));
 
   app.post('/api/products/:id/images', requireAuth, requireRole('admin', 'manager'), assetUpload.single('file'), ah(async (req: Request, res: Response) => {

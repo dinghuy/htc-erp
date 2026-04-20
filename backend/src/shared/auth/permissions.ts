@@ -93,8 +93,7 @@ export function resolveApprovalActingCapability(user: Pick<AuthenticatedUser, 's
   return APPROVAL_PERMISSION_MAP[lane].find((roleCode) => userRoles.includes(roleCode)) || null;
 }
 
-export function hasGlobalWorkspaceAccess(roleCodes: unknown, systemRole?: unknown, baseRoleCodes?: unknown, baseSystemRole?: unknown) {
+export function hasGlobalWorkspaceAccess(roleCodes: unknown, systemRole?: unknown) {
   const normalized = normalizeRoleCodes(roleCodes, systemRole);
-  const baseNormalized = normalizeRoleCodes(baseRoleCodes, baseSystemRole);
-  return normalized.includes('admin') || normalized.includes('director') || baseNormalized.includes('admin') || baseNormalized.includes('director');
+  return normalized.includes('admin') || normalized.includes('director');
 }

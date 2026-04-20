@@ -1,4 +1,5 @@
 import { buildQbuSnapshotState, normalizeProductAssetArray } from './persistence';
+import { normalizeProductQbuData } from './qbuWorkbook';
 import { createProductRepository, type ProductAssetKind } from './repository';
 
 type CreateProductServiceDeps = {
@@ -33,6 +34,8 @@ export function createProductService(deps: CreateProductServiceDeps) {
     },
 
     async createProduct(input: Record<string, any>) {
+      const normalizedQbuData = normalizeProductQbuData(input.qbuData || {});
+      const qbuSnapshot = await buildQbuSnapshotState(normalizedQbuData, getLatestExchangeRatePayload);
       const result = await repository.insertProduct({
         sku: input.sku,
         name: input.name,
@@ -46,11 +49,11 @@ export function createProductService(deps: CreateProductServiceDeps) {
         productImages: JSON.stringify(normalizeProductAssetArray(input.productImages, 'image')),
         productVideos: JSON.stringify(normalizeProductAssetArray(input.productVideos, 'video')),
         productDocuments: JSON.stringify(normalizeProductAssetArray(input.productDocuments, 'document')),
-        qbuData: JSON.stringify(input.qbuData || {}),
-        qbuUpdatedAt: input.qbuData ? new Date().toISOString() : null,
-        qbuRateSource: null,
-        qbuRateDate: null,
-        qbuRateValue: null,
+        qbuData: qbuSnapshot.qbuDataStr,
+        qbuUpdatedAt: qbuSnapshot.qbuUpdatedAt,
+        qbuRateSource: qbuSnapshot.qbuRateSource,
+        qbuRateDate: qbuSnapshot.qbuRateDate,
+        qbuRateValue: qbuSnapshot.qbuRateValue,
         status: input.status ?? 'available',
       });
       return repository.findProductById(String(result.lastID));

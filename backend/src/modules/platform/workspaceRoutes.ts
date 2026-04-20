@@ -497,7 +497,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const roleCodes = normalizeRoleCodes(authUser?.roleCodes, authUser?.systemRole);
     const primaryRole = resolvePrimaryRole(roleCodes, authUser?.systemRole);
     const personaMode = getPersonaMode(roleCodes);
-    const globalAccess = hasGlobalWorkspaceAccess(roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
+    const globalAccess = hasGlobalWorkspaceAccess(roleCodes, authUser?.systemRole);
     const userId = authUser?.id || '';
 
     const [summary, rawHighlights] = await Promise.all([
@@ -522,7 +522,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const primaryRole = resolvePrimaryRole(roleCodes, authUser?.systemRole);
     const personaMode = getPersonaMode(roleCodes);
     const userId = authUser?.id || '';
-    const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
+    const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole);
 
     const { tasks, approvals } = await workspaceServices.getMyWork(userId, globalAccess);
     const projects = await workspaceServices.listHighlights(userId, globalAccess, authUser);
@@ -553,7 +553,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const primaryRole = resolvePrimaryRole(roleCodes, authUser?.systemRole);
     const personaMode = getPersonaMode(roleCodes);
     const userId = authUser?.id || '';
-    const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
+    const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole);
 
     const { documentItems, notificationItems, blockedTasks } = await workspaceServices.getInboxItems(userId, globalAccess);
 
@@ -585,7 +585,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const primaryRole = resolvePrimaryRole(roleCodes, authUser?.systemRole);
     const personaMode = getPersonaMode(roleCodes);
     const userId = authUser?.id || '';
-    const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
+    const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole);
     const approvals = (await workspaceServices.listApprovals(userId, globalAccess)).map((approval: any) => decorateApprovalForCurrentUser(approval, authUser));
     const approvalsView = buildApprovalsView(personaMode, approvals);
 
@@ -606,7 +606,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     const authUser = req.user;
     const roleCodes = normalizeRoleCodes(authUser?.roleCodes, authUser?.systemRole);
     const userId = authUser?.id || '';
-    const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
+    const globalAccess = hasGlobalWorkspaceAccess(authUser?.roleCodes, authUser?.systemRole);
     const approvals = (await workspaceServices.listApprovals(userId, globalAccess))
       .map((approval: any) => decorateApprovalForCurrentUser(approval, authUser))
       .map((approval: any) => ({
@@ -644,7 +644,7 @@ export function registerPlatformWorkspaceRoutes(app: Express, deps: RegisterPlat
     }
 
     const primaryRole = resolvePrimaryRole(roleCodes, authUser?.systemRole);
-    const globalAccess = hasGlobalWorkspaceAccess(roleCodes, authUser?.systemRole, authUser?.baseRoleCodes, authUser?.baseSystemRole);
+    const globalAccess = hasGlobalWorkspaceAccess(roleCodes, authUser?.systemRole);
     const userId = authUser?.id || '';
 
     const [highlights, approvals] = await Promise.all([

@@ -47,8 +47,8 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
     const userId = routeParam(req.params.id);
     const currentUser = (req as any).user;
     const isSelf = String(currentUser?.id || '') === userId;
-    const isAdmin = Array.isArray(currentUser?.baseRoleCodes)
-      ? currentUser.baseRoleCodes.includes('admin')
+    const isAdmin = Array.isArray(currentUser?.roleCodes)
+      ? currentUser.roleCodes.includes('admin')
       : false;
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ error: 'Không có quyền thực hiện thao tác này' });
@@ -97,8 +97,8 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
     const userId = routeParam(req.params.id);
     const currentUser = (req as any).user;
     const isSelf = String(currentUser?.id || '') === userId;
-    const isAdmin = Array.isArray(currentUser?.baseRoleCodes)
-      ? currentUser.baseRoleCodes.includes('admin')
+    const isAdmin = Array.isArray(currentUser?.roleCodes)
+      ? currentUser.roleCodes.includes('admin')
       : false;
     if (!isSelf && !isAdmin) {
       return res.status(403).json({ error: 'Không có quyền thực hiện thao tác này' });
