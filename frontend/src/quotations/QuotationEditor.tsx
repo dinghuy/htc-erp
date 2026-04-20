@@ -417,8 +417,8 @@ export function QuotationEditor(props: QuotationEditorProps) {
                         onDragEnd={() => setDraggedLine(null)}
                         style={{ display: 'grid', gridTemplateColumns: compactLineColumns, gap: '8px', alignItems: 'start' }}
                       >
-                        <input type="text" value={item.sku || ''} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'sku', event.currentTarget.value)} style={S.input} />
-                        <input type="text" value={item.name || ''} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'name', event.currentTarget.value)} style={S.input} />
+                        <input type="text" value={item.sku || ''} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'sku', event.currentTarget.value)} style={{ ...S.input, paddingLeft: '8px', paddingRight: '8px' }} />
+                        <input type="text" value={item.name || ''} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'name', event.currentTarget.value)} style={{ ...S.input, paddingLeft: '8px', paddingRight: '8px' }} />
                         <select style={{ ...S.select, paddingLeft: '8px', paddingRight: '8px' }} value={item.unit || 'Chiếc'} onClick={(event: any) => event.stopPropagation()} onChange={(event: any) => updateItem(itemIndex, 'unit', event.target.value)}>
                           {UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
                         </select>
@@ -426,7 +426,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
                         <select style={{ ...S.select, paddingLeft: '8px', paddingRight: '8px' }} value={item.currency || group.currency} onClick={(event: any) => event.stopPropagation()} onChange={(event: any) => updateItem(itemIndex, 'currency', event.target.value)}>
                           {CURRENCIES.map((option) => <option key={option} value={option}>{option}</option>)}
                         </select>
-                        <input type="number" step={(item.currency || group.currency) === 'VND' ? '1' : '0.01'} value={item.unitPrice} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'unitPrice', event.currentTarget.value)} style={S.input} />
+                        <input type="number" step={(item.currency || group.currency) === 'VND' ? '1' : '0.01'} value={item.unitPrice} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'unitPrice', event.currentTarget.value)} style={{ ...S.input, paddingLeft: '8px', paddingRight: '8px' }} />
                         <div onClick={(event: any) => event.stopPropagation()} style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap' }}>
                           {(['net', 'gross'] as const).map((mode) => (
                             <button
