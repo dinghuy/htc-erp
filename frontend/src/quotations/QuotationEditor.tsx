@@ -371,7 +371,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
                     key={`${item.id || item.sku || 'item'}-${itemIndex}`}
                     onClick={(event: any) => {
                       event.stopPropagation();
-                      setSelectedLineIndex(itemIndex);
+                      setSelectedLineIndex((current) => (current === itemIndex ? null : itemIndex));
                       setSelectedOfferGroupKey(group.groupKey);
                     }}
                     style={{
@@ -380,9 +380,9 @@ export function QuotationEditor(props: QuotationEditorProps) {
                       gap: '8px',
                       marginBottom: '10px',
                       alignItems: 'stretch',
-                      padding: '8px',
+                      padding: '8px 8px 8px 10px',
                       borderRadius: tokens.radius.lg,
-                      border: `1px solid ${isLineSelected ? tokens.colors.primary : 'transparent'}`,
+                      borderLeft: `4px solid ${isLineSelected ? tokens.colors.primary : 'transparent'}`,
                       background: isLineSelected ? tokens.colors.surfaceSubtle : 'transparent',
                     }}
                   >
@@ -417,17 +417,17 @@ export function QuotationEditor(props: QuotationEditorProps) {
                         onDragEnd={() => setDraggedLine(null)}
                         style={{ display: 'grid', gridTemplateColumns: compactLineColumns, gap: '8px', alignItems: 'start' }}
                       >
-                        <input type="text" value={item.sku || ''} onInput={(event: any) => updateItem(itemIndex, 'sku', event.currentTarget.value)} style={S.input} />
-                        <input type="text" value={item.name || ''} onInput={(event: any) => updateItem(itemIndex, 'name', event.currentTarget.value)} style={S.input} />
-                        <select style={{ ...S.select, paddingLeft: '8px', paddingRight: '8px' }} value={item.unit || 'Chiếc'} onChange={(event: any) => updateItem(itemIndex, 'unit', event.target.value)}>
+                        <input type="text" value={item.sku || ''} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'sku', event.currentTarget.value)} style={S.input} />
+                        <input type="text" value={item.name || ''} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'name', event.currentTarget.value)} style={S.input} />
+                        <select style={{ ...S.select, paddingLeft: '8px', paddingRight: '8px' }} value={item.unit || 'Chiếc'} onClick={(event: any) => event.stopPropagation()} onChange={(event: any) => updateItem(itemIndex, 'unit', event.target.value)}>
                           {UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
                         </select>
-                        <input type="number" min="0" step="0.01" value={item.quantity} onInput={(event: any) => updateItem(itemIndex, 'quantity', event.currentTarget.value)} style={{ ...S.input, paddingLeft: '8px', paddingRight: '8px' }} />
-                        <select style={{ ...S.select, paddingLeft: '8px', paddingRight: '8px' }} value={item.currency || group.currency} onChange={(event: any) => updateItem(itemIndex, 'currency', event.target.value)}>
+                        <input type="number" min="0" step="0.01" value={item.quantity} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'quantity', event.currentTarget.value)} style={{ ...S.input, paddingLeft: '8px', paddingRight: '8px' }} />
+                        <select style={{ ...S.select, paddingLeft: '8px', paddingRight: '8px' }} value={item.currency || group.currency} onClick={(event: any) => event.stopPropagation()} onChange={(event: any) => updateItem(itemIndex, 'currency', event.target.value)}>
                           {CURRENCIES.map((option) => <option key={option} value={option}>{option}</option>)}
                         </select>
-                        <input type="number" step={(item.currency || group.currency) === 'VND' ? '1' : '0.01'} value={item.unitPrice} onInput={(event: any) => updateItem(itemIndex, 'unitPrice', event.currentTarget.value)} style={S.input} />
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap' }}>
+                        <input type="number" step={(item.currency || group.currency) === 'VND' ? '1' : '0.01'} value={item.unitPrice} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'unitPrice', event.currentTarget.value)} style={S.input} />
+                        <div onClick={(event: any) => event.stopPropagation()} style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap' }}>
                           {(['net', 'gross'] as const).map((mode) => (
                             <button
                               key={mode}
@@ -447,7 +447,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
                           ))}
                         </div>
                         {showVatRate ? (
-                          <input type="number" min="0" step="0.1" value={item.vatRate ?? ''} onInput={(event: any) => updateItem(itemIndex, 'vatRate', event.currentTarget.value)} style={{ ...S.input, paddingLeft: '8px', paddingRight: '8px' }} />
+                          <input type="number" min="0" step="0.1" value={item.vatRate ?? ''} onClick={(event: any) => event.stopPropagation()} onInput={(event: any) => updateItem(itemIndex, 'vatRate', event.currentTarget.value)} style={{ ...S.input, paddingLeft: '8px', paddingRight: '8px' }} />
                         ) : (
                           <div style={{ ...S.input, display: 'flex', alignItems: 'center', background: tokens.colors.surfaceSubtle, color: tokens.colors.textMuted, justifyContent: 'center', paddingLeft: '8px', paddingRight: '8px' }}>
                             —
@@ -471,6 +471,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
                       {isLineSelected ? (
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) 280px', gap: '16px', alignItems: 'start', padding: '12px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, background: tokens.colors.surface }}>
                           <div style={{ display: 'grid', gap: '12px' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>Chi tiết dòng đang chọn</div>
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                               {hasRateIncreaseWarning(latestUsdVndRate, item.qbuRateValue) ? <span style={badgeStyle('error')}>Tỷ giá +2.5%</span> : null}
                               {hasQbuStaleWarning(item.qbuUpdatedAt) ? <span style={badgeStyle('warn')}>QBU quá 6 tháng</span> : null}
@@ -481,7 +482,8 @@ export function QuotationEditor(props: QuotationEditorProps) {
                               <textarea
                                 rows={5}
                                 value={item.technicalSpecs || ''}
-                                onInput={(event: any) => updateItem(itemIndex, 'technicalSpecs', event.currentTarget.value)}
+                              onClick={(event: any) => event.stopPropagation()}
+                              onInput={(event: any) => updateItem(itemIndex, 'technicalSpecs', event.currentTarget.value)}
                                 style={{ ...S.input, resize: 'vertical' }}
                                 placeholder="- Nhãn hiệu&#10;- Model&#10;- Xuất xứ"
                               />
@@ -490,7 +492,8 @@ export function QuotationEditor(props: QuotationEditorProps) {
                               <textarea
                                 rows={3}
                                 value={item.remarks || ''}
-                                onInput={(event: any) => updateItem(itemIndex, 'remarks', event.currentTarget.value)}
+                              onClick={(event: any) => event.stopPropagation()}
+                              onInput={(event: any) => updateItem(itemIndex, 'remarks', event.currentTarget.value)}
                                 style={{ ...S.input, resize: 'vertical' }}
                                 placeholder="Ghi chú đặc biệt cho dòng sản phẩm này..."
                               />
@@ -602,7 +605,15 @@ export function QuotationEditor(props: QuotationEditorProps) {
         </div>
       </div>
       <div style={{ fontSize: '12px', color: selectedOffer.validation.primaryError ? tokens.colors.error : tokens.colors.textSecondary }}>
-        {selectedOffer.validation.primaryError || 'Phương án đang chọn đủ điều kiện để tính VAT/tổng khi user xác nhận ở đây.'}
+        {selectedOffer.items.length === 0
+          ? 'Thêm dòng sản phẩm vào phương án này để bắt đầu.'
+          : selectedOffer.validation.primaryError
+            ? selectedOffer.validation.primaryError
+            : !selectedOffer.vatComputed
+              ? 'Bấm [Tính VAT] để xác nhận VAT cho phương án này.'
+              : !selectedOffer.totalComputed
+                ? 'Bấm [Tính tổng] để chốt tổng thanh toán của phương án.'
+                : '✓ Phương án đã chốt. Xem tổng ở preview bên phải.'}
       </div>
     </div>
   ) : null;
@@ -632,8 +643,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
       <div style={{ display: 'grid', gap: '16px', borderTop: `1px solid ${tokens.colors.border}`, paddingTop: '16px' }}>
         {(terms.termItems || []).map((item: any, idx: number) => (
           <div key={idx} style={{ background: tokens.colors.surface, padding: '16px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, display: 'grid', gap: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>Điều khoản {idx + 1}</div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center' }}>
               <button type="button" onClick={() => {
                 const nextTerms = terms.termItems.filter((_: any, termIndex: number) => termIndex !== idx);
                 setTerms({ ...terms, termItems: nextTerms });
@@ -823,7 +833,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
           ) : null}
 
           <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.55 }}>
-            Dùng nút `+ Sản phẩm` hoặc `+ Line` trong từng phương án để thêm dòng vào đúng nhóm. Kéo thả card để đổi thứ tự phương án trên preview/PDF.
+            Dùng [+ Sản phẩm] hoặc [+ Line] trong từng phương án để thêm dòng vào đúng nhóm. Kéo thả card để đổi thứ tự phương án trên preview/PDF.
           </div>
 
           <div style={{ display: 'grid', gap: '18px' }}>
