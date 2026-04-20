@@ -78,6 +78,7 @@ export const quotationStyles = {
   td: ui.table.td as any,
   input: { ...ui.input.base, boxSizing: 'border-box', transition: 'all 0.2s ease' } as any,
   select: { ...ui.input.base, boxSizing: 'border-box', transition: 'all 0.2s ease' } as any,
+  textarea: { ...ui.input.textarea, boxSizing: 'border-box' } as any,
   label: { ...ui.form.label, display: 'block', marginBottom: tokens.spacing.sm } as any,
   sectionTitle: {
     fontSize: '12px',

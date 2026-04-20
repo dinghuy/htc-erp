@@ -123,6 +123,21 @@ export const ui = {
       fontSize: tokens.fontSize.base,
       background: tokens.colors.inputSurface,
       color: tokens.colors.textPrimary
+    },
+    textarea: {
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      boxSizing: 'border-box' as any,
+      padding: `${tokens.spacing.md} ${tokens.spacing.xl}`,
+      borderRadius: tokens.radius.lg,
+      border: `1px solid ${tokens.colors.border}`,
+      fontSize: tokens.fontSize.base,
+      background: tokens.colors.inputSurface,
+      color: tokens.colors.textPrimary,
+      minHeight: '80px',
+      resize: 'vertical' as any,
+      transition: 'all 0.2s ease',
     }
   },
   badge: {

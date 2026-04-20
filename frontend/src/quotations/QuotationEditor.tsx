@@ -319,7 +319,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
                   event.stopPropagation();
                   removeOfferGroup(group.groupKey);
                 }}
-                style={{ ...S.btnGhost, color: tokens.colors.error, padding: '8px 12px' }}
+                style={{ ...S.btnGhost, color: tokens.colors.error, padding: '2px 8px', fontSize: '12px' }}
               >
                 Xóa phương án
               </button>
@@ -631,23 +631,23 @@ export function QuotationEditor(props: QuotationEditorProps) {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px', marginBottom: '18px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px', marginBottom: '12px' }}>
         <FormField label="Ghi chú chung (VI)">
-          <textarea rows={6} value={terms.remarks || ''} onInput={(event: any) => setTerms({ ...terms, remarks: event.currentTarget.value })} style={{ ...S.input, minHeight: '168px', resize: 'vertical' }} />
+          <textarea rows={3} value={terms.remarks || ''} onInput={(event: any) => setTerms({ ...terms, remarks: event.currentTarget.value })} style={S.textarea} />
         </FormField>
         <FormField label="General remarks (EN)">
-          <textarea rows={6} value={terms.remarksEn || ''} onInput={(event: any) => setTerms({ ...terms, remarksEn: event.currentTarget.value })} style={{ ...S.input, minHeight: '168px', resize: 'vertical' }} />
+          <textarea rows={3} value={terms.remarksEn || ''} onInput={(event: any) => setTerms({ ...terms, remarksEn: event.currentTarget.value })} style={S.textarea} />
         </FormField>
       </div>
 
       <div style={{ display: 'grid', gap: '16px', borderTop: `1px solid ${tokens.colors.border}`, paddingTop: '16px' }}>
         {(terms.termItems || []).map((item: any, idx: number) => (
-          <div key={idx} style={{ background: tokens.colors.surface, padding: '16px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, display: 'grid', gap: '12px' }}>
+          <div key={idx} style={{ background: tokens.colors.surface, padding: '10px 12px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, display: 'grid', gap: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center' }}>
               <button type="button" onClick={() => {
                 const nextTerms = terms.termItems.filter((_: any, termIndex: number) => termIndex !== idx);
                 setTerms({ ...terms, termItems: nextTerms });
-              }} style={{ ...S.btnGhost, color: tokens.colors.error, padding: '8px 12px' }}>
+              }} style={{ ...S.btnGhost, color: tokens.colors.error, padding: '2px 8px', fontSize: '12px' }}>
                 Xóa
               </button>
             </div>
@@ -661,11 +661,11 @@ export function QuotationEditor(props: QuotationEditorProps) {
                   }} style={S.input} />
                 </FormField>
                 <FormField label="Nội dung (VI)">
-                  <textarea rows={5} value={item.textVi || ''} onInput={(event: any) => {
+                  <textarea rows={3} value={item.textVi || ''} onInput={(event: any) => {
                     const nextTerms = [...terms.termItems];
                     nextTerms[idx].textVi = event.currentTarget.value;
                     setTerms({ ...terms, termItems: nextTerms });
-                  }} style={{ ...S.input, minHeight: '140px', resize: 'vertical' }} />
+                  }} style={S.textarea} />
                 </FormField>
               </div>
               <div style={{ display: 'grid', gap: '10px' }}>
@@ -677,11 +677,11 @@ export function QuotationEditor(props: QuotationEditorProps) {
                   }} style={S.input} />
                 </FormField>
                 <FormField label="Term content (EN)">
-                  <textarea rows={5} value={item.textEn || ''} onInput={(event: any) => {
+                  <textarea rows={3} value={item.textEn || ''} onInput={(event: any) => {
                     const nextTerms = [...terms.termItems];
                     nextTerms[idx].textEn = event.currentTarget.value;
                     setTerms({ ...terms, termItems: nextTerms });
-                  }} style={{ ...S.input, minHeight: '140px', resize: 'vertical' }} />
+                  }} style={S.textarea} />
                 </FormField>
               </div>
             </div>
