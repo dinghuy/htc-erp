@@ -246,7 +246,7 @@ async function replaceTypedState(db: DatabaseLike, quotationId: string, record: 
         id, quotationId, sortOrder, labelViPrint, labelEn, textVi, textEn, createdAt, updatedAt
       ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
       [
-        termItem.id || uuidv4(),
+        uuidv4(),
         quotationId,
         Number.isFinite(Number(termItem.sortOrder)) ? Number(termItem.sortOrder) : index,
         termItem.labelViPrint || null,
