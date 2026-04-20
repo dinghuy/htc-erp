@@ -83,6 +83,7 @@ export function Quotations({
   const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showProdModal, setShowProdModal] = useState(false);
+  const [productPickerOfferGroupKey, setProductPickerOfferGroupKey] = useState<string | null>(null);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [mobileTab, setMobileTab] = useState<'form' | 'preview'>('form');
@@ -385,8 +386,9 @@ export function Quotations({
   };
 
   const addItem = (product: any) => {
+    const targetGroupKey = productPickerOfferGroupKey || selectedOfferGroupKey;
     const targetGroup =
-      offerGroups.find((group) => group.groupKey === selectedOfferGroupKey) ||
+      offerGroups.find((group) => group.groupKey === targetGroupKey) ||
       offerGroups[0] ||
       createEmptyOfferGroup(0, currency);
     const previousItem = [...items]
@@ -407,12 +409,14 @@ export function Quotations({
     };
     setItems((prev) => [...prev, nextItem]);
     markOfferGroupDirty(targetGroup.groupKey);
+    setSelectedOfferGroupKey(targetGroup.groupKey);
+    setProductPickerOfferGroupKey(null);
     setShowProdModal(false);
   };
 
-  const addManualItem = () => {
+  const addManualItem = (targetGroupKey = selectedOfferGroupKey) => {
     const targetGroup =
-      offerGroups.find((group) => group.groupKey === selectedOfferGroupKey) ||
+      offerGroups.find((group) => group.groupKey === targetGroupKey) ||
       offerGroups[0] ||
       createEmptyOfferGroup(0, currency);
     const previousItem = [...items]
@@ -438,6 +442,7 @@ export function Quotations({
       },
     ]);
     markOfferGroupDirty(targetGroup.groupKey);
+    setSelectedOfferGroupKey(targetGroup.groupKey);
   };
 
   const updateItem = (index: number, field: string, value: any) => {
@@ -467,6 +472,12 @@ export function Quotations({
       setSelectedOfferGroupKey(nextGroup.groupKey);
       return [...prev, nextGroup];
     });
+  };
+
+  const openProductPickerForOfferGroup = (groupKey: string) => {
+    setSelectedOfferGroupKey(groupKey);
+    setProductPickerOfferGroupKey(groupKey);
+    setShowProdModal(true);
   };
 
   const updateOfferGroup = (groupKey: string, patch: Partial<QuotationOfferGroup>) => {
@@ -510,6 +521,48 @@ export function Quotations({
       return nextGroups;
     });
     setItems((prev) => prev.filter((item) => String(item.offerGroupKey || 'group-a') !== groupKey));
+  };
+
+  const reorderOfferGroups = (sourceGroupKey: string, targetGroupKey: string) => {
+    if (!sourceGroupKey || !targetGroupKey || sourceGroupKey === targetGroupKey) return;
+    setOfferGroups((prev) => {
+      const current = [...prev].sort((a, b) => a.sortOrder - b.sortOrder);
+      const sourceIndex = current.findIndex((group) => group.groupKey === sourceGroupKey);
+      const targetIndex = current.findIndex((group) => group.groupKey === targetGroupKey);
+      if (sourceIndex < 0 || targetIndex < 0) return prev;
+
+      const [source] = current.splice(sourceIndex, 1);
+      current.splice(targetIndex, 0, source);
+      return current.map((group, index) => ({ ...group, sortOrder: index }));
+    });
+  };
+
+  const reorderLineWithinOfferGroup = (sourceIndex: number, targetIndex: number, groupKey: string) => {
+    if (sourceIndex === targetIndex) return;
+    setItems((prev) => {
+      const groupIndexes = prev
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => String(item.offerGroupKey || 'group-a') === groupKey)
+        .map(({ index }) => index);
+      const sourcePosition = groupIndexes.indexOf(sourceIndex);
+      const targetPosition = groupIndexes.indexOf(targetIndex);
+      if (sourcePosition < 0 || targetPosition < 0) return prev;
+
+      const groupItems = groupIndexes.map((index) => prev[index]);
+      const [moved] = groupItems.splice(sourcePosition, 1);
+      groupItems.splice(targetPosition, 0, moved);
+
+      let nextGroupItemIndex = 0;
+      const next = prev.map((item, index) => {
+        if (!groupIndexes.includes(index)) return item;
+        const groupItem = groupItems[nextGroupItemIndex];
+        nextGroupItemIndex += 1;
+        return groupItem;
+      });
+
+      return next;
+    });
+    markOfferGroupDirty(groupKey);
   };
 
   const computeVatForOfferGroup = (groupKey: string) => {
@@ -826,6 +879,7 @@ export function Quotations({
         productsDB={productsDB}
         addItem={addItem}
         addManualItem={addManualItem}
+        openProductPickerForOfferGroup={openProductPickerForOfferGroup}
         latestUsdVndRate={latestUsdVndRate}
         latestUsdVndWarnings={latestUsdVndWarnings}
         productCatalogError={productCatalogError}
@@ -865,6 +919,8 @@ export function Quotations({
         addOfferGroup={addOfferGroup}
         updateOfferGroup={updateOfferGroup}
         removeOfferGroup={removeOfferGroup}
+        reorderOfferGroups={reorderOfferGroups}
+        reorderLineWithinOfferGroup={reorderLineWithinOfferGroup}
         computeVatForOfferGroup={computeVatForOfferGroup}
         computeTotalForOfferGroup={computeTotalForOfferGroup}
         offerWorkspace={offerWorkspace}

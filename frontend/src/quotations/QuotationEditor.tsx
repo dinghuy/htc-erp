@@ -1,4 +1,4 @@
-import { useMemo } from 'preact/hooks';
+import { useMemo, useState } from 'preact/hooks';
 import { PageHeader } from '../ui/PageHeader';
 import { tokens } from '../ui/tokens';
 import { EyeIcon, NoteIcon, QuoteIcon } from '../ui/icons';
@@ -7,7 +7,11 @@ import { QuotationActionButtons, QuotationPreviewPanel } from './QuotationPrevie
 import {
   CURRENCIES,
   UNITS,
+  computeLineItemPricing,
   formatCurrencyValue,
+  hasQbuStaleWarning,
+  hasRateIncreaseWarning,
+  hasSnapshotMissingWarning,
   isReadOnlyQuotationStatus,
   quotationStyles,
 } from './quotationShared';
@@ -26,7 +30,8 @@ export type QuotationEditorProps = {
   setShowProdModal: (value: boolean) => void;
   productsDB: any[];
   addItem: (product: any) => void;
-  addManualItem: () => void;
+  addManualItem: (groupKey?: string) => void;
+  openProductPickerForOfferGroup: (groupKey: string) => void;
   latestUsdVndRate: number | null;
   latestUsdVndWarnings: string[];
   productCatalogError: string;
@@ -66,6 +71,8 @@ export type QuotationEditorProps = {
   addOfferGroup: () => void;
   updateOfferGroup: (groupKey: string, patch: any) => void;
   removeOfferGroup: (groupKey: string) => void;
+  reorderOfferGroups: (sourceGroupKey: string, targetGroupKey: string) => void;
+  reorderLineWithinOfferGroup: (sourceIndex: number, targetIndex: number, groupKey: string) => void;
   computeVatForOfferGroup: (groupKey: string) => void;
   computeTotalForOfferGroup: (groupKey: string) => void;
   offerWorkspace: {
@@ -126,6 +133,7 @@ export function QuotationEditor(props: QuotationEditorProps) {
     productsDB,
     addItem,
     addManualItem,
+    openProductPickerForOfferGroup,
     latestUsdVndRate,
     latestUsdVndWarnings,
     productCatalogError,
@@ -165,6 +173,8 @@ export function QuotationEditor(props: QuotationEditorProps) {
     addOfferGroup,
     updateOfferGroup,
     removeOfferGroup,
+    reorderOfferGroups,
+    reorderLineWithinOfferGroup,
     computeVatForOfferGroup,
     computeTotalForOfferGroup,
     offerWorkspace,
@@ -186,10 +196,14 @@ export function QuotationEditor(props: QuotationEditorProps) {
   } = props;
 
   const isReadOnly = isReadOnlyQuotationStatus(quoteStatus);
+  const [selectedLineIndex, setSelectedLineIndex] = useState<number | null>(null);
+  const [draggedOfferGroupKey, setDraggedOfferGroupKey] = useState<string | null>(null);
+  const [draggedLine, setDraggedLine] = useState<{ index: number; groupKey: string } | null>(null);
   const selectedOffer =
     offerWorkspace.offerGroups.find((group) => group.groupKey === selectedOfferGroupKey) ||
     offerWorkspace.offerGroups[0] ||
     null;
+  const compactLineColumns = '80px minmax(170px, 1fr) 72px 64px 82px 128px 104px 76px 120px 44px';
 
   const groupedLineItemIndexes = useMemo(() => {
     return offerWorkspace.offerGroups.reduce<Record<string, Array<{ item: any; index: number }>>>((acc, group) => {
@@ -221,6 +235,14 @@ export function QuotationEditor(props: QuotationEditorProps) {
     return (
       <section
         key={group.groupKey}
+        onDragOver={(event: any) => event.preventDefault()}
+        onDrop={(event: any) => {
+          event.preventDefault();
+          const sourceGroupKey = event.dataTransfer?.getData('text/plain') || draggedOfferGroupKey;
+          if (sourceGroupKey) reorderOfferGroups(sourceGroupKey, group.groupKey);
+          setDraggedOfferGroupKey(null);
+        }}
+        onDragEnd={() => setDraggedOfferGroupKey(null)}
         onClick={() => setSelectedOfferGroupKey(group.groupKey)}
         style={{
           ...S.card,
@@ -235,22 +257,44 @@ export function QuotationEditor(props: QuotationEditorProps) {
         <div style={{ display: 'grid', gap: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'start', flexWrap: 'wrap' }}>
             <div style={{ display: 'grid', gap: '8px', minWidth: 0, flex: '1 1 420px' }}>
-              <input
-                type="text"
-                value={group.label || ''}
-                onInput={(event: any) => updateOfferGroup(group.groupKey, { label: event.currentTarget.value })}
-                onClick={(event: any) => event.stopPropagation()}
-                style={{
-                  ...S.input,
-                  fontSize: '16px',
-                  fontWeight: 800,
-                  background: tokens.colors.surface,
-                }}
-                placeholder=""
-              />
+              <div style={{ display: 'grid', gridTemplateColumns: '32px minmax(0, 1fr)', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  draggable
+                  title="Kéo để đổi thứ tự phương án"
+                  aria-label="Kéo để đổi thứ tự phương án"
+                  onClick={(event: any) => event.stopPropagation()}
+                  onDragStart={(event: any) => {
+                    event.stopPropagation();
+                    setDraggedOfferGroupKey(group.groupKey);
+                    event.dataTransfer?.setData('text/plain', group.groupKey);
+                  }}
+                  style={{
+                    ...S.btnOutline,
+                    padding: '8px 0',
+                    justifyContent: 'center',
+                    cursor: 'grab',
+                    color: tokens.colors.textMuted,
+                  }}
+                >
+                  ⋮⋮
+                </button>
+                <input
+                  type="text"
+                  value={group.label || ''}
+                  onInput={(event: any) => updateOfferGroup(group.groupKey, { label: event.currentTarget.value })}
+                  onClick={(event: any) => event.stopPropagation()}
+                  style={{
+                    ...S.input,
+                    fontSize: '16px',
+                    fontWeight: 800,
+                    background: tokens.colors.surface,
+                  }}
+                  placeholder=""
+                />
+              </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {isSelected ? <span style={badgeStyle('selected')}>Đang chọn</span> : null}
-                <span style={badgeStyle('neutral')}>{group.currency}</span>
                 <span style={badgeStyle('neutral')}>{lineEntries.length} dòng</span>
                 {!group.vatComputed ? <span style={badgeStyle('warn')}>Chưa tính VAT</span> : null}
                 {!group.totalComputed ? <span style={badgeStyle('warn')}>Chưa tính tổng</span> : null}
@@ -282,38 +326,22 @@ export function QuotationEditor(props: QuotationEditorProps) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '220px 1fr', gap: '12px' }}>
-            <FormField label="Tiền tệ mặc định của phương án">
-              <select
-                style={S.select}
-                value={group.currency}
-                onClick={(event: any) => event.stopPropagation()}
-                onChange={(event: any) => updateOfferGroup(group.groupKey, { currency: event.target.value })}
-              >
-                {CURRENCIES.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <div style={{ display: 'grid', gap: '6px', alignContent: 'end' }}>
-              <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>
-                Chọn phương án để dùng `Tính VAT` và `Tính tổng` ở dock dưới cùng. VAT mode và VAT % chỉnh trực tiếp trên từng dòng.
-              </div>
-              {group.validation.primaryError ? (
-                <div style={{ ...S.label, color: tokens.colors.error, fontSize: '12px', textTransform: 'none', letterSpacing: 0 }}>
-                  {group.validation.primaryError}
-                </div>
-              ) : null}
+          <div style={{ display: 'grid', gap: '6px' }}>
+            <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>
+              Chọn phương án để dùng `Tính VAT` và `Tính tổng` ở dock dưới cùng. Tiền tệ, NET/Gross và VAT % chỉnh trực tiếp trên từng dòng.
             </div>
+            {group.validation.primaryError ? (
+              <div style={{ ...S.label, color: tokens.colors.error, fontSize: '12px', textTransform: 'none', letterSpacing: 0 }}>
+                {group.validation.primaryError}
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <div style={{ minWidth: isMobile ? '100%' : '1180px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '80px minmax(180px, 1.2fr) 90px 90px 110px 140px 120px 100px 140px 160px 64px', gap: '10px', marginBottom: '10px' }}>
-              {['Mã hàng', 'Tên hàng', 'ĐVT', 'SL', 'Tiền tệ', 'Đơn giá', 'VAT mode', 'VAT %', 'Thành tiền', 'Ghi chú', ''].map((header) => (
+          <div style={{ minWidth: isMobile ? '100%' : '980px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `32px ${compactLineColumns}`, gap: '8px', marginBottom: '10px' }}>
+              {['', 'Mã hàng', 'Tên hàng', 'ĐVT', 'SL', 'Tiền tệ', 'Đơn giá', 'VAT mode', 'VAT %', 'Thành tiền', ''].map((header) => (
                 <div key={header} style={{ ...S.label, marginBottom: 0 }}>{header}</div>
               ))}
             </div>
@@ -335,46 +363,184 @@ export function QuotationEditor(props: QuotationEditorProps) {
               </div>
             ) : (
               lineEntries.map(({ item, index: itemIndex }) => {
-                const pricing = item.pricing || null;
+                const pricing = computeLineItemPricing(item);
+                const isLineSelected = selectedLineIndex === itemIndex;
+                const showVatRate = String(item.vatMode || '').toLowerCase() !== 'gross';
                 return (
-                  <div key={`${item.id || item.sku || 'item'}-${itemIndex}`} style={{ display: 'grid', gridTemplateColumns: '80px minmax(180px, 1.2fr) 90px 90px 110px 140px 120px 100px 140px 160px 64px', gap: '10px', marginBottom: '10px', alignItems: 'start' }}>
-                    <input type="text" value={item.sku || ''} onInput={(event: any) => updateItem(itemIndex, 'sku', event.currentTarget.value)} style={S.input} />
-                    <input type="text" value={item.name || ''} onInput={(event: any) => updateItem(itemIndex, 'name', event.currentTarget.value)} style={S.input} />
-                    <select style={S.select} value={item.unit || 'Chiếc'} onChange={(event: any) => updateItem(itemIndex, 'unit', event.target.value)}>
-                      {UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-                    </select>
-                    <input type="number" min="0" step="0.01" value={item.quantity} onInput={(event: any) => updateItem(itemIndex, 'quantity', event.currentTarget.value)} style={S.input} />
-                    <select style={S.select} value={item.currency || group.currency} onChange={(event: any) => updateItem(itemIndex, 'currency', event.target.value)}>
-                      {CURRENCIES.map((option) => <option key={option} value={option}>{option}</option>)}
-                    </select>
-                    <input type="number" step={(item.currency || group.currency) === 'VND' ? '1' : '0.01'} value={item.unitPrice} onInput={(event: any) => updateItem(itemIndex, 'unitPrice', event.currentTarget.value)} style={S.input} />
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {(['net', 'gross'] as const).map((mode) => (
+                  <div
+                    key={`${item.id || item.sku || 'item'}-${itemIndex}`}
+                    onClick={(event: any) => {
+                      event.stopPropagation();
+                      setSelectedLineIndex(itemIndex);
+                      setSelectedOfferGroupKey(group.groupKey);
+                    }}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '32px minmax(0, 1fr)',
+                      gap: '8px',
+                      marginBottom: '10px',
+                      alignItems: 'stretch',
+                      padding: '8px',
+                      borderRadius: tokens.radius.lg,
+                      border: `1px solid ${isLineSelected ? tokens.colors.primary : 'transparent'}`,
+                      background: isLineSelected ? tokens.colors.surfaceSubtle : 'transparent',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      draggable
+                      title="Kéo để đổi thứ tự dòng trong phương án"
+                      aria-label="Kéo để đổi thứ tự dòng trong phương án"
+                      onClick={(event: any) => event.stopPropagation()}
+                      onDragStart={(event: any) => {
+                        event.stopPropagation();
+                        setDraggedLine({ index: itemIndex, groupKey: group.groupKey });
+                        event.dataTransfer?.setData('text/plain', String(itemIndex));
+                      }}
+                      style={{ ...S.btnOutline, padding: '8px 0', justifyContent: 'center', cursor: 'grab', height: '100%', color: tokens.colors.textMuted }}
+                    >
+                      ⋮
+                    </button>
+                    <div style={{ display: 'grid', gap: isLineSelected ? '10px' : 0 }}>
+                      <div
+                        onDragOver={(event: any) => event.preventDefault()}
+                        onDrop={(event: any) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const sourceIndex = Number(event.dataTransfer?.getData('text/plain') || draggedLine?.index);
+                          if (Number.isFinite(sourceIndex)) {
+                            reorderLineWithinOfferGroup(sourceIndex, itemIndex, group.groupKey);
+                            setSelectedLineIndex(itemIndex);
+                          }
+                          setDraggedLine(null);
+                        }}
+                        onDragEnd={() => setDraggedLine(null)}
+                        style={{ display: 'grid', gridTemplateColumns: compactLineColumns, gap: '8px', alignItems: 'start' }}
+                      >
+                        <input type="text" value={item.sku || ''} onInput={(event: any) => updateItem(itemIndex, 'sku', event.currentTarget.value)} style={S.input} />
+                        <input type="text" value={item.name || ''} onInput={(event: any) => updateItem(itemIndex, 'name', event.currentTarget.value)} style={S.input} />
+                        <select style={{ ...S.select, paddingLeft: '8px', paddingRight: '8px' }} value={item.unit || 'Chiếc'} onChange={(event: any) => updateItem(itemIndex, 'unit', event.target.value)}>
+                          {UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                        </select>
+                        <input type="number" min="0" step="0.01" value={item.quantity} onInput={(event: any) => updateItem(itemIndex, 'quantity', event.currentTarget.value)} style={{ ...S.input, paddingLeft: '8px', paddingRight: '8px' }} />
+                        <select style={{ ...S.select, paddingLeft: '8px', paddingRight: '8px' }} value={item.currency || group.currency} onChange={(event: any) => updateItem(itemIndex, 'currency', event.target.value)}>
+                          {CURRENCIES.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                        <input type="number" step={(item.currency || group.currency) === 'VND' ? '1' : '0.01'} value={item.unitPrice} onInput={(event: any) => updateItem(itemIndex, 'unitPrice', event.currentTarget.value)} style={S.input} />
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap' }}>
+                          {(['net', 'gross'] as const).map((mode) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={(event: any) => {
+                                event.stopPropagation();
+                                updateItem(itemIndex, 'vatMode', mode);
+                              }}
+                              style={{
+                                ...(item.vatMode === mode ? S.btnPrimary : S.btnOutline),
+                                padding: '8px',
+                                fontSize: '12px',
+                              }}
+                            >
+                              {getVatModeLabel(mode)}
+                            </button>
+                          ))}
+                        </div>
+                        {showVatRate ? (
+                          <input type="number" min="0" step="0.1" value={item.vatRate ?? ''} onInput={(event: any) => updateItem(itemIndex, 'vatRate', event.currentTarget.value)} style={{ ...S.input, paddingLeft: '8px', paddingRight: '8px' }} />
+                        ) : (
+                          <div style={{ ...S.input, display: 'flex', alignItems: 'center', background: tokens.colors.surfaceSubtle, color: tokens.colors.textMuted, justifyContent: 'center', paddingLeft: '8px', paddingRight: '8px' }}>
+                            —
+                          </div>
+                        )}
+                        <div style={{ ...S.input, display: 'flex', alignItems: 'center', background: tokens.colors.surfaceSubtle, paddingLeft: '8px', paddingRight: '8px' }}>
+                          {pricing ? `${formatCurrencyValue(pricing.grossTotal, pricing.currency)} ${pricing.currency}` : '—'}
+                        </div>
                         <button
-                          key={mode}
                           type="button"
-                          onClick={() => updateItem(itemIndex, 'vatMode', mode)}
-                          style={{
-                            ...(item.vatMode === mode ? S.btnPrimary : S.btnOutline),
-                            padding: '8px 10px',
-                            fontSize: '12px',
+                          onClick={(event: any) => {
+                            event.stopPropagation();
+                            removeItemAt(itemIndex);
+                            setSelectedLineIndex((current) => (current === itemIndex ? null : current != null && current > itemIndex ? current - 1 : current));
                           }}
+                          style={{ ...S.btnGhost, color: tokens.colors.error, justifyContent: 'center', padding: '10px 0' }}
                         >
-                          {getVatModeLabel(mode)}
+                          ×
                         </button>
-                      ))}
+                      </div>
+                      {isLineSelected ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) 280px', gap: '16px', alignItems: 'start', padding: '12px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, background: tokens.colors.surface }}>
+                          <div style={{ display: 'grid', gap: '12px' }}>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              {hasRateIncreaseWarning(latestUsdVndRate, item.qbuRateValue) ? <span style={badgeStyle('error')}>Tỷ giá +2.5%</span> : null}
+                              {hasQbuStaleWarning(item.qbuUpdatedAt) ? <span style={badgeStyle('warn')}>QBU quá 6 tháng</span> : null}
+                              {hasSnapshotMissingWarning(item.qbuUpdatedAt, item.qbuRateValue, item.qbuRateDate) ? <span style={badgeStyle('neutral')}>Snapshot missing</span> : null}
+                              {latestUsdVndWarnings.includes('RATE_MISSING') ? <span style={badgeStyle('neutral')}>Chưa có tỷ giá VCB</span> : null}
+                            </div>
+                            <FormField label="Thông số kỹ thuật / Technical specs">
+                              <textarea
+                                rows={5}
+                                value={item.technicalSpecs || ''}
+                                onInput={(event: any) => updateItem(itemIndex, 'technicalSpecs', event.currentTarget.value)}
+                                style={{ ...S.input, resize: 'vertical' }}
+                                placeholder="- Nhãn hiệu&#10;- Model&#10;- Xuất xứ"
+                              />
+                            </FormField>
+                            <FormField label="Ghi chú / Remarks">
+                              <textarea
+                                rows={3}
+                                value={item.remarks || ''}
+                                onInput={(event: any) => updateItem(itemIndex, 'remarks', event.currentTarget.value)}
+                                style={{ ...S.input, resize: 'vertical' }}
+                                placeholder="Ghi chú đặc biệt cho dòng sản phẩm này..."
+                              />
+                            </FormField>
+                          </div>
+                          <div style={{ display: 'grid', gap: '8px', padding: '14px 16px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, background: tokens.colors.surfaceSubtle }}>
+                            <div style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.textPrimary }}>Preview tính dòng</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '13px' }}>
+                              <span style={{ color: tokens.colors.textSecondary }}>NET</span>
+                              <strong>{formatCurrencyValue(pricing.netTotal, pricing.currency)} {pricing.currency}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '13px' }}>
+                              <span style={{ color: tokens.colors.textSecondary }}>VAT</span>
+                              <strong>{formatCurrencyValue(pricing.vatTotal, pricing.currency)} {pricing.currency}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '14px' }}>
+                              <span style={{ fontWeight: 800, color: tokens.colors.textPrimary }}>Gross</span>
+                              <strong>{formatCurrencyValue(pricing.grossTotal, pricing.currency)} {pricing.currency}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                    <input type="number" min="0" step="0.1" value={item.vatRate ?? ''} onInput={(event: any) => updateItem(itemIndex, 'vatRate', event.currentTarget.value)} style={S.input} />
-                    <div style={{ ...S.input, display: 'flex', alignItems: 'center', background: tokens.colors.surfaceSubtle }}>
-                      {pricing ? `${formatCurrencyValue(pricing.grossTotal, pricing.currency)} ${pricing.currency}` : '—'}
-                    </div>
-                    <input type="text" value={item.remarks || ''} onInput={(event: any) => updateItem(itemIndex, 'remarks', event.currentTarget.value)} style={S.input} />
-                    <button type="button" onClick={() => removeItemAt(itemIndex)} style={{ ...S.btnGhost, color: tokens.colors.error, justifyContent: 'center', padding: '10px 0' }}>×</button>
                   </div>
                 );
               })
             )}
           </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={(event: any) => {
+              event.stopPropagation();
+              openProductPickerForOfferGroup(group.groupKey);
+            }}
+            style={{ ...S.btnOutline, color: tokens.colors.info, borderColor: tokens.colors.info, padding: '8px 12px' }}
+          >
+            + Sản phẩm
+          </button>
+          <button
+            type="button"
+            onClick={(event: any) => {
+              event.stopPropagation();
+              addManualItem(group.groupKey);
+            }}
+            style={{ ...S.btnOutline, color: tokens.colors.success, borderColor: tokens.colors.success, padding: '8px 12px' }}
+          >
+            + Line
+          </button>
         </div>
       </section>
     );
@@ -456,55 +622,58 @@ export function QuotationEditor(props: QuotationEditorProps) {
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px', marginBottom: '18px' }}>
         <FormField label="Ghi chú chung (VI)">
-          <textarea rows={4} value={terms.remarks || ''} onInput={(event: any) => setTerms({ ...terms, remarks: event.currentTarget.value })} style={{ ...S.input, resize: 'vertical' }} />
+          <textarea rows={6} value={terms.remarks || ''} onInput={(event: any) => setTerms({ ...terms, remarks: event.currentTarget.value })} style={{ ...S.input, minHeight: '168px', resize: 'vertical' }} />
         </FormField>
         <FormField label="General remarks (EN)">
-          <textarea rows={4} value={terms.remarksEn || ''} onInput={(event: any) => setTerms({ ...terms, remarksEn: event.currentTarget.value })} style={{ ...S.input, resize: 'vertical' }} />
+          <textarea rows={6} value={terms.remarksEn || ''} onInput={(event: any) => setTerms({ ...terms, remarksEn: event.currentTarget.value })} style={{ ...S.input, minHeight: '168px', resize: 'vertical' }} />
         </FormField>
       </div>
 
       <div style={{ display: 'grid', gap: '16px', borderTop: `1px solid ${tokens.colors.border}`, paddingTop: '16px' }}>
         {(terms.termItems || []).map((item: any, idx: number) => (
           <div key={idx} style={{ background: tokens.colors.surface, padding: '16px', borderRadius: tokens.radius.lg, border: `1px solid ${tokens.colors.border}`, display: 'grid', gap: '12px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr) auto', gap: '12px' }}>
-              <FormField label="Tên điều khoản (VI)">
-                <input type="text" value={item.labelViPrint || ''} onInput={(event: any) => {
-                  const nextTerms = [...terms.termItems];
-                  nextTerms[idx].labelViPrint = event.currentTarget.value;
-                  setTerms({ ...terms, termItems: nextTerms });
-                }} style={S.input} />
-              </FormField>
-              <FormField label="Term label (EN)">
-                <input type="text" value={item.labelEn || ''} onInput={(event: any) => {
-                  const nextTerms = [...terms.termItems];
-                  nextTerms[idx].labelEn = event.currentTarget.value;
-                  setTerms({ ...terms, termItems: nextTerms });
-                }} style={S.input} />
-              </FormField>
-              <div style={{ alignSelf: 'end' }}>
-                <button type="button" onClick={() => {
-                  const nextTerms = terms.termItems.filter((_: any, termIndex: number) => termIndex !== idx);
-                  setTerms({ ...terms, termItems: nextTerms });
-                }} style={{ ...S.btnGhost, color: tokens.colors.error, padding: '10px 12px' }}>
-                  Xóa
-                </button>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>Điều khoản {idx + 1}</div>
+              <button type="button" onClick={() => {
+                const nextTerms = terms.termItems.filter((_: any, termIndex: number) => termIndex !== idx);
+                setTerms({ ...terms, termItems: nextTerms });
+              }} style={{ ...S.btnGhost, color: tokens.colors.error, padding: '8px 12px' }}>
+                Xóa
+              </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px' }}>
-              <FormField label="Nội dung (VI)">
-                <textarea rows={3} value={item.textVi || ''} onInput={(event: any) => {
-                  const nextTerms = [...terms.termItems];
-                  nextTerms[idx].textVi = event.currentTarget.value;
-                  setTerms({ ...terms, termItems: nextTerms });
-                }} style={{ ...S.input, resize: 'vertical' }} />
-              </FormField>
-              <FormField label="Term content (EN)">
-                <textarea rows={3} value={item.textEn || ''} onInput={(event: any) => {
-                  const nextTerms = [...terms.termItems];
-                  nextTerms[idx].textEn = event.currentTarget.value;
-                  setTerms({ ...terms, termItems: nextTerms });
-                }} style={{ ...S.input, resize: 'vertical' }} />
-              </FormField>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px', alignItems: 'stretch' }}>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <FormField label="Tên điều khoản (VI)">
+                  <input type="text" value={item.labelViPrint || ''} onInput={(event: any) => {
+                    const nextTerms = [...terms.termItems];
+                    nextTerms[idx].labelViPrint = event.currentTarget.value;
+                    setTerms({ ...terms, termItems: nextTerms });
+                  }} style={S.input} />
+                </FormField>
+                <FormField label="Nội dung (VI)">
+                  <textarea rows={5} value={item.textVi || ''} onInput={(event: any) => {
+                    const nextTerms = [...terms.termItems];
+                    nextTerms[idx].textVi = event.currentTarget.value;
+                    setTerms({ ...terms, termItems: nextTerms });
+                  }} style={{ ...S.input, minHeight: '140px', resize: 'vertical' }} />
+                </FormField>
+              </div>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <FormField label="Term label (EN)">
+                  <input type="text" value={item.labelEn || ''} onInput={(event: any) => {
+                    const nextTerms = [...terms.termItems];
+                    nextTerms[idx].labelEn = event.currentTarget.value;
+                    setTerms({ ...terms, termItems: nextTerms });
+                  }} style={S.input} />
+                </FormField>
+                <FormField label="Term content (EN)">
+                  <textarea rows={5} value={item.textEn || ''} onInput={(event: any) => {
+                    const nextTerms = [...terms.termItems];
+                    nextTerms[idx].textEn = event.currentTarget.value;
+                    setTerms({ ...terms, termItems: nextTerms });
+                  }} style={{ ...S.input, minHeight: '140px', resize: 'vertical' }} />
+                </FormField>
+              </div>
             </div>
           </div>
         ))}
@@ -653,21 +822,17 @@ export function QuotationEditor(props: QuotationEditorProps) {
             </div>
           ) : null}
 
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button type="button" onClick={addOfferGroup} style={{ ...S.btnOutline, borderColor: tokens.colors.primary, color: tokens.colors.primary }}>
-              + Thêm phương án
-            </button>
-            <button type="button" onClick={() => setShowProdModal(true)} style={{ ...S.btnOutline, color: tokens.colors.info, borderColor: tokens.colors.info }}>
-              + Thêm sản phẩm
-            </button>
-            <button type="button" onClick={addManualItem} style={{ ...S.btnOutline, color: tokens.colors.success, borderColor: tokens.colors.success }}>
-              + Thêm dòng nhập tay
-            </button>
+          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.55 }}>
+            Dùng nút `+ Sản phẩm` hoặc `+ Line` trong từng phương án để thêm dòng vào đúng nhóm. Kéo thả card để đổi thứ tự phương án trên preview/PDF.
           </div>
 
           <div style={{ display: 'grid', gap: '18px' }}>
             {offerWorkspace.offerGroups.map(renderOfferCard)}
           </div>
+
+          <button type="button" onClick={addOfferGroup} style={{ ...S.btnOutline, width: '100%', justifyContent: 'center', borderColor: tokens.colors.primary, color: tokens.colors.primary }}>
+            + Thêm phương án
+          </button>
 
           {offerActionDock}
         </div>

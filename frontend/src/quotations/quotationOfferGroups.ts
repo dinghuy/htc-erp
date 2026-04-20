@@ -184,21 +184,25 @@ export function computeOfferGroupValidation(
     errors.push('Chưa có dòng sản phẩm để tính');
   }
 
-  if (!String(offerGroup.currency || '').trim()) {
-    errors.push('Thiếu tiền tệ của phương án');
-  }
-
   const hasInvalidLineValues = rawItems.some((item) => isInvalidQuantity(item?.quantity) || isInvalidUnitPrice(item?.unitPrice));
   if (hasInvalidLineValues) {
     errors.push('Có dòng sản phẩm thiếu số lượng hoặc đơn giá');
   }
 
-  const hasInvalidVatRate = rawItems.some((item) => isInvalidVatRate(item?.vatRate));
+  const hasInvalidVatRate = rawItems.some(
+    (item) => normalizeQuotationVatMode(item?.vatMode, 'net') === 'net' && isInvalidVatRate(item?.vatRate),
+  );
   if (hasInvalidVatRate) {
     errors.push('VAT % không hợp lệ');
   }
 
-  const hasMixedCurrency = normalizedItems.some((item) => item.currency !== offerGroup.currency);
+  const currencyValues = Array.from(new Set(normalizedItems.map((item) => String(item.currency || '').trim()).filter(Boolean)));
+  const hasMissingCurrency = rawItems.length > 0 && currencyValues.length === 0;
+  if (hasMissingCurrency) {
+    errors.push('Thiếu tiền tệ của phương án');
+  }
+
+  const hasMixedCurrency = currencyValues.length > 1;
   if (hasMixedCurrency) {
     errors.push('Phương án có dữ liệu tiền tệ không nhất quán');
   }
@@ -236,6 +240,7 @@ export function computeQuotationOfferWorkspace(
 
   const computedOfferGroups: ComputedOfferGroup[] = offerGroups.map((offerGroup, index) => {
     const groupItems = normalizedItems.filter((lineItem) => lineItem.offerGroupKey === offerGroup.groupKey);
+    const groupCurrency = groupItems[0]?.currency || offerGroup.currency;
     const decoratedItems = groupItems.map((lineItem) => ({
       ...lineItem,
       pricing: computeLineItemPricing(lineItem),
@@ -245,16 +250,16 @@ export function computeQuotationOfferWorkspace(
       rawItems.filter((_, itemIndex) => normalizedItems[itemIndex]?.offerGroupKey === offerGroup.groupKey),
     );
     const summary = validation.primaryError
-      ? null
-      : decoratedItems.reduce(
-          (acc, row) => ({
-            currency: offerGroup.currency,
-            netSubtotal: roundCurrencyValue(acc.netSubtotal + row.pricing.netTotal, offerGroup.currency),
-            vatTotal: roundCurrencyValue(acc.vatTotal + row.pricing.vatTotal, offerGroup.currency),
-            grossTotal: roundCurrencyValue(acc.grossTotal + row.pricing.grossTotal, offerGroup.currency),
+        ? null
+        : decoratedItems.reduce(
+            (acc, row) => ({
+            currency: groupCurrency,
+            netSubtotal: roundCurrencyValue(acc.netSubtotal + row.pricing.netTotal, groupCurrency),
+            vatTotal: roundCurrencyValue(acc.vatTotal + row.pricing.vatTotal, groupCurrency),
+            grossTotal: roundCurrencyValue(acc.grossTotal + row.pricing.grossTotal, groupCurrency),
           }),
           {
-            currency: offerGroup.currency,
+            currency: groupCurrency,
             netSubtotal: 0,
             vatTotal: 0,
             grossTotal: 0,
@@ -264,6 +269,7 @@ export function computeQuotationOfferWorkspace(
     return {
       ...offerGroup,
       displayLabel: String(offerGroup.label || '').trim(),
+      currency: groupCurrency,
       items: decoratedItems,
       validation,
       summary,

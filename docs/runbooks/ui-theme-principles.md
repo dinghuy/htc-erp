@@ -122,6 +122,9 @@ Khi một editor nghiệp vụ có nhiều phương án ngang hàng:
 
 - dùng card stack để tất cả phương án vẫn nhìn thấy trong cùng dòng công việc
 - card đang chọn phải có viền/badge rõ thay vì dựa vào tên tự sinh
+- drag/drop card phải đi qua drag handle riêng, không biến toàn bộ form hoặc input thành vùng kéo
+- bảng line item nên ưu tiên scan nhanh; trường dài như specs/remarks chuyển sang inline click-to-detail ngay dưới dòng được chọn
+- ẩn input không còn tác dụng theo mode nghiệp vụ, ví dụ dòng gross-price không cần hiển thị VAT %
 - action tính toán/xác nhận nên gom vào một dock ở cuối vùng editor, scoped rõ tới phương án đang chọn
 - nếu tên phương án để trống, chỉ dùng chip metadata trong editor; không render fallback kỹ thuật trong preview/PDF
 - với điều khoản song ngữ, ưu tiên bố cục hai cột Việt/Anh trên desktop và xếp dọc trên mobile

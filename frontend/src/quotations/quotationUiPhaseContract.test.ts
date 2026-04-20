@@ -25,6 +25,14 @@ describe('quotation UI phase contract', () => {
     expect(editorSource).toContain('Tính tổng');
     expect(editorSource).toContain('VAT %');
     expect(editorSource).toContain('Các phương án báo giá');
+    expect(editorSource).toContain('+ Line');
+    expect(editorSource).toContain('+ Thêm phương án');
+    expect(editorSource).toContain('Chi tiết dòng đang chọn');
+    expect(editorSource).toContain('Kéo để đổi thứ tự phương án');
+    expect(editorSource).not.toContain('Tiền tệ mặc định của phương án');
+    expect(editorSource).toContain('showVatRate');
+    expect(editorSource).toContain('Kéo để đổi thứ tự dòng trong phương án');
+    expect(editorSource).toContain("minHeight: '168px'");
   });
 
   it('adds per-line currency and VAT controls from the historical quotation pricing backlog', () => {
