@@ -7,17 +7,26 @@ import {
   UNITS,
   VALID_STATUSES,
   VALIDITY_PRESETS,
+  VAT_MODES,
   WARRANTY_PRESETS,
   allowedTransitions,
+  computeQuotationTotals,
+  computeLineItemPricing,
   createInitialQuotationTerms,
   createNewQuotationTerms,
   ensureArray,
+  formatCurrencyInputDisplay,
+  formatCurrencyValue,
+  getCurrencyInputEditState,
   hasQbuStaleWarning,
   hasRateIncreaseWarning,
   hasSnapshotMissingWarning,
+  normalizeQuotationStatus,
   isLegacyStatus,
   normalizeCommercialTerms,
   normalizeQuotationLineItems,
+  serializeQuotationLineItems,
+  sanitizeCurrencyInput,
 } from './quotationShared';
 
 // ── Product / Line-Item normalisation ──────────────────────────────────────────
@@ -59,6 +68,7 @@ describe('normalizeQuotationLineItems – product data used in quotation export'
     expect(item.remarks).toBe('CE certified');
     expect(item.quantity).toBe(5);
     expect(item.unitPrice).toBe(12000);
+    expect(item.isOption).toBe(false);
   });
 
   it('normalises multiple line items preserving per-item fields', () => {
@@ -178,18 +188,21 @@ describe('createNewQuotationTerms – blank new quotation template', () => {
 // ── Quotation status / lifecycle for customer-facing flow ──────────────────────
 
 describe('allowedTransitions – quotation lifecycle toward customer', () => {
-  it('draft can only move to sent', () => {
-    expect(allowedTransitions('draft')).toEqual(['sent']);
+  it('draft can only move to submitted_for_approval', () => {
+    expect(allowedTransitions('draft')).toEqual(['submitted_for_approval']);
   });
 
-  it('sent can be accepted or rejected by customer', () => {
-    const transitions = allowedTransitions('sent');
-    expect(transitions).toContain('accepted');
+  it('submitted_for_approval can be approved, rejected, or sent back for revision', () => {
+    const transitions = allowedTransitions('submitted_for_approval');
+    expect(transitions).toContain('approved');
     expect(transitions).toContain('rejected');
+    expect(transitions).toContain('revision_required');
   });
 
-  it('accepted/rejected/undefined have no further transitions', () => {
-    expect(allowedTransitions('accepted')).toEqual([]);
+  it('approved transitions to won/lost; terminal states have no further transitions', () => {
+    expect(allowedTransitions('approved')).toEqual(['won', 'lost']);
+    expect(allowedTransitions('won')).toEqual([]);
+    expect(allowedTransitions('lost')).toEqual([]);
     expect(allowedTransitions('rejected')).toEqual([]);
     expect(allowedTransitions(undefined)).toEqual([]);
   });
@@ -206,6 +219,11 @@ describe('isLegacyStatus', () => {
     for (const s of VALID_STATUSES) {
       expect(isLegacyStatus(s)).toBe(false);
     }
+  });
+
+  it('normalizes legacy sent/accepted aliases into canonical backend statuses', () => {
+    expect(normalizeQuotationStatus('sent')).toBe('submitted_for_approval');
+    expect(normalizeQuotationStatus('accepted')).toBe('won');
   });
 });
 
@@ -275,6 +293,10 @@ describe('product / quotation export catalogue constants', () => {
     expect(CURRENCIES).toContain('EUR');
   });
 
+  it('VAT_MODES keeps supported per-line VAT vocabulary stable', () => {
+    expect(VAT_MODES).toEqual(['excluded', 'included']);
+  });
+
   it('PAYMENT_PRESETS contains at least one preset', () => {
     expect(PAYMENT_PRESETS.length).toBeGreaterThan(0);
   });
@@ -304,5 +326,105 @@ describe('ensureArray', () => {
     expect(ensureArray(undefined)).toEqual([]);
     expect(ensureArray('string')).toEqual([]);
     expect(ensureArray(42)).toEqual([]);
+  });
+});
+
+describe('quotation totals + optional offer helpers', () => {
+  it('computes payable totals from main items only', () => {
+    const result = computeQuotationTotals(
+      [
+        { sku: 'MAIN-1', quantity: 2, unitPrice: 100, isOption: false, currency: 'VND', vatMode: 'excluded', vatRate: 10 },
+        { sku: 'OPT-1', quantity: 1, unitPrice: 500, isOption: true, currency: 'VND', vatMode: 'excluded', vatRate: 10 },
+      ],
+      10,
+      true,
+    );
+
+    expect(result.mainItems).toHaveLength(1);
+    expect(result.optionItems).toHaveLength(1);
+    expect(result.mainCurrencyGroups).toHaveLength(1);
+    expect(result.subtotal).toBe(200);
+    expect(result.taxTotal).toBe(20);
+    expect(result.grandTotal).toBe(220);
+    expect(result.optionValue).toBe(550);
+    expect(result.shouldShowTotals).toBe(true);
+  });
+
+  it('hides totals for all-optional quotations', () => {
+    const result = computeQuotationTotals(
+      [{ sku: 'OPT-ONLY', quantity: 3, unitPrice: 100, isOption: true, currency: 'VND', vatMode: 'excluded', vatRate: 8 }],
+      8,
+      true,
+    );
+
+    expect(result.isAllOptional).toBe(true);
+    expect(result.subtotal).toBe(0);
+    expect(result.taxTotal).toBe(0);
+    expect(result.grandTotal).toBe(0);
+    expect(result.shouldShowTotals).toBe(false);
+    expect(result.optionValue).toBe(324);
+  });
+
+  it('serializes main items before optional items and regenerates sortOrder', () => {
+    const result = serializeQuotationLineItems([
+      { sku: 'OPT-1', sortOrder: 99, isOption: true, currency: 'USD' },
+      { sku: 'MAIN-1', sortOrder: 98, isOption: false, currency: 'VND' },
+      { sku: 'MAIN-2', sortOrder: 97, isOption: false, currency: 'EUR' },
+    ]);
+
+    expect(result.map((item) => item.sku)).toEqual(['MAIN-1', 'MAIN-2', 'OPT-1']);
+    expect(result.map((item) => item.sortOrder)).toEqual([0, 1, 2]);
+  });
+
+  it('groups totals by currency instead of forcing one grand total for mixed quotations', () => {
+    const result = computeQuotationTotals(
+      [
+        { sku: 'VN-1', quantity: 1, unitPrice: 1000000, isOption: false, currency: 'VND', vatMode: 'excluded', vatRate: 8 },
+        { sku: 'US-1', quantity: 2, unitPrice: 50, isOption: false, currency: 'USD', vatMode: 'excluded', vatRate: 10 },
+      ],
+      8,
+      true,
+    );
+
+    expect(result.mainCurrencyGroups).toHaveLength(2);
+    expect(result.subtotal).toBe(0);
+    expect(result.taxTotal).toBe(0);
+    expect(result.grandTotal).toBe(0);
+    expect(result.mainCurrencyGroups.find((group) => group.currency === 'VND')?.grossTotal).toBe(1080000);
+    expect(result.mainCurrencyGroups.find((group) => group.currency === 'USD')?.grossTotal).toBe(110);
+  });
+
+  it('splits VAT correctly when a line price already includes VAT', () => {
+    const pricing = computeLineItemPricing({
+      quantity: 2,
+      unitPrice: 110,
+      currency: 'USD',
+      vatMode: 'included',
+      vatRate: 10,
+    });
+
+    expect(pricing.netTotal).toBe(200);
+    expect(pricing.vatTotal).toBe(20);
+    expect(pricing.grossTotal).toBe(220);
+    expect(formatCurrencyValue(pricing.grossTotal, pricing.currency)).toBe('220.00');
+  });
+});
+
+describe('currency input formatting helpers', () => {
+  it('sanitizes VND input without decimals', () => {
+    expect(sanitizeCurrencyInput('1,234,567.89', 'VND')).toBe('1234567');
+    expect(formatCurrencyInputDisplay('1234567', 'VND')).toBe('1,234,567');
+  });
+
+  it('preserves up to 2 decimal places for foreign currency input', () => {
+    expect(sanitizeCurrencyInput('1234.567', 'USD')).toBe('1234.56');
+    expect(formatCurrencyInputDisplay('1234.56', 'USD')).toBe('1,234.56');
+  });
+
+  it('restores caret near the same semantic position after grouping commas are injected', () => {
+    const result = getCurrencyInputEditState('1234', 4, 'VND');
+    expect(result.rawValue).toBe('1234');
+    expect(result.displayValue).toBe('1,234');
+    expect(result.caretPosition).toBe(5);
   });
 });

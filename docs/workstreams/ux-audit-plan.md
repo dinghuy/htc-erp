@@ -6,12 +6,12 @@
 
 ## Tóm tắt
 
-Mục tiêu là biến bài học từ lỗi `admin preview bị kẹt ở role hẹp` thành một `browser-driven UX regression suite` chạy trên `local dev app`, có `deterministic QA seed`, và được dẫn bởi agent thay vì chỉ kiểm tay từng lần.
+Mục tiêu là biến bài học từ lỗi `admin preview bị kẹt ở role hẹp` thành một `browser-driven UX regression suite` chạy trên `local dev app`, có `deterministic QA seed`, và được dẫn bởi agent thay vì chỉ kiểm tay từng lần. Hướng hiện tại không còn dùng runtime role preview; regression phải chạy bằng seeded QA accounts thật.
 
 Vòng đầu sẽ theo hướng `risk-based core first`:
-- Ưu tiên các journey có giao điểm giữa `navigation`, `role preview`, `route protection`, `workspace tabs`, `approval lanes`, và `escape hatches`.
+- Ưu tiên các journey có giao điểm giữa `navigation`, `route protection`, `workspace tabs`, `approval lanes`, và `seeded persona login`.
 - Các route phụ vẫn có smoke coverage, chưa exhaustive toàn bộ page ngay v1.
-- `admin` tuyệt đối không được vô tình có thêm business permission khi dùng preview; suite phải kiểm cả quyền thật lẫn khả năng thoát preview.
+- `admin` tuyệt đối không được vô tình có thêm business permission do cơ chế giả lập cục bộ; suite phải kiểm đúng quyền thật của từng tài khoản seeded.
 
 ## Thay đổi triển khai chính
 
@@ -37,22 +37,20 @@ Vòng đầu sẽ theo hướng `risk-based core first`:
 ### 3. Chuẩn hóa flow manifest và invariants
 - Thêm một manifest/browser spec cho các journey cần kiểm, thay vì để agent tự đoán toàn bộ flow mỗi lần.
 - Flow manifest v1 phải khóa các invariants này:
-  - luôn có đường thoát khỏi `role preview`
-  - `Mở Settings` từ preview không bị route guard chặn
-  - `Back to Admin` luôn khả dụng khi preview active
-  - preview chỉ đổi effective view, không nâng business permission
+  - `Settings` chỉ hiện lane admin khi tài khoản thật có role `admin`
+  - persona switch qua login thật không làm lộ quyền business ngoài role thật
   - route bị chặn phải rơi về màn hợp lệ có đường tiếp tục, không kẹt người dùng
-- Suite phải ưu tiên selector ổn định cho header, preview banner, preset buttons, primary CTA, workspace tabs, approval filters.
+- Suite phải ưu tiên selector ổn định cho header, login shell, settings lane navigation, primary CTA, workspace tabs, approval filters.
 
 ### 4. Bộ journey cần coverage ngay ở vòng đầu
-- `Admin -> bật preview -> Viewer -> mở Settings -> đổi sang role khác -> quay lại admin`
-- `Admin preview -> Sales -> My Work commercial focus -> mở workspace mẫu -> commercial CTA đúng -> không lộ finance/legal approve`
-- `Admin preview -> PM -> execution focus -> workspace timeline/delivery -> commercial ở read-only`
-- `Admin preview -> Sales + PM -> unified home/my work -> commercial + execution cùng tồn tại -> không cần switch mode`
-- `Admin preview -> Procurement -> Inbox procurement focus -> workspace procurement tab -> không sửa pricing`
-- `Admin preview -> Accounting -> finance approvals -> finance workspace -> approve lane đúng, lane khác không được`
-- `Admin preview -> Legal -> legal approvals -> legal workspace -> contract/doc review đúng, không finance approve`
-- `Admin preview -> Director -> executive approvals/reports -> cockpit drill-down read-mostly`
+- `qa_admin -> Settings -> admin lanes only`
+- `qa_sales -> My Work commercial focus -> workspace mẫu -> commercial CTA đúng -> không lộ finance/legal approve`
+- `qa_project_manager -> execution focus -> workspace timeline/delivery -> commercial ở read-only`
+- `qa_sales_pm -> unified home/my work -> commercial + execution cùng tồn tại`
+- `qa_procurement -> Inbox procurement focus -> workspace procurement tab -> không sửa pricing`
+- `qa_accounting -> finance approvals -> finance workspace -> approve lane đúng, lane khác không được`
+- `qa_legal -> legal approvals -> legal workspace -> contract/doc review đúng, không finance approve`
+- `qa_director -> executive approvals/reports -> cockpit drill-down read-mostly`
 - Smoke checks bổ sung cho `Viewer`, `Projects`, `Tasks`, `Reports`, `Support`, `EventLog` để bắt broken navigation hoặc empty trap
 
 ### 5. Tài liệu và quy trình vận hành
@@ -62,7 +60,7 @@ Vòng đầu sẽ theo hướng `risk-based core first`:
   - reset QA seed
   - chạy agent/browser audit
   - lưu kết quả pass/fail theo flow
-- Definition of Done cho các thay đổi UI/permission sau này phải yêu cầu update flow checklist nếu đụng `navigation`, `role preview`, `route protection`, `workspace`, `approval`, hoặc `persona home`.
+- Definition of Done cho các thay đổi UI/permission sau này phải yêu cầu update flow checklist nếu đụng `navigation`, `route protection`, `workspace`, `approval`, hoặc `persona home`.
 
 ## Thay đổi ở interfaces / contracts / test surface
 
@@ -78,10 +76,8 @@ Vòng đầu sẽ theo hướng `risk-based core first`:
   - admin credential test
   - seed dataset identifiers cho project/approval/task mẫu
 - Thêm selector contract cho browser audit:
-  - preview banner
-  - preview preset buttons
-  - back-to-admin CTA
-  - settings CTA trong preview
+  - login shell + login inputs
+  - settings lane navigation
   - workspace tabs
   - approval lane controls
 - Không thay đổi business authorization contract ngoài việc thêm test coverage; suite chỉ xác nhận quyền hiện tại.
@@ -95,13 +91,12 @@ Vòng đầu sẽ theo hướng `risk-based core first`:
   - không thấy CTA sai quyền
   - luôn thoát được sang trạng thái hợp lệ
 - Regression riêng cho lỗi vừa gặp:
-  - preview `viewer` vẫn mở được `Settings`
-  - preview active luôn có `Back to Admin`
-  - chuyển preset trên preview banner không bị current allowedModules chặn
+  - `qa_admin` mở được `Settings` và lane admin ổn định
+  - đổi persona qua login thật không làm sai allowedModules
 - Negative checks:
-  - `admin` preview `accounting/legal/director` không tự có quyền business ngoài role preview contract
-  - route guard không làm mất escape hatch
-  - workspace tab read-only badge và preview badge khớp với capability thật
+  - `qa_admin` không tự có quyền business ngoài role thật
+  - route guard không làm mất đường tiếp tục hợp lệ
+  - workspace tab read-only badge khớp với capability thật
 - Smoke suite cho route phụ:
   - `Home`, `My Work`, `Inbox`, `Approvals`, `Projects`, `Tasks`, `Reports`, `Settings`, `Support`, `EventLog`
 
@@ -112,4 +107,4 @@ Vòng đầu sẽ theo hướng `risk-based core first`:
 - Môi trường chạy là `local dev app`.
 - Dữ liệu test dùng `deterministic QA seed`, không dựa vào dev data hiện có.
 - Agent chính là browser audit agent; code-aware exploration chỉ là lớp hỗ trợ mapping.
-- Ưu tiên cao nhất là các flow có khả năng tạo “UX trap” giữa `preview state`, `route guard`, `permission gating`, và `navigation shell`.
+- Ưu tiên cao nhất là các flow có khả năng tạo “UX trap” giữa `route guard`, `permission gating`, `seeded persona login`, và `navigation shell`.

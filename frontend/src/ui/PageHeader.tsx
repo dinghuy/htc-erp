@@ -15,21 +15,34 @@ type PageHeaderProps = {
  */
 export function PageHeader({ title, subtitle, icon, actions }: PageHeaderProps) {
   return (
-    <div style={ui.page.titleRow}>
-      <div style={{ minWidth: 0 }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          {icon}
-          {title}
-        </h2>
-        {subtitle ? (
-          <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0' }}>{subtitle}</p>
+    <section
+      style={{
+        ...ui.card.base,
+        background: tokens.surface.heroGradientSubtle,
+        padding: tokens.spacing.xl,
+        display: 'grid',
+        gap: tokens.spacing.lg,
+      }}
+    >
+      <div style={ui.page.titleRow}>
+        <div style={{ minWidth: 0, display: 'grid', gap: tokens.spacing.sm }}>
+          <div style={{ display: 'inline-flex', width: 'fit-content', ...ui.badge.info }}>
+            Điều hướng tác nghiệp
+          </div>
+          <h2 style={{ fontSize: '28px', fontWeight: 900, color: tokens.colors.textPrimary, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+            {icon}
+            {title}
+          </h2>
+          {subtitle ? (
+            <p style={{ fontSize: '14px', lineHeight: 1.65, color: tokens.colors.textSecondary, margin: 0 }}>{subtitle}</p>
+          ) : null}
+        </div>
+        {actions ? (
+          <div style={{ ...ui.page.actions, alignItems: 'flex-start' }}>
+            {actions}
+          </div>
         ) : null}
       </div>
-      {actions ? (
-        <div style={ui.page.actions}>
-          {actions}
-        </div>
-      ) : null}
-    </div>
+    </section>
   );
 }

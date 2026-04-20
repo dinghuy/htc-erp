@@ -86,6 +86,38 @@ Trong feature file:
 - Nếu một màn cần 1-3 surface riêng, tạo local constants ở đầu file
 - Không lặp lại cùng một `var(--...)` string ở nhiều block trong cùng file
 
+## Shell And Page Grammar
+
+Để toàn app đọc như một sản phẩm thống nhất, không dựng page shell riêng cho từng màn.
+
+Ưu tiên grammar sau:
+
+- `PageHero` cho frame đầu màn, context, và action chính
+- `MetricCard` cho KPI/cockpit số liệu
+- `PageSectionHeader` cho section-level framing
+- `EntitySummaryCard` cho card summary có CTA + badge + meta
+- `FilterToolbar` cho cụm search/filter/action gọn
+
+Khi một màn cần “page title + subtitle + actions”, ưu tiên `PageHero` hoặc `PageHeader` đã chuẩn hóa thay vì tự dựng một block mới.
+
+Khi một màn cần KPI row:
+
+- ưu tiên cùng một nhịp grid/card
+- không mix nhiều kiểu KPI khác nhau trên cùng top zone
+- không dùng border-left accent như pattern mặc định cho màn mới nếu semantic card đã đủ rõ
+
+Khi một màn cần list/table shell:
+
+- dùng cùng padding, header typography, empty-state tone, và card framing
+- toolbar/filter shell nằm trong cùng visual grammar với page hero và section header
+
+Khi một modal có tab/step nội bộ và phần nội dung đủ dài để cuộn:
+
+- ưu tiên `sticky rail` nằm bên trong scroll container của modal, không sticky theo viewport toàn trang
+- sticky rail mặc định chỉ giữ tab/step navigation; không nhét thêm CTA, alert block, hay help copy vào cùng lớp sticky
+- trên chiều ngang hẹp, giữ rail một hàng và cho cuộn ngang thay vì wrap nhiều dòng
+- nếu pattern lặp lại ở từ 2 modal trở lên, đưa style nền/border/shadow/scroll behavior về `frontend/src/ui/styles.ts`
+
 Mẫu tốt:
 
 ```ts

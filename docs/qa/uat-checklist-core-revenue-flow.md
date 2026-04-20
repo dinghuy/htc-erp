@@ -4,10 +4,10 @@
 
 - Chạy deterministic UX regression suite trước khi UAT tay:
   - [ux-regression-core.md](./ux-regression-core.md)
-- Xác nhận các flow preview không tạo UX trap:
-  - `Mở Settings` vẫn hoạt động khi preview `viewer`
-  - `Back to Admin` luôn còn
-  - preview không làm lộ quyền business ngoài role đang giả lập
+- Xác nhận các flow QA persona dùng tài khoản seeded thật, không còn phụ thuộc runtime preview:
+  - đăng nhập trực tiếp bằng đúng persona cần kiểm tra
+  - `Settings` chỉ hiển thị lane admin khi tài khoản thật có role `admin`
+  - persona switching không làm lộ quyền business ngoài role thật
 
 ## Sales
 

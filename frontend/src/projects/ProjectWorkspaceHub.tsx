@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { buildRoleProfile, ROLE_LABELS, type CurrentUser } from '../auth';
+import { buildRoleProfile, type CurrentUser } from '../auth';
 import { requestJsonWithAuth, API_BASE } from '../shared/api/client';
 import { getProjectWorkspaceTabsForRoles, type ProjectWorkspaceTabKey } from '../shared/domain/contracts';
 import { showNotify } from '../Notification';
@@ -11,7 +11,7 @@ import { projectStageLabel } from '../ops/workflowOptions';
 import { QA_TEST_IDS, workspaceTabTestId } from '../testing/testIds';
 import { ProjectWorkspaceModalHost } from './ProjectWorkspaceModalHost';
 import { ProjectWorkspaceTabContent } from './ProjectWorkspaceTabContent';
-import { buildWorkspaceActionAccess, buildWorkspacePreviewNotice } from './workspacePermissions';
+import { buildWorkspaceActionAccess } from './workspacePermissions';
 import { buildWorkspaceHeroPlan } from './workspaceHeroActions';
 import { mergeWorkspaceSummary } from './workspaceSummaryData';
 import { collectProjectActivityStream } from './projectActivityStreamData';
@@ -165,8 +165,6 @@ export function ProjectWorkspaceHubModal({
 
   const visibleTabs = getProjectWorkspaceTabsForRoles(currentUser.roleCodes, currentUser.systemRole);
   const workspaceActionAccess = buildWorkspaceActionAccess(currentUser.roleCodes, currentUser.systemRole);
-  const previewLabel = currentUser.previewRoleCodes?.map((roleCode) => ROLE_LABELS[roleCode]).join(' + ') || ROLE_LABELS[currentUser.systemRole];
-  const previewNotice = buildWorkspacePreviewNotice(tab, workspaceActionAccess, Boolean(currentUser.isRolePreviewActive), previewLabel);
   const roleProfile = buildRoleProfile(currentUser.roleCodes, currentUser.systemRole);
   const workspaceHeroPlan = buildWorkspaceHeroPlan(
     roleProfile.personaMode,
@@ -360,26 +358,6 @@ export function ProjectWorkspaceHubModal({
             onOpenApprovals={() => goToRoute('Approvals', { projectId }, 'Project', projectId)}
           />
 
-          {previewNotice ? (
-            <div
-              data-testid={QA_TEST_IDS.workspace.previewNotice}
-              style={{
-                ...ui.card.base,
-                padding: '14px 16px',
-                display: 'grid',
-                gap: '6px',
-                borderColor: previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary,
-                background: previewNotice.tone === 'warning' ? tokens.colors.warningTint : tokens.colors.infoBg,
-              }}
-            >
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={previewNotice.readOnly ? ui.badge.warning : ui.badge.info}>{previewNotice.readOnly ? 'Preview chỉ xem' : 'Preview đang hoạt động'}</span>
-                <span style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{previewNotice.title}</span>
-              </div>
-              <div style={{ fontSize: '12px', lineHeight: 1.6, color: tokens.colors.textSecondary }}>{previewNotice.message}</div>
-            </div>
-          ) : null}
-
           <ProjectWorkspaceTabContent
             tab={tab}
             currentBaseline={currentBaseline}
@@ -446,5 +424,4 @@ export function ProjectWorkspaceHubModal({
     </Modal>
   );
 }
-
 

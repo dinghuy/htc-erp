@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { ProductFormTab } from './ProductFormModal';
 import { API_BASE } from '../config';
 import { tokens } from '../ui/tokens';
@@ -21,6 +21,11 @@ import {
   normalizeDocumentAssets,
   getPrimaryImage,
 } from './productAssetData';
+import {
+  ProductModalTabRail,
+  PRODUCT_MODAL_FLOATING_TAB_BREAKPOINT,
+} from './ProductModalTabRail';
+import { normalizeProductQbuWorkbook } from './productQbuWorkbook';
 import {
   DetailField,
   DetailSection,
@@ -160,10 +165,8 @@ function isOlderThanCalendarMonths(value: string | Date | null | undefined, mont
 }
 
 function hasQbuSnapshot(product: any) {
-  const qbuData = product?.qbuData && typeof product.qbuData === 'object' && !Array.isArray(product.qbuData)
-    ? product.qbuData
-    : {};
-  return Object.keys(qbuData).length > 0;
+  const qbuData = normalizeProductQbuWorkbook(product?.qbuData || {});
+  return qbuData.totalAmount > 0;
 }
 
 export function getProductQbuWarnings(product: any, latestRate: number | null): QbuWarning[] {
@@ -402,8 +405,8 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
   const documentGroups = groupProductDocuments(productDocuments);
   const preferredSalesDocument = getPreferredDocument(documentGroups, ['sales', 'technical', 'other']);
   const preferredTechnicalDocument = getPreferredDocument(documentGroups, ['technical', 'sales', 'other']);
-  const qbu = product.qbuData || {};
-  const totalQbu = (Number(qbu.exWorks) || 0) + (Number(qbu.shipping) || 0) + (Number(qbu.importTax) || 0) + (Number(qbu.customFees) || 0) + (Number(qbu.other) || 0);
+  const qbu = normalizeProductQbuWorkbook(product.qbuData || {});
+  const totalQbu = qbu.totalAmount;
   const qbuWarnings = getProductQbuWarnings(product, latestRate);
   const showRateMissing = latestRateWarnings?.includes('RATE_MISSING');
   const profileStatus = buildProductProfileStatus({ product, heroImage, images: productImages, videos: productVideos, documents: productDocuments, totalQbu, qbuWarnings });
@@ -462,13 +465,38 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
     },
   ];
   const [activeTab, setActiveTab] = useState<ProductDetailTabKey>('general');
-  const activeTabDescription = detailTabs.find((tab) => tab.key === activeTab)?.description;
+  const [isStickyRailEnabled, setIsStickyRailEnabled] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > PRODUCT_MODAL_FLOATING_TAB_BREAKPOINT : true));
+  const modalContentRef = useRef<HTMLDivElement | null>(null);
+  const activePanelRef = useRef<HTMLDivElement | null>(null);
+  const hasMountedTabRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setIsStickyRailEnabled(window.innerWidth > PRODUCT_MODAL_FLOATING_TAB_BREAKPOINT);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!hasMountedTabRef.current) {
+      hasMountedTabRef.current = true;
+      return;
+    }
+    const scrollHost = modalContentRef.current?.parentElement;
+    if (scrollHost instanceof HTMLElement) {
+      scrollHost.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    activePanelRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [activeTab]);
 
   const tabPanelContent: Record<ProductDetailTabKey, JSX.Element> = {
     general: (
       <div style={{ display: 'grid', gap: tokens.spacing.lg }}>
-        <DetailSection title="Độ hoàn thiện hồ sơ" subtitle="Chấm điểm nhanh chất lượng hồ sơ sản phẩm dựa trên dữ liệu nhận diện, media, tài liệu và QBU hiện có.">
-          <ProductProfileStatusPanel status={profileStatus} />
+        <DetailSection title="Thông số kỹ thuật" subtitle="Mô tả chuẩn dùng để tái sử dụng trong báo giá và tài liệu bán hàng.">
+          <div style={{ padding: '18px', borderRadius: '16px', border: `1px solid ${tokens.colors.border}`, background: PRODUCT_DETAIL_SURFACE_BG, fontSize: '14px', lineHeight: 1.75, color: tokens.colors.textSecondary, whiteSpace: 'pre-wrap' }}>
+            {product.technicalSpecs || 'Chưa có thông số kỹ thuật.'}
+          </div>
         </DetailSection>
 
         <DetailSection title="Metadata cốt lõi" subtitle="Thông tin nhận diện và thương mại dùng cho danh mục master data.">
@@ -479,12 +507,6 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
             <DetailField label="Đơn vị" value={product.unit || '-'} />
             <DetailField label="Trạng thái hồ sơ" value={profileStatus.statusLabel} />
             <DetailField label="Thời điểm tạo hồ sơ" value={createdAtLabel} />
-          </div>
-        </DetailSection>
-
-        <DetailSection title="Thông số kỹ thuật" subtitle="Mô tả chuẩn dùng để tái sử dụng trong báo giá và tài liệu bán hàng.">
-          <div style={{ padding: '18px', borderRadius: '16px', border: `1px solid ${tokens.colors.border}`, background: PRODUCT_DETAIL_SURFACE_BG, fontSize: '14px', lineHeight: 1.75, color: tokens.colors.textSecondary, whiteSpace: 'pre-wrap' }}>
-            {product.technicalSpecs || 'Chưa có thông số kỹ thuật.'}
           </div>
         </DetailSection>
       </div>
@@ -568,211 +590,178 @@ export function ProductDetailModal({ product, onClose, latestRate, latestRateWar
       placement="center"
       contentPadding="24px"
     >
-      <div style={{ minHeight: 0, overflowY: 'auto', display: 'grid', gap: tokens.spacing.lgPlus }}>
-        <section
-          style={{
-            ...ui.card.base,
-            background: PRODUCT_DETAIL_HERO_BG,
-            boxShadow: 'none',
-            padding: '20px 20px 18px',
-            display: 'grid',
-            gap: '18px',
-          }}
-        >
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) 280px', gap: '18px', alignItems: 'stretch' }}>
-            <div style={{ display: 'grid', gap: '10px' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-                <span style={{ ...ui.badge.info, background: tokens.colors.successTint }}>{product.sku}</span>
-                <span style={profileStatus.statusStyle}>{profileStatus.statusLabel}</span>
-                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>{product.category || 'Chưa phân loại'}</span>
-                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>Đơn vị: {product.unit || 'Chiếc'}</span>
-                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>{productVideos.length} video</span>
-                <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>{productDocuments.length} tài liệu</span>
-              </div>
-              <div style={{ fontSize: '26px', fontWeight: 900, lineHeight: 1.15, color: tokens.colors.textPrimary }}>{product.name}</div>
-              <div style={{ fontSize: '13px', lineHeight: 1.6, color: tokens.colors.textSecondary, maxWidth: '72ch' }}>
-                Hồ sơ này tổng hợp dữ liệu bán hàng tham chiếu, mô tả kỹ thuật, hình ảnh, tài liệu và cấu trúc giá vốn dự kiến để đội sales và pricing tra cứu nhanh trong quá trình báo giá.
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
-                {typeof onEdit === 'function' ? (
-                  <button type="button" onClick={handleEditProduct} style={{ ...S.btnPrimary, padding: '10px 16px' }}>Chỉnh sửa sản phẩm</button>
-                ) : null}
-                {typeof onEdit === 'function' ? (
-                  <button type="button" onClick={handleEditCostQbu} style={{ ...S.btnOutline, padding: '10px 16px' }}>
-                    Chỉnh sửa giá vốn / QBU
-                  </button>
-                ) : null}
-                {preferredSalesDocument ? (
-                  <a href={resolveUrl(preferredSalesDocument.url)} target="_blank" rel="noreferrer" style={{ ...S.btnOutline, textDecoration: 'none', padding: '10px 16px' }}>
-                    {getDocumentGroupKey(preferredSalesDocument) === 'sales' ? 'Mở brochure / catalogue' : 'Mở tài liệu đầu tiên'}
-                  </a>
-                ) : null}
-                {preferredTechnicalDocument && preferredTechnicalDocument.url !== preferredSalesDocument?.url ? (
-                  <a href={resolveUrl(preferredTechnicalDocument.url)} target="_blank" rel="noreferrer" style={{ ...S.btnOutline, textDecoration: 'none', padding: '10px 16px' }}>
-                    Mở datasheet / manual
-                  </a>
-                ) : null}
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11px', color: tokens.colors.textMuted }}>
-                <span>Tạo hồ sơ: {createdAtLabel}</span>
-                <span>•</span>
-                <span>{profileStatus.score}% hoàn thiện</span>
-                <span>•</span>
-                <span>{readinessMissingCount ? `Còn ${readinessMissingCount} hạng mục cần bổ sung` : 'Đủ điều kiện hồ sơ'}</span>
-              </div>
-              {hasQbuRisk ? (
-                <div
-                  style={{
-                    borderRadius: '14px',
-                    border: `1px solid ${tokens.colors.border}`,
-                    background: tokens.colors.warningTint,
-                    padding: '10px 12px',
-                    display: 'grid',
-                    gap: '8px',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.colors.warning }}>
-                      Cảnh báo QBU
-                    </span>
-                    <span style={{ ...ui.badge.warning, border: `1px solid ${tokens.colors.border}` }}>{qbuWarnings.length + (showRateMissing ? 1 : 0)} cảnh báo</span>
-                  </div>
-                  {qbuWarnings.length > 0 ? <QbuBadgeRow warnings={qbuWarnings} /> : null}
-                  {showRateMissing ? (
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: tokens.colors.warning }}>
-                      Chưa có tỷ giá VCB để đối chiếu snapshot QBU.
-                    </div>
+      <div ref={modalContentRef} style={{ minHeight: 0, display: 'grid', gap: tokens.spacing.lgPlus }}>
+        <ProductModalTabRail
+          ariaLabel="Khu vực thông tin sản phẩm"
+          tabs={detailTabs.map((tab) => ({
+            key: tab.key,
+            label: tab.label,
+            count: tab.count,
+            tabId: PRODUCT_DETAIL_TAB_ARIA_MAP[tab.key].tabId,
+            panelId: PRODUCT_DETAIL_TAB_ARIA_MAP[tab.key].panelId,
+          }))}
+          activeKey={activeTab}
+          isStickyEnabled={isStickyRailEnabled}
+          onSelect={(key) => setActiveTab(key as ProductDetailTabKey)}
+          onKeyDown={(event, key) => handleProductDetailTabKeyDown(event, key as ProductDetailTabKey, { setActiveTab }, PRODUCT_DETAIL_TAB_ARIA_MAP)}
+        />
+
+        {activeTab === 'general' ? (
+          <section
+            style={{
+              ...ui.card.base,
+              background: PRODUCT_DETAIL_HERO_BG,
+              boxShadow: 'none',
+              padding: '20px 20px 18px',
+              display: 'grid',
+              gap: '18px',
+            }}
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.45fr) 280px', gap: '18px', alignItems: 'stretch' }}>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                  <span style={{ ...ui.badge.info, background: tokens.colors.successTint }}>{product.sku}</span>
+                  <span style={profileStatus.statusStyle}>{profileStatus.statusLabel}</span>
+                  <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>{product.category || 'Chưa phân loại'}</span>
+                  <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>Đơn vị: {product.unit || 'Chiếc'}</span>
+                  <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>{productVideos.length} video</span>
+                  <span style={{ ...ui.badge.neutral, background: tokens.colors.surfaceSubtle }}>{productDocuments.length} tài liệu</span>
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: 900, lineHeight: 1.15, color: tokens.colors.textPrimary }}>{product.name}</div>
+                <div style={{ fontSize: '13px', lineHeight: 1.6, color: tokens.colors.textSecondary, maxWidth: '72ch' }}>
+                  Hồ sơ này tổng hợp dữ liệu bán hàng tham chiếu, mô tả kỹ thuật, hình ảnh, tài liệu và cấu trúc giá vốn dự kiến để đội sales và pricing tra cứu nhanh trong quá trình báo giá.
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                  {typeof onEdit === 'function' ? (
+                    <button type="button" onClick={handleEditProduct} style={{ ...S.btnPrimary, padding: '10px 16px' }}>Chỉnh sửa sản phẩm</button>
+                  ) : null}
+                  {typeof onEdit === 'function' ? (
+                    <button type="button" onClick={handleEditCostQbu} style={{ ...S.btnOutline, padding: '10px 16px' }}>
+                      Chỉnh sửa giá vốn / QBU
+                    </button>
+                  ) : null}
+                  {preferredSalesDocument ? (
+                    <a href={resolveUrl(preferredSalesDocument.url)} target="_blank" rel="noreferrer" style={{ ...S.btnOutline, textDecoration: 'none', padding: '10px 16px' }}>
+                      {getDocumentGroupKey(preferredSalesDocument) === 'sales' ? 'Mở brochure / catalogue' : 'Mở tài liệu đầu tiên'}
+                    </a>
+                  ) : null}
+                  {preferredTechnicalDocument && preferredTechnicalDocument.url !== preferredSalesDocument?.url ? (
+                    <a href={resolveUrl(preferredTechnicalDocument.url)} target="_blank" rel="noreferrer" style={{ ...S.btnOutline, textDecoration: 'none', padding: '10px 16px' }}>
+                      Mở datasheet / manual
+                    </a>
                   ) : null}
                 </div>
-              ) : null}
-            </div>
-
-            <div
-              style={{
-                borderRadius: '20px',
-                overflow: 'hidden',
-                border: `1px solid ${tokens.colors.border}`,
-                background: heroImage ? PRODUCT_DETAIL_SURFACE_BG : PRODUCT_DETAIL_PANEL_BG,
-                minHeight: '220px',
-                position: 'relative',
-                display: 'grid',
-              }}
-            >
-              {heroImage ? (
-                <img src={resolveUrl(heroImage.url)} alt={heroImage.alt || heroImage.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-              ) : (
-                <div style={{ display: 'grid', alignContent: 'space-between', padding: '18px' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.colors.textMuted }}>
-                    Asset preview
-                  </div>
-                  <div style={{ display: 'grid', gap: '10px' }}>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary }}>Chưa có ảnh đại diện</div>
-                    <div style={{ fontSize: '12px', lineHeight: 1.65, color: tokens.colors.textSecondary }}>
-                      Thêm ảnh đầu tiên để tạo hero preview cho hồ sơ sản phẩm và giúp đội sales scan nhanh hơn.
-                    </div>
-                  </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11px', color: tokens.colors.textMuted }}>
+                  <span>Tạo hồ sơ: {createdAtLabel}</span>
+                  <span>•</span>
+                  <span>{profileStatus.score}% hoàn thiện</span>
+                  <span>•</span>
+                  <span>{readinessMissingCount ? `Còn ${readinessMissingCount} hạng mục cần bổ sung` : 'Đủ điều kiện hồ sơ'}</span>
                 </div>
-              )}
+                {hasQbuRisk ? (
+                  <div
+                    style={{
+                      borderRadius: '14px',
+                      border: `1px solid ${tokens.colors.border}`,
+                      background: tokens.colors.warningTint,
+                      padding: '10px 12px',
+                      display: 'grid',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.colors.warning }}>
+                        Cảnh báo QBU
+                      </span>
+                      <span style={{ ...ui.badge.warning, border: `1px solid ${tokens.colors.border}` }}>{qbuWarnings.length + (showRateMissing ? 1 : 0)} cảnh báo</span>
+                    </div>
+                    {qbuWarnings.length > 0 ? <QbuBadgeRow warnings={qbuWarnings} /> : null}
+                    {showRateMissing ? (
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: tokens.colors.warning }}>
+                        Chưa có tỷ giá VCB để đối chiếu snapshot QBU.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
               <div
                 style={{
-                  position: 'absolute',
-                  left: '14px',
-                  right: '14px',
-                  bottom: '14px',
-                  padding: '10px 12px',
-                  borderRadius: '14px',
-                  background: heroImage ? 'rgba(2, 6, 23, 0.66)' : tokens.colors.surface,
+                  borderRadius: '20px',
+                  overflow: 'hidden',
                   border: `1px solid ${tokens.colors.border}`,
+                  background: heroImage ? PRODUCT_DETAIL_SURFACE_BG : PRODUCT_DETAIL_PANEL_BG,
+                  minHeight: '220px',
+                  position: 'relative',
                   display: 'grid',
-                  gap: '2px',
                 }}
               >
-                <div style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.textPrimary }}>{heroImage ? heroImage.title : 'Asset library'}</div>
-                <div style={{ fontSize: '11px', color: tokens.colors.textMuted }}>
-                  {productImages.length} hình ảnh khả dụng · {productVideos.length} video demo · {productDocuments.length} tài liệu liên quan
+                {heroImage ? (
+                  <img src={resolveUrl(heroImage.url)} alt={heroImage.alt || heroImage.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                ) : (
+                  <div style={{ display: 'grid', alignContent: 'space-between', padding: '18px' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.colors.textMuted }}>
+                      Asset preview
+                    </div>
+                    <div style={{ display: 'grid', gap: '10px' }}>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary }}>Chưa có ảnh đại diện</div>
+                      <div style={{ fontSize: '12px', lineHeight: 1.65, color: tokens.colors.textSecondary }}>
+                        Thêm ảnh đầu tiên để tạo hero preview cho hồ sơ sản phẩm và giúp đội sales scan nhanh hơn.
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: '14px',
+                    right: '14px',
+                    bottom: '14px',
+                    padding: '10px 12px',
+                    borderRadius: '14px',
+                    background: heroImage ? 'rgba(2, 6, 23, 0.66)' : tokens.colors.surface,
+                    border: `1px solid ${tokens.colors.border}`,
+                    display: 'grid',
+                    gap: '2px',
+                  }}
+                >
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: tokens.colors.textPrimary }}>{heroImage ? heroImage.title : 'Asset library'}</div>
+                  <div style={{ fontSize: '11px', color: tokens.colors.textMuted }}>
+                    {productImages.length} hình ảnh khả dụng · {productVideos.length} video demo · {productDocuments.length} tài liệu liên quan
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div style={{ display: 'grid', gap: '10px' }}>
-            <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.colors.textMuted }}>
-              Chỉ số trọng tâm cho sales & pricing
+            <div style={{ display: 'grid', gap: '10px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.colors.textMuted }}>
+                Chỉ số trọng tâm cho sales & pricing
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                {[
+                  { label: 'Giá bán tham chiếu', value: `$${Number(product.basePrice || 0).toLocaleString()}`, accent: true },
+                  { label: 'Tổng QBU', value: `$${totalQbu.toLocaleString()}`, accent: false },
+                  { label: 'Mức hoàn thiện hồ sơ', value: `${profileStatus.score}%`, accent: false },
+                  { label: 'Hồ sơ cần bổ sung', value: readinessMissingCount ? `${readinessMissingCount} hạng mục` : 'Không có', accent: false },
+                ].map((field) => (
+                  <div key={field.label} style={{ ...ui.card.base, background: PRODUCT_DETAIL_SURFACE_BG, boxShadow: 'none', padding: '14px 16px', minHeight: '108px', display: 'flex', alignItems: 'center', justifyContent: field.accent ? 'center' : undefined }}>
+                    <DetailField label={field.label} value={field.value} accent={field.accent} />
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-              {[
-                { label: 'Giá bán tham chiếu', value: `$${Number(product.basePrice || 0).toLocaleString()}`, accent: true },
-                { label: 'Tổng QBU', value: `$${totalQbu.toLocaleString()}`, accent: false },
-                { label: 'Mức hoàn thiện hồ sơ', value: `${profileStatus.score}%`, accent: false },
-                { label: 'Hồ sơ cần bổ sung', value: readinessMissingCount ? `${readinessMissingCount} hạng mục` : 'Không có', accent: false },
-              ].map((field) => (
-                <div key={field.label} style={{ ...ui.card.base, background: PRODUCT_DETAIL_SURFACE_BG, boxShadow: 'none', padding: '14px 16px', minHeight: '108px', display: 'flex', alignItems: 'center', justifyContent: field.accent ? 'center' : undefined }}>
-                  <DetailField label={field.label} value={field.value} accent={field.accent} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
 
-        <section
-          style={{
-            ...ui.card.base,
-            background: PRODUCT_DETAIL_PANEL_BG,
-            boxShadow: 'none',
-            padding: '16px',
-            display: 'grid',
-            gap: '12px',
-          }}
-        >
-          <div role="tablist" aria-label="Khu vực thông tin sản phẩm" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {detailTabs.map((tab) => {
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  id={PRODUCT_DETAIL_TAB_ARIA_MAP[tab.key].tabId}
-                  role="tab"
-                  type="button"
-                  aria-selected={isActive}
-                  aria-controls={PRODUCT_DETAIL_TAB_ARIA_MAP[tab.key].panelId}
-                  tabIndex={isActive ? 0 : -1}
-                  onClick={() => setActiveTab(tab.key)}
-                  onKeyDown={(event) => handleProductDetailTabKeyDown(event, tab.key, { setActiveTab }, PRODUCT_DETAIL_TAB_ARIA_MAP)}
-                  style={{
-                    ...ui.btn.ghost,
-                    minHeight: '40px',
-                    borderRadius: '999px',
-                    padding: '8px 14px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    border: `1px solid ${isActive ? tokens.colors.primary : tokens.colors.border}`,
-                    background: isActive ? tokens.colors.successTint : PRODUCT_DETAIL_SURFACE_BG,
-                    color: isActive ? tokens.colors.primary : tokens.colors.textPrimary,
-                    fontWeight: isActive ? 800 : 700,
-                  }}
-                >
-                  <span>{tab.label}</span>
-                  {typeof tab.count === 'number' ? (
-                    <span
-                      style={{
-                        ...ui.badge.neutral,
-                        background: isActive ? tokens.colors.surface : tokens.colors.surfaceSubtle,
-                        color: isActive ? tokens.colors.primary : tokens.colors.textMuted,
-                        border: `1px solid ${tokens.colors.border}`,
-                      }}
-                    >
-                      {tab.count}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: '12px', color: tokens.colors.textSecondary }}>{activeTabDescription}</div>
-        </section>
+            <div style={{ display: 'grid', gap: '10px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.colors.textMuted }}>
+                Độ hoàn thiện hồ sơ
+              </div>
+              <ProductProfileStatusPanel status={profileStatus} />
+            </div>
+          </section>
+        ) : null}
 
         <div
+          ref={activePanelRef}
           id={PRODUCT_DETAIL_TAB_ARIA_MAP[activeTab].panelId}
           role="tabpanel"
           aria-labelledby={PRODUCT_DETAIL_TAB_ARIA_MAP[activeTab].tabId}

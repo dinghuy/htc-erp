@@ -221,10 +221,6 @@ export type AuthenticatedUser = {
   fullName: string;
   systemRole: SystemRole;
   roleCodes?: SystemRole[];
-  baseSystemRole?: SystemRole;
-  baseRoleCodes?: SystemRole[];
-  previewRoleCodes?: SystemRole[];
-  isRolePreviewActive?: boolean;
   email?: string;
   mustChangePassword?: boolean;
 };

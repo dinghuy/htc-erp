@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { buildRoleProfile, ROLE_LABELS, type CurrentUser } from './auth';
+import { buildRoleProfile, type CurrentUser } from './auth';
 import { API_BASE } from './config';
 import { consumeNavContext, setNavContext } from './navContext';
-import { buildRolePreviewNotice } from './preview/rolePreviewNotice';
 import { requestJsonWithAuth } from './shared/api/client';
 import { QA_TEST_IDS } from './testing/testIds';
 import { tokens } from './ui/tokens';
@@ -135,10 +134,6 @@ export function Inbox({ currentUser, onNavigate }: { currentUser: CurrentUser; o
         return departmentValue.includes(departmentFilter.toLowerCase()) || sourceValue.includes(departmentFilter.toLowerCase());
       })
     : (payload?.items || []);
-  const previewLabel = currentUser.previewRoleCodes?.map((roleCode) => ROLE_LABELS[roleCode]).join(' + ') || ROLE_LABELS[currentUser.systemRole];
-  const previewNotice = currentUser.isRolePreviewActive
-    ? buildRolePreviewNotice({ screen: 'inbox', previewLabel, departmentFilter: departmentFilter || undefined })
-    : null;
 
   return (
     <div style={{ display: 'grid', gap: '22px' }}>
@@ -147,15 +142,6 @@ export function Inbox({ currentUser, onNavigate }: { currentUser: CurrentUser; o
         <p style={{ margin: 0, fontSize: '14px', color: tokens.colors.textSecondary }}>
           {pageCopy.description}
         </p>
-        {previewNotice ? (
-          <div style={{ display: 'grid', gap: '6px', padding: '12px 14px', borderRadius: tokens.radius.lg, border: `1px solid ${previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary}`, background: previewNotice.tone === 'warning' ? tokens.colors.warningTint : tokens.colors.infoBg }}>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={previewNotice.tone === 'warning' ? ui.badge.warning : ui.badge.info}>Preview</span>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{previewNotice.title}</span>
-            </div>
-            <span style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>{previewNotice.message}</span>
-          </div>
-        ) : null}
         {departmentFilter ? (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <span data-testid={QA_TEST_IDS.inbox.focusBadge} style={ui.badge.warning}>QA focus department: {departmentFilter}</span>

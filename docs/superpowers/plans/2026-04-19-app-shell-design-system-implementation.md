@@ -24,7 +24,7 @@
 ## Implementation Notes
 
 - Keep token names stable where possible; prefer remapping existing semantic names over broad renames.
-- Do not change `Layout` behavior: search debounce/fetch, nav grouping logic, notification hooks, role preview controls, drawer open/close, and route callbacks stay intact.
+- Do not change `Layout` behavior: search debounce/fetch, nav grouping logic, notification hooks, drawer open/close, and route callbacks stay intact.
 - Do not redesign Products/Projects/Quotations internals in this slice.
 - Because this is a UI-only slice, verification should follow the repo’s UI gate first: `frontend/npm run typecheck && npm run test:core && npm run build`, then browser/UAT on shell states.
 - The repo guidance says reusable visual grammar changes should update `DESIGN.md` and `docs/runbooks/ui-theme-principles.md`. Include those doc updates in the execution task if the implementation introduces reusable shell/token conventions not already reflected there.

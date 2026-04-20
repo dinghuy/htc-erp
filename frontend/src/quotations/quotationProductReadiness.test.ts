@@ -50,6 +50,10 @@ describe('normalizeQuotationLineItems product readiness regression', () => {
         quantity: 1,
         unitPrice: 0,
         sortOrder: null,
+        isOption: false,
+        currency: 'VND',
+        vatMode: 'excluded',
+        vatRate: 8,
       },
       {
         id: null,
@@ -61,6 +65,10 @@ describe('normalizeQuotationLineItems product readiness regression', () => {
         quantity: 1,
         unitPrice: 0,
         sortOrder: null,
+        isOption: false,
+        currency: 'VND',
+        vatMode: 'excluded',
+        vatRate: 8,
       },
     ]);
   });

@@ -431,8 +431,8 @@ export const Layout = ({
     <div style={{ display: 'flex', height: '100vh', width: '100%', maxWidth: '100vw', fontFamily: 'var(--font-family-sans)', overflow: 'hidden', backgroundColor: tokens.colors.background }}>
       {/* Desktop Side Navigation */}
       <aside style={{
-        width: '240px',
-        background: tokens.colors.surface,
+        width: tokens.shell.sidebarWidth,
+        background: tokens.surface.panelGradient,
         display: isMobile ? 'none' : 'flex',
         flexDirection: 'column',
         flexShrink: 0,
@@ -441,7 +441,7 @@ export const Layout = ({
         transition: 'background-color 0.3s ease, border-color 0.3s ease',
       }}>
         {/* Logo area */}
-        <div style={{ padding: tokens.spacing.lg, display: 'flex', alignItems: 'center', gap: tokens.spacing.md }}>
+        <div style={{ ...ui.shell.railHeader, padding: tokens.spacing.lg, display: 'flex', alignItems: 'center', gap: tokens.spacing.md }}>
           <img src={htcLogoSrc} alt="HTC Logo" style={{ width: '44px', height: '44px', objectFit: 'contain', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.primary, letterSpacing: '-0.02em', lineHeight: 1 }}>Huynh Thy Group</div>
@@ -517,7 +517,7 @@ export const Layout = ({
             left: 0,
             height: '100vh',
             width: '280px',
-            background: tokens.colors.surface,
+            background: tokens.surface.panelGradient,
             borderRight: `1px solid ${tokens.colors.border}`,
             transform: isDrawerOpen ? 'translateX(0)' : 'translateX(-100%)',
             transition: 'transform 0.25s ease',
@@ -527,7 +527,7 @@ export const Layout = ({
           }}
         >
           {/* Drawer Header */}
-          <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: `1px solid ${tokens.colors.border}` }}>
+          <div style={{ ...ui.shell.railHeader, padding: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <img src={htcLogoSrc} alt="HTC Logo" style={{ width: '40px', height: '40px', objectFit: 'contain', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.primary, letterSpacing: '-0.02em', lineHeight: 1 }}>Huynh Thy Group</div>
@@ -598,8 +598,8 @@ export const Layout = ({
       <main style={{ flex: 1, minWidth: 0, width: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Top Header */}
         <header style={{
-          height: isMobile ? 'auto' : '64px',
-          background: tokens.colors.surface,
+          height: isMobile ? 'auto' : tokens.shell.topbarHeight,
+          background: tokens.surface.shellChromeRaised,
           display: 'flex',
           alignItems: isMobile ? 'stretch' : 'center',
           justifyContent: 'space-between',
@@ -616,9 +616,7 @@ export const Layout = ({
                 type="button"
                 onClick={() => setIsDrawerOpen(true)}
                 style={{
-                  background: tokens.colors.background,
-                  border: `1px solid ${tokens.colors.border}`,
-                  borderRadius: tokens.radius.md,
+                  ...ui.shell.searchField,
                   width: '36px',
                   height: '36px',
                   cursor: 'pointer',
@@ -650,6 +648,7 @@ export const Layout = ({
                   width: isMobile ? '100%' : '320px',
                   padding: '10px 16px 10px 40px',
                   fontSize: '14px',
+                  background: tokens.colors.surfaceHeaderSubtle,
                 }}
               />
               <span style={{ position: 'absolute', left: '14px', top: '12px', color: tokens.colors.textMuted }}>
@@ -704,9 +703,7 @@ export const Layout = ({
                 onClick={toggleDarkMode}
                 aria-label={isDarkMode ? t('nav.theme.light') : t('nav.theme.dark')}
                 style={{
-                  background: tokens.colors.background,
-                  border: `1px solid ${tokens.colors.border}`,
-                  borderRadius: tokens.radius.lg,
+                  ...ui.shell.searchField,
                   width: '36px',
                   height: '36px',
                   cursor: 'pointer',
@@ -743,9 +740,7 @@ export const Layout = ({
                   style={{
                     width: '36px',
                     height: '36px',
-                    borderRadius: tokens.radius.lg,
-                    border: `1px solid ${tokens.colors.border}`,
-                    background: tokens.colors.background,
+                    ...ui.shell.searchField,
                     cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -760,13 +755,13 @@ export const Layout = ({
               ) : null}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? tokens.spacing.sm : tokens.spacing.md, borderLeft: isMobile ? 'none' : `1px solid ${tokens.colors.border}`, paddingLeft: isMobile ? '0' : tokens.spacing.lg, minWidth: 0 }}>
+            <div style={{ ...ui.shell.accountCluster, borderLeft: 'none', minWidth: 0 }}>
               <div
                 style={{
                   width: isMobile ? '34px' : '38px',
                   height: isMobile ? '34px' : '38px',
                   borderRadius: '12px',
-                  background: tokens.colors.background,
+                  background: tokens.surface.badgeStrong,
                   border: `1px solid ${tokens.colors.border}`,
                   overflow: 'hidden',
                   display: 'inline-flex',
@@ -830,7 +825,9 @@ export const Layout = ({
 
         {/* Dynamic Page Content */}
         <div ref={contentScrollRef} data-testid={contentTestId || QA_TEST_IDS.appContent} style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: isMobile ? tokens.spacing.md : tokens.spacing.lg }}>
-          {children}
+          <div style={ui.page.shell}>
+            {children}
+          </div>
         </div>
       </main>
     </div>

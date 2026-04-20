@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { API_BASE } from '../config';
 import { tokens } from '../ui/tokens';
 import { ui } from '../ui/styles';
@@ -8,6 +8,11 @@ import { fetchWithAuth } from '../auth';
 import { AssetListEditor } from './productAssetEditor';
 import { normalizeImageAssets, normalizeVideoAssets, normalizeDocumentAssets } from './productAssetData';
 import { DetailSection } from './productDetailSections';
+import { ProductQbuWorkbookModal } from './ProductQbuWorkbookModal';
+import {
+  ProductModalTabRail,
+  PRODUCT_MODAL_FLOATING_TAB_BREAKPOINT,
+} from './ProductModalTabRail';
 import {
   PRODUCT_FORM_FIELD_IDS,
   formatProductPricePreview,
@@ -15,6 +20,7 @@ import {
   getProductFormSubmitLabel,
 } from './productFormPresentation';
 import { getProductMediaCollections } from './productMedia';
+import { normalizeProductQbuWorkbook } from './productQbuWorkbook';
 
 const API = API_BASE;
 const API_ORIGIN = API.replace(/\/api\/?$/, '');
@@ -104,6 +110,7 @@ export function ProductFormModal({
   const [form, setForm] = useState<ProductFormState>(mode === 'edit' && product ? createProductFormFromProduct(product) : createEmptyProductForm());
   const [tab, setTab] = useState<ProductFormTab>(initialTab || 'info');
   const [saving, setSaving] = useState(false);
+  const [showWorkbook, setShowWorkbook] = useState(false);
   const [activeProduct, setActiveProduct] = useState<any>(mode === 'edit' ? product || null : null);
   const persistedProductId = activeProduct?.id || (mode === 'edit' ? product?.id : '');
   const hasPersistedProduct = Boolean(persistedProductId);
@@ -114,7 +121,14 @@ export function ProductFormModal({
     setForm(mode === 'edit' && product ? createProductFormFromProduct(product) : createEmptyProductForm());
     setActiveProduct(mode === 'edit' ? product || null : null);
     setTab(initialTab || 'info');
+    setShowWorkbook(false);
   }, [mode, product?.id, initialTab]);
+
+  useEffect(() => {
+    if (initialTab === 'qbu' && canConfigureQbu) {
+      setShowWorkbook(true);
+    }
+  }, [initialTab, canConfigureQbu]);
 
   const submit = async () => {
     if (!form.sku || !form.name) return showNotify('Thiếu SKU hoặc Tên', 'error');
@@ -150,13 +164,13 @@ export function ProductFormModal({
     }
   };
 
-  const handleQbuChange = (field: string, val: string) => {
-    setForm((current) => ({ ...current, qbuData: { ...(current.qbuData || {}), [field]: Number(val) || 0 } }));
-  };
-
-  const qbu = form.qbuData || {};
-  const totalQbu = (Number(qbu.exWorks) || 0) + (Number(qbu.shipping) || 0) + (Number(qbu.importTax) || 0) + (Number(qbu.customFees) || 0) + (Number(qbu.other) || 0);
-  const [isCompactForm, setIsCompactForm] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= 720 : false));
+  const qbu = normalizeProductQbuWorkbook(form.qbuData || {});
+  const totalQbu = qbu.totalAmount;
+  const [isCompactForm, setIsCompactForm] = useState(() => (typeof window !== 'undefined' ? window.innerWidth <= PRODUCT_MODAL_FLOATING_TAB_BREAKPOINT : false));
+  const [isStickyRailEnabled, setIsStickyRailEnabled] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > PRODUCT_MODAL_FLOATING_TAB_BREAKPOINT : true));
+  const modalContentRef = useRef<HTMLDivElement | null>(null);
+  const activePanelRef = useRef<HTMLDivElement | null>(null);
+  const hasMountedTabRef = useRef(false);
   const modalContentPadding = isCompactForm ? '20px' : '24px';
   const pricePreview = formatProductPricePreview(form.basePrice);
   const hasSku = typeof form.sku === 'string' && form.sku.trim().length > 0;
@@ -216,11 +230,27 @@ export function ProductFormModal({
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const handleResize = () => setIsCompactForm(window.innerWidth <= 720);
+    const handleResize = () => {
+      setIsCompactForm(window.innerWidth <= PRODUCT_MODAL_FLOATING_TAB_BREAKPOINT);
+      setIsStickyRailEnabled(window.innerWidth > PRODUCT_MODAL_FLOATING_TAB_BREAKPOINT);
+    };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!hasMountedTabRef.current) {
+      hasMountedTabRef.current = true;
+      return;
+    }
+    const scrollHost = modalContentRef.current?.parentElement;
+    if (scrollHost instanceof HTMLElement) {
+      scrollHost.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    activePanelRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [tab]);
 
   return (
     <OverlayModal
@@ -230,89 +260,71 @@ export function ProductFormModal({
       maxWidth="1040px"
       contentPadding={modalContentPadding}
     >
-      <div style={{ display: 'grid', gap: '20px' }}>
+      <div ref={modalContentRef} style={{ display: 'grid', gap: '20px' }}>
+        {showWorkbook ? (
+          <ProductQbuWorkbookModal
+            token={token}
+            productName={form.name}
+            basePrice={form.basePrice}
+            currency={form.currency || 'USD'}
+            initialQbuData={form.qbuData || {}}
+            onClose={() => setShowWorkbook(false)}
+            onSave={(nextQbuData) => {
+              setForm((current) => ({ ...current, qbuData: nextQbuData }));
+              setShowWorkbook(false);
+              showNotify('Đã áp dụng workbook QBU vào form sản phẩm. Bấm lưu để persist xuống backend.', 'success');
+            }}
+          />
+        ) : null}
+        <ProductModalTabRail
+          ariaLabel="Các bước cấu hình sản phẩm"
+          tabs={[
+            {
+              key: 'info',
+              label: '1. Thông tin chung',
+              tabId: infoTabId,
+              panelId: infoPanelId,
+            },
+            {
+              key: 'assets',
+              label: '2. Ảnh, Video & Tài liệu',
+              tabId: assetsTabId,
+              panelId: assetsPanelId,
+            },
+            canConfigureQbu
+              ? {
+                  key: 'qbu',
+                  label: '3. Cấu hình QBU',
+                  tabId: qbuTabId,
+                  panelId: qbuPanelId,
+                }
+              : {
+                  key: 'qbu',
+                  label: '3. Cấu hình QBU',
+                  tabId: qbuTabId,
+                  panelId: qbuPanelId,
+                  disabled: true,
+                  describedBy: qbuLockReasonId,
+                },
+          ]}
+          activeKey={tab}
+          isStickyEnabled={isStickyRailEnabled}
+          onSelect={(key) => setTab(key as ProductFormTab)}
+          onKeyDown={(event, key) => handleTabKeyDown(event, key as ProductFormTab)}
+        />
+
         <div
           style={{
             display: 'grid',
             gap: '10px',
-            borderBottom: `1px solid ${tokens.colors.border}`,
-            paddingBottom: '12px',
           }}
         >
-          <div
-            role="tablist"
-            aria-label="Các bước cấu hình sản phẩm"
-            style={{
-              display: 'flex',
-              gap: '8px',
-              overflowX: isCompactForm ? 'auto' : 'visible',
-              flexWrap: isCompactForm ? 'nowrap' : 'wrap',
-              WebkitOverflowScrolling: 'touch',
-              scrollbarWidth: 'none',
-            }}
-          >
-            <button
-              id={infoTabId}
-              role="tab"
-              type="button"
-              aria-selected={tab === 'info'}
-              aria-controls={infoPanelId}
-              tabIndex={tab === 'info' ? 0 : -1}
-              onClick={() => setTab('info')}
-              onKeyDown={(event) => handleTabKeyDown(event, 'info')}
-              style={{ ...S.tabBtn(tab === 'info'), whiteSpace: 'nowrap', padding: isCompactForm ? '10px 14px' : S.tabBtn(tab === 'info').padding }}
-            >
-              1. Thông tin chung
-            </button>
-            <button
-              id={assetsTabId}
-              role="tab"
-              type="button"
-              aria-selected={tab === 'assets'}
-              aria-controls={assetsPanelId}
-              tabIndex={tab === 'assets' ? 0 : -1}
-              onClick={() => setTab('assets')}
-              onKeyDown={(event) => handleTabKeyDown(event, 'assets')}
-              style={{ ...S.tabBtn(tab === 'assets'), whiteSpace: 'nowrap', padding: isCompactForm ? '10px 14px' : S.tabBtn(tab === 'assets').padding }}
-            >
-              2. Ảnh, Video & Tài liệu
-            </button>
-            {canConfigureQbu ? (
-              <button
-                id={qbuTabId}
-                role="tab"
-                type="button"
-                aria-selected={tab === 'qbu'}
-                aria-controls={qbuPanelId}
-                tabIndex={tab === 'qbu' ? 0 : -1}
-                onClick={() => setTab('qbu')}
-                onKeyDown={(event) => handleTabKeyDown(event, 'qbu')}
-                style={{ ...S.tabBtn(tab === 'qbu'), whiteSpace: 'nowrap', padding: isCompactForm ? '10px 14px' : S.tabBtn(tab === 'qbu').padding }}
-              >
-                3. Cấu hình QBU
-              </button>
-            ) : null}
-            {shouldDisableQbuTab ? (
-              <button
-                id={qbuTabId}
-                role="tab"
-                type="button"
-                disabled
-                aria-selected={false}
-                aria-describedby={qbuLockReasonId}
-                tabIndex={-1}
-                style={{ ...S.tabBtn(false), whiteSpace: 'nowrap', padding: isCompactForm ? '10px 14px' : S.tabBtn(false).padding, opacity: 0.6, cursor: 'not-allowed' }}
-              >
-                3. Cấu hình QBU
-              </button>
-            ) : null}
-          </div>
           {shouldDisableQbuTab ? (
             <div id={qbuLockReasonId} style={{ ...ui.form.help, color: tokens.colors.textMuted }}>
               Bước 3 bị khoá cho đến khi bạn lưu sản phẩm lần đầu.
             </div>
           ) : null}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', alignItems: 'center', paddingBottom: '12px', borderBottom: `1px solid ${tokens.colors.border}` }}>
             <span style={ui.badge.info}>Bước {activeStepIndex}/3</span>
             <span style={{ ...ui.form.help, color: tokens.colors.textMuted }}>
               Trường bắt buộc: <span style={S.requiredMarker}>*</span> SKU, Tên sản phẩm
@@ -343,7 +355,7 @@ export function ProductFormModal({
         ) : null}
 
         {tab === 'info' ? (
-          <div role="tabpanel" id={infoPanelId} aria-labelledby={infoTabId} style={{ display: 'grid', gap: '16px' }}>
+          <div ref={activePanelRef} role="tabpanel" id={infoPanelId} aria-labelledby={infoTabId} style={{ display: 'grid', gap: '16px' }}>
             <section style={{ ...ui.card.base, boxShadow: 'none', padding: isCompactForm ? '16px' : '18px', display: 'grid', gap: '16px' }}>
               <div style={{ display: 'grid', gap: '4px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>Thông tin nhận diện</div>
@@ -414,7 +426,7 @@ export function ProductFormModal({
         ) : null}
 
         {tab === 'assets' ? (
-          <div role="tabpanel" id={assetsPanelId} aria-labelledby={assetsTabId} style={{ display: 'grid', gap: '18px' }}>
+          <div ref={activePanelRef} role="tabpanel" id={assetsPanelId} aria-labelledby={assetsTabId} style={{ display: 'grid', gap: '18px' }}>
             <section style={{ ...ui.card.base, background: tokens.surface.heroGradient, boxShadow: 'none', padding: '18px 18px 16px', display: 'grid', gap: '10px' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
                 <span style={{ ...ui.badge.info, background: tokens.colors.successTint }}>{form.productImages.length} ảnh</span>
@@ -493,34 +505,61 @@ export function ProductFormModal({
         ) : null}
 
         {tab === 'qbu' && canConfigureQbu ? (
-          <div role="tabpanel" id={qbuPanelId} aria-labelledby={qbuTabId} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
-            <div style={{ gridColumn: '1/-1', padding: tokens.spacing.md, background: tokens.colors.badgeBgInfo, borderRadius: tokens.radius.md, color: tokens.colors.info, fontSize: '13px', fontWeight: 600, border: `1px solid ${tokens.colors.border}`, marginBottom: tokens.spacing.sm }}>
-              QBU (Quote Build Up) là cơ sở dữ liệu để tính toán lợi nhuận khi tạo báo giá. Nhập các chi phí đầu vào dự kiến cho sản phẩm này (USD).
-            </div>
-            <div style={{ gridColumn: '1/-1' }}>
-              <label style={S.label}>Giá xuất xưởng (Ex-works) USD</label>
-              <input type="number" style={S.input} value={qbu.exWorks || ''} onInput={(e: any) => handleQbuChange('exWorks', e.target.value)} />
-            </div>
-            <div>
-              <label style={S.label}>Phí vận tải (Shipping) USD</label>
-              <input type="number" style={S.input} value={qbu.shipping || ''} onInput={(e: any) => handleQbuChange('shipping', e.target.value)} />
-            </div>
-            <div>
-              <label style={S.label}>Thuế nhập khẩu USD</label>
-              <input type="number" style={S.input} value={qbu.importTax || ''} onInput={(e: any) => handleQbuChange('importTax', e.target.value)} />
-            </div>
-            <div>
-              <label style={S.label}>Phí HQ / Bảo lãnh USD</label>
-              <input type="number" style={S.input} value={qbu.customFees || ''} onInput={(e: any) => handleQbuChange('customFees', e.target.value)} />
-            </div>
-            <div>
-              <label style={S.label}>Chi phí khác USD</label>
-              <input type="number" style={S.input} value={qbu.other || ''} onInput={(e: any) => handleQbuChange('other', e.target.value)} />
-            </div>
-            <div style={{ gridColumn: '1/-1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: `1px dashed ${tokens.colors.border}`, background: tokens.colors.background, padding: '16px', borderRadius: '12px' }}>
-              <span style={{ fontSize: '15px', fontWeight: 800 }}>TỔNG CHÍ PHÍ (COGS):</span>
-              <span style={{ fontSize: '20px', fontWeight: 900, color: tokens.colors.primary }}>${totalQbu.toLocaleString()}</span>
-            </div>
+          <div ref={activePanelRef} role="tabpanel" id={qbuPanelId} aria-labelledby={qbuTabId} style={{ display: 'grid', gap: '16px' }}>
+            <section style={{ ...ui.card.base, boxShadow: 'none', padding: isCompactForm ? '16px' : '18px', display: 'grid', gap: '16px' }}>
+              <div style={{ display: 'grid', gap: '4px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>QBU workbook summary</div>
+                <div style={{ ...ui.form.help, lineHeight: 1.6 }}>
+                  QBU đã được chuyển sang workbook riêng để hỗ trợ cost lines editable, incoterm suggestions và financial defaults. Tab này chỉ còn vai trò summary và entrypoint.
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                <div style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>Incoterm</div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary, marginTop: '4px' }}>{qbu.incoterm}</div>
+                </div>
+                <div style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>Basis currency</div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary, marginTop: '4px' }}>{qbu.basisCurrency}</div>
+                </div>
+                <div style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>Số dòng cost</div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.textPrimary, marginTop: '4px' }}>{qbu.lines.length}</div>
+                </div>
+                <div style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>Tổng cost snapshot</div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: tokens.colors.primary, marginTop: '4px' }}>
+                    {`${qbu.basisCurrency} ${totalQbu.toLocaleString()}`}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                <div style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>VAT rate</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.textPrimary, marginTop: '4px' }}>{qbu.financialDefaults.vatRate}</div>
+                </div>
+                <div style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>Loan days</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.textPrimary, marginTop: '4px' }}>{qbu.financialDefaults.loanInterestDays}</div>
+                </div>
+                <div style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>Loan rate</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.textPrimary, marginTop: '4px' }}>{qbu.financialDefaults.loanInterestRate}</div>
+                </div>
+                <div style={{ border: `1px solid ${tokens.colors.border}`, borderRadius: tokens.radius.md, padding: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>CIT rate</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: tokens.colors.textPrimary, marginTop: '4px' }}>{qbu.financialDefaults.citRate}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ ...ui.form.help, color: tokens.colors.textMuted }}>
+                  Dùng workbook để chỉnh cost lines, incoterm và financial defaults. Các thay đổi sẽ được áp vào form hiện tại và persist khi anh bấm lưu sản phẩm.
+                </span>
+                <button type="button" onClick={() => setShowWorkbook(true)} style={S.btnPrimary}>
+                  Mở workbook QBU
+                </button>
+              </div>
+            </section>
           </div>
         ) : null}
 

@@ -3,64 +3,12 @@ import { useState, useEffect } from 'preact/hooks';
 import { fetchWithAuth } from './auth';
 import { HistoryModal } from './Customers';
 import { tokens } from './ui/tokens';
+import { ui } from './ui/styles';
 import { useI18n } from './i18n';
 import { OverlayModal } from './ui/OverlayModal';
-import { HandshakeIcon, HistoryIcon, MoneyIcon, TargetIcon, TrendingIcon } from './ui/icons';
+import { MetricCard, PageHero } from './ui/patterns';
 import { renderActivityIcon } from './ui/activityIcon';
 const API = API_BASE;
-
-function KpiCard({ id, icon, label, value, trend, trendUp, sub, ghostIcon, isDarkMode, isMobile }: any) {
-  return (
-    <div style={{
-      background: tokens.colors.surface,
-      borderRadius: tokens.radius.lg,
-      padding: tokens.spacing.xl,
-      color: tokens.colors.textPrimary,
-      boxShadow: tokens.shadow.sm,
-      border: `1px solid ${tokens.colors.border}`,
-      position: 'relative',
-      overflow: 'hidden',
-      flex: 1,
-      minWidth: isMobile ? 'auto' : '280px',
-      transition: 'background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease',
-    }}>
-      <div style={{ 
-        position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', 
-        fontSize: '64px', opacity: isDarkMode ? 0.08 : 0.04, pointerEvents: 'none' 
-      }}>
-        {ghostIcon || icon}
-      </div>
-      <div style={{ fontSize: '12px', color: tokens.colors.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: tokens.spacing.sm }}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
-        <div style={{ fontSize: '32px', fontWeight: 800 }}>{value}</div>
-        {trend && (
-          <div style={{ 
-            fontSize: '12px', 
-            color: trendUp ? tokens.colors.success : tokens.colors.error, 
-            background: trendUp ? tokens.colors.badgeBgSuccess : tokens.colors.badgeBgError, 
-            borderRadius: tokens.radius.xl, 
-            padding: `2px ${tokens.spacing.sm}`, 
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '2px'
-          }}>
-            {trendUp ? '↑' : '↓'} {trend}
-          </div>
-        )}
-      </div>
-      {sub && <div style={{ fontSize: '12px', color: tokens.colors.textMuted, display: 'flex', alignItems: 'center', gap: tokens.spacing.xs }}>
-        <HistoryIcon size={14} /> {sub}
-      </div>}
-      
-      {id === 'won_deals' && (
-         <div style={{ marginTop: tokens.spacing.md, height: '6px', background: tokens.colors.background, borderRadius: tokens.radius.sm, overflow: 'hidden' }}>
-            <div style={{ width: '75%', height: '100%', background: `linear-gradient(90deg, ${tokens.colors.warning} 0%, ${tokens.colors.warningDark} 100%)`, borderRadius: tokens.radius.sm }} />
-         </div>
-      )}
-    </div>
-  );
-}
 
 export function Dashboard({ onNavigate, isDarkMode, isMobile, currentUser }: { onNavigate?: (route: string) => void; isDarkMode?: boolean; isMobile?: boolean; currentUser?: any }) {
   const { t } = useI18n();
@@ -145,9 +93,9 @@ export function Dashboard({ onNavigate, isDarkMode, isMobile, currentUser }: { o
   const fmt = (n: any) => typeof n === 'number' ? n.toLocaleString('vi-VN') : n;
 
   const kpis = [
-    { id: 'pipeline_value', icon: <MoneyIcon size={18} />, label: t('dashboard.kpi.pipeline'), value: `${fmt(v('pipelineValue'))} đ`, trend: '12%', trendUp: true, sub: t('dashboard.kpi.updated'), ghostIcon: <MoneyIcon size={18} /> },
-    { id: 'won_deals', icon: <HandshakeIcon size={18} />, label: t('dashboard.kpi.won'), value: v('wonDealsCount'), trend: `/ ${v('quotations')} ${t('dashboard.kpi.quotes')}`, trendUp: true, ghostIcon: <TargetIcon size={18} /> },
-    { id: 'win_rate', icon: <TrendingIcon size={18} />, label: t('dashboard.kpi.win_rate'), value: `${v('winRate')}%`, trend: '2%', trendUp: true, sub: t('dashboard.kpi.based_on_quotes'), ghostIcon: <TargetIcon size={18} /> },
+    { id: 'pipeline_value', label: t('dashboard.kpi.pipeline'), value: `${fmt(v('pipelineValue'))} đ`, trend: '12%', trendUp: true, sub: t('dashboard.kpi.updated') },
+    { id: 'won_deals', label: t('dashboard.kpi.won'), value: v('wonDealsCount'), trend: `/ ${v('quotations')} ${t('dashboard.kpi.quotes')}`, trendUp: true },
+    { id: 'win_rate', label: t('dashboard.kpi.win_rate'), value: `${v('winRate')}%`, trend: '2%', trendUp: true, sub: t('dashboard.kpi.based_on_quotes') },
   ];
 
   const salesFunnelSection = (
@@ -258,13 +206,36 @@ export function Dashboard({ onNavigate, isDarkMode, isMobile, currentUser }: { o
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      <div>
-        <h1 style={{ fontSize: '28px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0 }}>{t('dashboard.operations.title')}</h1>
-        <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, marginTop: '4px' }}>{t('dashboard.operations.subtitle')}</p>
-      </div>
+      <PageHero
+        eyebrow="Tổng quan vận hành"
+        title={t('dashboard.operations.title')}
+        description={t('dashboard.operations.subtitle')}
+        actions={[
+          {
+            key: 'refresh-dashboard',
+            label: refreshing ? 'Đang làm mới...' : 'Làm mới số liệu',
+            onClick: () => void loadDashboard(),
+            variant: 'primary' as const,
+          },
+          {
+            key: 'open-event-log',
+            label: 'Mở nhật ký sự kiện',
+            onClick: () => onNavigate?.('EventLog'),
+            variant: 'outline' as const,
+          },
+        ]}
+      />
 
-      <div style={{ display: 'flex', gap: isMobile ? '12px' : '24px', flexWrap: isMobile ? 'nowrap' : 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
-        {kpis.map((k, i) => <KpiCard key={i} {...k} isDarkMode={isDarkMode} isMobile={isMobile} />)}
+      <div style={ui.page.metricGrid}>
+        {kpis.map((k, i) => (
+          <MetricCard
+            key={i}
+            label={k.label}
+            value={k.value}
+            accent={k.id === 'pipeline_value' ? tokens.colors.primary : undefined}
+            hint={k.sub || (k.trend ? `${k.trendUp ? 'Tăng' : 'Giảm'} ${k.trend}` : undefined)}
+          />
+        ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '7fr 4fr', gap: isMobile ? '16px' : '24px' }}>

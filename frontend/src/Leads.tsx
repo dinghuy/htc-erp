@@ -11,6 +11,7 @@ import { useI18n } from './i18n';
 import { normalizeImportReport, buildImportSummary } from './shared/imports/importReport';
 import { buildTabularFileUrl } from './shared/imports/tabularFiles';
 import { FormatActionButton } from './ui/FormatActionButton';
+import { MetricCard, PageHero } from './ui/patterns';
 import {
   EditIcon,
   ExportIcon,
@@ -20,7 +21,6 @@ import {
   PlusIcon,
   SearchIcon,
   SheetIcon,
-  TargetIcon,
   TrashIcon,
 } from './ui/icons';
 
@@ -360,39 +360,31 @@ export function Leads({ isMobile, currentUser }: { isMobile?: boolean; currentUs
       
       <input type="file" ref={fileInputRef} onChange={importCSV} style={{ display: 'none' }} accept=".csv,.xlsx" />
 
-      {/* Mini Dashboard */}
-      <div style={{ display: 'flex', gap: isMobile ? '12px' : '16px', flexDirection: isMobile ? 'column' : 'row', flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
-        <div style={S.kpiCard}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>{t('sales.leads.kpi.total')}</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.total}</span>
-        </div>
-        <div style={{...S.kpiCard, borderLeft: `4px solid ${tokens.colors.info}`}}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.info, textTransform: 'uppercase' }}>{t('sales.leads.kpi.new')}</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.newLeads}</span>
-        </div>
-        <div style={{...S.kpiCard, borderLeft: `4px solid ${tokens.colors.primary}`}}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.primary, textTransform: 'uppercase' }}>{t('sales.leads.kpi.qualified')}</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.qualified}</span>
-        </div>
-        <div style={{...S.kpiCard, borderLeft: `4px solid ${tokens.colors.warning}`, flex: 1.5}}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.warning, textTransform: 'uppercase' }}>{t('sales.leads.kpi.pipeline')}</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.primary }}>${stats.pipeline.toLocaleString()}</span>
-        </div>
+      <PageHero
+        eyebrow="Sales & CRM"
+        title={t('sales.leads.title')}
+        description={t('sales.leads.subtitle')}
+        actions={[
+          { key: 'template', label: t('common.import_template'), onClick: () => downloadTemplate('csv'), variant: 'outline' as const },
+          ...(userCanEdit ? [{ key: 'import', label: t('common.import_file'), onClick: () => fileInputRef.current?.click(), variant: 'ghost' as const }] : []),
+          { key: 'export', label: t('common.export_data'), onClick: () => exportData('csv'), variant: 'outline' as const },
+          ...(userCanEdit ? [{ key: 'create', label: t('sales.leads.action.add'), onClick: () => setShowAdd(true), variant: 'primary' as const }] : []),
+        ]}
+      />
+
+      <div style={ui.page.metricGrid}>
+        <MetricCard label={t('sales.leads.kpi.total')} value={stats.total} hint="Tổng bản ghi đang được theo dõi trong phễu lead." />
+        <MetricCard label={t('sales.leads.kpi.new')} value={stats.newLeads} accent={tokens.colors.info} hint="Lead mới cần được sàng lọc và phản hồi sớm." />
+        <MetricCard label={t('sales.leads.kpi.qualified')} value={stats.qualified} accent={tokens.colors.primary} hint="Lead đã đủ điều kiện để đẩy tiếp sang quotation hoặc follow-up sâu hơn." />
+        <MetricCard label={t('sales.leads.kpi.pipeline')} value={`$${stats.pipeline.toLocaleString()}`} accent={tokens.colors.warning} hint="Giá trị pipeline dự kiến theo dữ liệu lead hiện có." />
       </div>
 
-      <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: isMobile ? '12px' : '0', flexDirection: isMobile ? 'column' : 'row' }}>
-        <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary, margin: 0, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            <TargetIcon size={22} />
-            {t('sales.leads.title')}
-          </h2>
-          <p style={{ fontSize: '14px', color: tokens.colors.textSecondary, margin: '6px 0 0' }}>{t('sales.leads.subtitle')}</p>
-        </div>
+      <div style={{ ...ui.page.surfaceSection, gap: '12px' }}>
         <div style={{ display: 'flex', gap: isMobile ? '12px' : '10px', alignItems: isMobile ? 'stretch' : 'center', minWidth: 0, flexDirection: isMobile ? 'column' : 'row' }}>
-          <div style={{ position: 'relative', minWidth: 0, flex: isMobile ? 1 : undefined }}>
+          <div style={{ position: 'relative', minWidth: 0, flex: 1 }}>
             <SearchIcon size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
             <input type="text" placeholder={t('common.search')} value={searchTerm} onInput={(e:any) => setSearchTerm(e.target.value)}
-              style={{ ...ui.input.base, padding: '9px 12px 9px 36px', fontSize: '13.5px', width: isMobile ? '100%' : '220px', minWidth: 0 }} />
+              style={{ ...ui.input.base, padding: '9px 12px 9px 36px', fontSize: '13.5px', width: '100%', minWidth: 0 }} />
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', overflowX: isMobile ? 'auto' : 'visible', paddingBottom: isMobile ? '4px' : '0' }}>
             <FormatActionButton label={t('common.import_template')} icon={SheetIcon} buttonStyle={S.btnSecondary} onSelect={downloadTemplate} />

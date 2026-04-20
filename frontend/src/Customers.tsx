@@ -8,13 +8,12 @@ import { ConfirmDialog } from './ui/ConfirmDialog';
 import { OverlayModal } from './ui/OverlayModal';
 import { consumeNavContext } from './navContext';
 import { useI18n } from './i18n';
-import { BuildingIcon, CheckCircle2Icon, EditIcon, ExportIcon, EyeIcon, HistoryIcon, ImportIcon, MailIcon, NoteIcon, PlusIcon, SearchIcon, SheetIcon, TrashIcon, UserIcon } from './ui/icons';
+import { CheckCircle2Icon, EditIcon, EyeIcon, HistoryIcon, MailIcon, NoteIcon, SearchIcon, TrashIcon } from './ui/icons';
 import { renderActivityIcon } from './ui/activityIcon';
 import { GENDER_OPTIONS, getGenderLabel, normalizeGender } from './gender';
 import { normalizeImportReport, buildImportSummary } from './shared/imports/importReport';
 import { buildTabularFileUrl } from './shared/imports/tabularFiles';
-import { FormatActionButton } from './ui/FormatActionButton';
-import { PageHeader } from './ui/PageHeader';
+import { MetricCard, PageHero } from './ui/patterns';
 import { SegmentedControl } from './ui/SegmentedControl';
 
 const API = API_BASE;
@@ -840,43 +839,30 @@ export function Customers({
       {viewingHistoryCon && <HistoryModal entityId={viewingHistoryCon.id} entityName={`${viewingHistoryCon.lastName} ${viewingHistoryCon.firstName}`} onClose={() => setViewingHistoryCon(null)} />}
       <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImport} accept=".csv,.xlsx" />
 
-      {/* Mini Dashboard */}
-      <div style={ui.page.kpiRow}>
-        <div style={{ ...S.kpiCard, ...ui.page.kpiCard }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase' }}>{t('sales.customers.kpi.total_accounts')}</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.totalAccounts}</span>
-        </div>
-        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, borderLeft: `4px solid ${tokens.colors.info}` }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.info, textTransform: 'uppercase' }}>{t('sales.customers.kpi.customers')}</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.customers}</span>
-        </div>
-        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, borderLeft: `4px solid ${tokens.colors.warning}` }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.warning, textTransform: 'uppercase' }}>{t('sales.customers.kpi.suppliers')}</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.suppliers}</span>
-        </div>
-        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, borderLeft: `4px solid ${tokens.colors.primary}` }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.primary, textTransform: 'uppercase' }}>Đối tác</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.partners}</span>
-        </div>
-        <div style={{ ...S.kpiCard, ...ui.page.kpiCard, borderLeft: `4px solid ${tokens.colors.success}` }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: tokens.colors.success, textTransform: 'uppercase' }}>{t('sales.customers.kpi.total_contacts')}</span>
-          <span style={{ fontSize: '24px', fontWeight: 800, color: tokens.colors.textPrimary }}>{stats.totalContacts}</span>
-        </div>
-      </div>
-
-      <PageHeader
+      <PageHero
+        eyebrow="Sales & CRM"
         title={activeTab === 'accounts' ? ACCOUNT_TYPE_META[selectedAccountType].label : t('sales.customers.title.contacts')}
-        icon={activeTab === 'accounts' ? <BuildingIcon size={22} strokeWidth={2} /> : <UserIcon size={22} strokeWidth={2} />}
-        subtitle={activeTab === 'accounts' ? ACCOUNT_TYPE_META[selectedAccountType].description : t('sales.customers.subtitle.contacts')}
-        actions={<>
-          <FormatActionButton label={t('common.import_template')} icon={SheetIcon} buttonStyle={S.btnOutline} onSelect={downloadTemplate} />
-          {userCanEdit && activeTab === 'accounts' && <button style={S.btnOutline} onClick={() => fileInputRef.current?.click()}><ImportIcon size={16} strokeWidth={2} /> {t('common.import_file')}</button>}
-          <FormatActionButton label={t('common.export_data')} icon={ExportIcon} buttonStyle={S.btnOutline} onSelect={exportData} />
-          {userCanEdit && <button style={S.btnPrimary} onClick={() => activeTab === 'accounts' ? setShowAddAcc(true) : setShowAddCon(true)}>
-            <PlusIcon size={16} strokeWidth={2} /> {activeTab === 'accounts' ? `Thêm ${ACCOUNT_TYPE_META[selectedAccountType].label}` : t('sales.customers.action.add_contact')}
-          </button>}
-        </>}
+        description={activeTab === 'accounts' ? ACCOUNT_TYPE_META[selectedAccountType].description : t('sales.customers.subtitle.contacts')}
+        actions={[
+          { key: 'template', label: t('common.import_template'), onClick: () => downloadTemplate('csv'), variant: 'outline' as const },
+          ...(userCanEdit && activeTab === 'accounts' ? [{ key: 'import', label: t('common.import_file'), onClick: () => fileInputRef.current?.click(), variant: 'ghost' as const }] : []),
+          { key: 'export', label: t('common.export_data'), onClick: () => exportData('csv'), variant: 'outline' as const },
+          ...(userCanEdit ? [{
+            key: 'create',
+            label: activeTab === 'accounts' ? `Thêm ${ACCOUNT_TYPE_META[selectedAccountType].label}` : t('sales.customers.action.add_contact'),
+            onClick: () => activeTab === 'accounts' ? setShowAddAcc(true) : setShowAddCon(true),
+            variant: 'primary' as const,
+          }] : []),
+        ]}
       />
+
+      <div style={ui.page.metricGrid}>
+        <MetricCard label={t('sales.customers.kpi.total_accounts')} value={stats.totalAccounts} hint="Tổng account đang được theo dõi trong CRM/ERP." />
+        <MetricCard label={t('sales.customers.kpi.customers')} value={stats.customers} accent={tokens.colors.info} hint="Nhóm account khách hàng đang giao dịch hoặc được follow-up." />
+        <MetricCard label={t('sales.customers.kpi.suppliers')} value={stats.suppliers} accent={tokens.colors.warning} hint="Nhóm nhà cung cấp phục vụ sourcing, mua hàng và dự án." />
+        <MetricCard label="Đối tác" value={stats.partners} accent={tokens.colors.primary} hint="Đại lý và đối tác hợp tác trong revenue flow." />
+        <MetricCard label={t('sales.customers.kpi.total_contacts')} value={stats.totalContacts} accent={tokens.colors.success} hint="Tổng contact gắn với account trong hệ thống." />
+      </div>
 
       {activeTab === 'accounts' && (
         <SegmentedControl
@@ -1122,4 +1108,3 @@ export function Customers({
     </div>
   );
 }
-

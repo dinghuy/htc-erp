@@ -5,6 +5,7 @@ import { getPrimaryImage } from './productAssetData';
 import { resolveAssetUrl } from './productAssetUi';
 import {
   ProductCardActions,
+  getProductSecondaryLabel,
   productCardGridStyle,
   productDesktopCardStyle,
   productMobileCardsStyle,
@@ -100,7 +101,7 @@ export function ProductCardsSection({
                   />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: '14px', fontWeight: 700, color: tokens.colors.textPrimary }}>{product.name}</div>
-                    <div style={summaryChipStyle}>{product.sku}</div>
+                    <div style={summaryChipStyle}>{getProductSecondaryLabel(product.unit, product.category)}</div>
                   </div>
                 </div>
               ) : (
@@ -150,7 +151,6 @@ type ProductTableSectionProps = {
   userCanDelete: boolean;
   tableSurfaceStyle: JSX.CSSProperties;
   tableHeaderButtonStyle: JSX.CSSProperties;
-  summaryChipStyle: JSX.CSSProperties;
   tableInfoButtonStyle: JSX.CSSProperties;
   tableEditButtonStyle: JSX.CSSProperties;
   tableDeleteButtonStyle: JSX.CSSProperties;
@@ -175,7 +175,6 @@ export function ProductTableSection({
   userCanDelete,
   tableSurfaceStyle,
   tableHeaderButtonStyle,
-  summaryChipStyle,
   tableInfoButtonStyle,
   tableEditButtonStyle,
   tableDeleteButtonStyle,
@@ -217,10 +216,7 @@ export function ProductTableSection({
               }}
             >
               <td style={{ ...S.td, fontWeight: 700, color: tokens.colors.textPrimary, verticalAlign: 'middle' }}>
-                <div style={{ display: 'grid', gap: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>{renderProductIdentity(product)}</div>
-                  <div style={summaryChipStyle}>{product.sku || '-'}</div>
-                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>{renderProductIdentity(product)}</div>
               </td>
               <td style={S.td}>
                 <span style={{ background: tokens.colors.background, padding: '3px 10px', borderRadius: '6px', border: `1px solid ${tokens.colors.border}`, fontSize: '11px', fontWeight: 800, color: tokens.colors.textMuted }}>{product.category || '-'}</span>

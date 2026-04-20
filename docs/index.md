@@ -77,7 +77,9 @@ The following workstream plans are active or decision-relevant and should be rea
 - `workstreams/cross-functional-v1-plan.md`: cross-role convergence plan for shell, persona, and workflow alignment
 - `workstreams/home-projects-reports-ui-refactor-plan.md`: UI refactor plan for home, project, and reporting surfaces
 - `workstreams/project-finance-workspace-plan.md`: project finance workspace convergence and pricing-in-workspace direction
+- `workstreams/quotation-ui-convergence-plan.md`: active two-phase quotation UI cleanup and alternative-offer convergence plan
 - `workstreams/role-permission-matrix-plan.md`: active role surface and permission convergence plan for UI and workspace behavior
+- `workstreams/ux-ui-rebuild-plan.md`: active shell-first UX/UI rebuild plan bridging the extracted design bundle into the current frontend and revenue-flow surfaces
 - `workstreams/ux-audit-plan.md`: deterministic UX audit and regression-suite plan for browser-driven verification
 
 These plans must be interpreted alongside the canonical docs above. If a plan conflicts with canonical docs or current code reality, update the plan and/or canonical doc rather than treating the older wording as authoritative.

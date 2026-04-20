@@ -64,13 +64,13 @@ export function PageHero({
         padding: compact ? tokens.spacing.xl : tokens.spacing.xxxl,
         background: tokens.surface.heroGradient,
         display: 'grid',
-        gap: tokens.spacing.xl,
+        gap: compact ? tokens.spacing.lg : tokens.spacing.xl,
       }}
     >
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: actions?.length ? 'repeat(auto-fit, minmax(280px, 1fr))' : '1fr',
+          gridTemplateColumns: actions?.length ? 'repeat(auto-fit, minmax(260px, 1fr))' : '1fr',
           gap: tokens.spacing.xl,
           alignItems: 'start',
         }}
@@ -85,7 +85,19 @@ export function PageHero({
           </div>
         </div>
         {actions?.length ? (
-          <div style={{ display: 'flex', gap: tokens.spacing.md, flexWrap: 'wrap', justifyContent: 'flex-start', alignItems: 'flex-start', alignContent: 'flex-start' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: tokens.spacing.md,
+              flexWrap: 'wrap',
+              justifyContent: 'flex-start',
+              alignItems: 'flex-start',
+              alignContent: 'flex-start',
+              padding: compact ? 0 : tokens.spacing.md,
+              borderRadius: tokens.radius.lg,
+              background: compact ? 'transparent' : tokens.surface.badgeStrong,
+            }}
+          >
             {actions.map((action) => (
               <button key={action.key} type="button" onClick={action.onClick} style={buttonStyle(action.variant) as any}>
                 {action.label}
@@ -130,7 +142,7 @@ export function MetricCard({
   hint?: string;
 }) {
   return (
-    <div style={{ ...ui.card.base, padding: tokens.spacing.xl, display: 'grid', gap: tokens.spacing.md, alignContent: 'start' }}>
+    <div style={{ ...ui.card.base, padding: tokens.spacing.xl, display: 'grid', gap: tokens.spacing.md, alignContent: 'start', minHeight: '132px' }}>
       <div style={{ fontSize: F.xs, fontWeight: 800, color: tokens.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
       <div style={{ fontSize: F.displayXl, fontWeight: 900, lineHeight: 1, color: accent || tokens.colors.textPrimary }}>{value}</div>
       <div style={{ minHeight: '36px' }}>
@@ -273,4 +285,14 @@ export function FilterToolbar({
       {summary ? <div style={{ fontSize: F.sm, fontWeight: 700, color: tokens.colors.textSecondary }}>{summary}</div> : null}
     </div>
   );
+}
+
+export function SurfaceSection({
+  children,
+  style,
+}: {
+  children: ComponentChildren;
+  style?: Record<string, any>;
+}) {
+  return <section style={{ ...ui.page.surfaceSection, ...style }}>{children}</section>;
 }

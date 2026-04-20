@@ -81,12 +81,20 @@ export function ProductCardActions<TProduct extends { id: string; name?: string;
 export type ProductIdentityProps = {
   name?: string;
   sku?: string;
+  unit?: string;
+  category?: string;
   primaryImage: ProductImageAsset | null;
   summaryChipStyle: JSX.CSSProperties;
   apiOrigin: string;
 };
 
-export function ProductIdentity({ name, sku, primaryImage, summaryChipStyle, apiOrigin }: ProductIdentityProps) {
+export function getProductSecondaryLabel(unit?: string, category?: string) {
+  if (unit) return `Đơn vị: ${unit}`;
+  if (category) return `Nhóm: ${category}`;
+  return 'Chưa có metadata phụ';
+}
+
+export function ProductIdentity({ name, sku, unit, category, primaryImage, summaryChipStyle, apiOrigin }: ProductIdentityProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       {primaryImage ? (
@@ -124,7 +132,7 @@ export function ProductIdentity({ name, sku, primaryImage, summaryChipStyle, api
       )}
       <div style={{ minWidth: 0, display: 'grid', gap: '4px' }}>
         <div style={{ fontSize: '14px', fontWeight: 700, color: tokens.colors.textPrimary }}>{name}</div>
-        <div style={summaryChipStyle}>{sku}</div>
+        <div style={summaryChipStyle}>{getProductSecondaryLabel(unit, category)}</div>
       </div>
     </div>
   );

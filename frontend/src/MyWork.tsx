@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { buildRoleProfile, ROLE_LABELS, type CurrentUser } from './auth';
+import { buildRoleProfile, type CurrentUser } from './auth';
 import { API_BASE } from './config';
 import { consumeNavContext, setNavContext } from './navContext';
-import { buildRolePreviewNotice } from './preview/rolePreviewNotice';
 import { requestJsonWithAuth } from './shared/api/client';
 import { resolveApprovalLane } from './shared/domain/contracts';
 import { QA_TEST_IDS } from './testing/testIds';
@@ -203,10 +202,6 @@ export function MyWork({
   const filteredApprovals = workFocus === 'commercial'
     ? (payload?.approvals || []).filter((approval) => resolveApprovalLane(approval) === 'commercial')
     : (payload?.approvals || []);
-  const previewLabel = currentUser.previewRoleCodes?.map((roleCode) => ROLE_LABELS[roleCode]).join(' + ') || ROLE_LABELS[currentUser.systemRole];
-  const previewNotice = currentUser.isRolePreviewActive
-    ? buildRolePreviewNotice({ screen: 'my_work', previewLabel, workFocus: workFocus || undefined })
-    : null;
 
   const taskCount = payload?.summary?.taskCount ?? payload?.tasks?.length ?? 0;
   const approvalCount = payload?.summary?.approvalCount ?? payload?.approvals?.length ?? 0;
@@ -358,15 +353,6 @@ export function MyWork({
             {pageCopy.description}
           </p>
         </div>
-        {previewNotice ? (
-          <div style={{ display: 'grid', gap: '6px', padding: '12px 14px', borderRadius: tokens.radius.lg, border: `1px solid ${previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary}`, background: previewNotice.tone === 'warning' ? tokens.colors.warningTint : tokens.colors.infoBg }}>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={previewNotice.tone === 'warning' ? ui.badge.warning : ui.badge.info}>Preview</span>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{previewNotice.title}</span>
-            </div>
-            <span style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>{previewNotice.message}</span>
-          </div>
-        ) : null}
         {workFocus ? (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <span data-testid={QA_TEST_IDS.myWork.focusBadge} style={ui.badge.warning}>QA focus: {workFocusCopy[workFocus]?.label || workFocus}</span>

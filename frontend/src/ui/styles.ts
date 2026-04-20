@@ -168,6 +168,11 @@ export const ui = {
     }
   },
   page: {
+    metricGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+      gap: tokens.spacing.lg,
+    } as const,
     /** Responsive KPI bar — cards wrap on narrow viewports */
     kpiRow: {
       display: 'flex',
@@ -201,10 +206,55 @@ export const ui = {
       alignItems: 'center',
     } as const,
     shell: {
+      width: '100%',
       maxWidth: '1400px',
       margin: '0 auto',
       display: 'grid',
       gap: tokens.spacing.xl,
+    } as const,
+    surfaceSection: {
+      background: tokens.surface.panelGradient,
+      borderRadius: tokens.radius.lg,
+      border: `1px solid ${tokens.colors.border}`,
+      boxShadow: tokens.shadow.sm,
+      padding: tokens.spacing.xl,
+      display: 'grid',
+      gap: tokens.spacing.lg,
+    } as const,
+    tableCard: {
+      background: tokens.colors.surface,
+      borderRadius: tokens.radius.lg,
+      border: `1px solid ${tokens.colors.border}`,
+      boxShadow: tokens.shadow.sm,
+      overflow: 'hidden',
+    } as const,
+  },
+  shell: {
+    rail: {
+      background: tokens.surface.panelGradient,
+      borderRight: `1px solid ${tokens.colors.border}`,
+    } as const,
+    railHeader: {
+      background: tokens.surface.drawerHeader,
+      borderBottom: `1px solid ${tokens.colors.border}`,
+    } as const,
+    topbar: {
+      background: tokens.surface.shellChromeRaised,
+      borderBottom: `1px solid ${tokens.colors.border}`,
+    } as const,
+    searchField: {
+      background: tokens.colors.surfaceHeaderSubtle,
+      border: `1px solid ${tokens.colors.border}`,
+      borderRadius: tokens.radius.lg,
+    } as const,
+    accountCluster: {
+      background: tokens.colors.surfaceHeaderSubtle,
+      border: `1px solid ${tokens.colors.border}`,
+      borderRadius: tokens.radius.lg,
+      padding: `${tokens.spacing.sm} ${tokens.spacing.md}`,
+      display: 'flex',
+      alignItems: 'center',
+      gap: tokens.spacing.md,
     } as const,
   },
   modal: {
@@ -214,6 +264,24 @@ export const ui = {
       boxShadow: tokens.overlay.modalShadow,
       border: `1px solid ${tokens.colors.border}`,
       overflow: 'hidden'
+    },
+    stickyRail: {
+      top: 0,
+      zIndex: tokens.zIndex.sticky,
+      background: tokens.surface.shellChromeRaised,
+      borderBottom: `1px solid ${tokens.colors.border}`,
+      boxShadow: tokens.shadow.sm,
+      backdropFilter: `blur(${tokens.overlay.toastBlur})`,
+      WebkitBackdropFilter: `blur(${tokens.overlay.toastBlur})`,
+    },
+    tabScroller: {
+      display: 'flex',
+      gap: tokens.spacing.sm,
+      overflowX: 'auto',
+      flexWrap: 'nowrap',
+      WebkitOverflowScrolling: 'touch',
+      scrollbarWidth: 'none',
+      msOverflowStyle: 'none',
     }
   },
   overlay: {

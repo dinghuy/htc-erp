@@ -84,6 +84,10 @@ export const tokens = {
     panelGradient: 'var(--panel-gradient-bg)',
     heroGradient: 'var(--hero-card-bg)',
     heroGradientSubtle: 'var(--hero-card-bg-subtle)',
+    shellChrome: 'var(--surface-header-subtle)',
+    shellChromeRaised: 'var(--surface-sticky-bg)',
+    shellRail: 'var(--surface-neutral-soft)',
+    shellRailAccent: 'var(--drawer-header-bg)',
     authCanvas: 'var(--auth-shell-bg)',
     drawerHeader: 'var(--drawer-header-bg)',
     detail: 'var(--ht-surface-subtle)',
@@ -112,6 +116,9 @@ export const tokens = {
   },
   shell: {
     sectionGap: '24px',
+    contentMax: '1400px',
+    sidebarWidth: '240px',
+    topbarHeight: '64px',
   },
   fontSize: {
     xxs: 'var(--font-size-xxs)',

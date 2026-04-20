@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildWorkspaceActionAccess, buildWorkspacePreviewNotice } from './workspacePermissions';
+import { buildWorkspaceActionAccess } from './workspacePermissions';
 
 describe('workspace action access', () => {
   it('grants commercial editing only to commercial roles', () => {
@@ -40,16 +40,6 @@ describe('workspace action access', () => {
       canEditProcurement: false,
       canEditDelivery: false,
     });
-
-    expect(buildWorkspacePreviewNotice('commercial', combined, true, 'Sales + PM')).toMatchObject({
-      readOnly: false,
-      tone: 'info',
-    });
-
-    expect(buildWorkspacePreviewNotice('finance', combined, true, 'Sales + PM')).toMatchObject({
-      readOnly: true,
-      tone: 'info',
-    });
   });
 
   it('grants procurement editing to procurement roles and keeps viewers read-only', () => {
@@ -81,24 +71,13 @@ describe('workspace action access', () => {
     });
   });
 
-  it('explains preview read-only boundaries per workspace tab', () => {
+  it('keeps project manager commercial editing read-only while allowing execution controls', () => {
     const pmAccess = buildWorkspaceActionAccess(['project_manager']);
-    expect(buildWorkspacePreviewNotice('commercial', pmAccess, true, 'Project Manager')).toMatchObject({
-      readOnly: true,
-      tone: 'warning',
+    expect(pmAccess).toMatchObject({
+      canEditCommercial: false,
+      canEditTimeline: true,
+      canEditProcurement: false,
+      canEditDelivery: false,
     });
-    expect(buildWorkspacePreviewNotice('commercial', pmAccess, true, 'Project Manager')?.message).toContain('read-only');
-
-    expect(buildWorkspacePreviewNotice('timeline', pmAccess, true, 'Project Manager')).toMatchObject({
-      readOnly: false,
-      tone: 'info',
-    });
-
-    expect(buildWorkspacePreviewNotice('finance', pmAccess, true, 'Project Manager')).toMatchObject({
-      readOnly: true,
-      tone: 'info',
-    });
-
-    expect(buildWorkspacePreviewNotice('timeline', pmAccess, false, 'Project Manager')).toBeNull();
   });
 });

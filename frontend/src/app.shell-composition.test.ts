@@ -57,5 +57,7 @@ describe('app shell composition', () => {
     expect(source).toContain('onUserUpdated={handleSettingsRouteUserUpdated}');
     expect(source).toContain('onSystemSettingsUpdated={handleSettingsShellFlagUpdated}');
     expect(source).not.toContain('onOpenUsers={handleSettingsOpenUsers}');
+    expect(source).not.toContain('previewRoleCodes');
+    expect(source).not.toContain('isRolePreviewActive');
   });
 });

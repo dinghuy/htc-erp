@@ -281,6 +281,8 @@ export function Products({ isMobile, currentUser }: ProductsProps = {}) {
     <ProductIdentity
       name={product.name}
       sku={product.sku}
+      unit={product.unit}
+      category={product.category}
       primaryImage={getPrimaryImage(product.productImages || [])}
       summaryChipStyle={surfaceStyles.summaryChipStyle}
       apiOrigin={API_ORIGIN}
@@ -686,7 +688,6 @@ export function Products({ isMobile, currentUser }: ProductsProps = {}) {
               userCanDelete={userCanDelete}
               tableSurfaceStyle={surfaceStyles.tableSurfaceStyle}
               tableHeaderButtonStyle={surfaceStyles.tableHeaderButtonStyle}
-              summaryChipStyle={surfaceStyles.summaryChipStyle}
               tableInfoButtonStyle={surfaceStyles.tableInfoButtonStyle}
               tableEditButtonStyle={surfaceStyles.tableEditButtonStyle}
               tableDeleteButtonStyle={surfaceStyles.tableDeleteButtonStyle}

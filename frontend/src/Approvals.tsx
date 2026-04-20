@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
-import { buildRoleProfile, ROLE_LABELS, type CurrentUser } from './auth';
+import { buildRoleProfile, type CurrentUser } from './auth';
 import { mapApprovalQueuePayload } from './approvalQueueData';
 import { API_BASE } from './config';
 import { consumeNavContext, setNavContext } from './navContext';
 import { buildDocumentThreadSummary } from './projects/documentThreadData';
-import { buildRolePreviewNotice } from './preview/rolePreviewNotice';
 import { requestJsonWithAuth } from './shared/api/client';
 import { canApproveRequest, resolveApprovalLane } from './shared/domain/contracts';
 import { QA_TEST_IDS, approvalActionButtonTestId, approvalCardTestId, approvalLaneButtonTestId } from './testing/testIds';
@@ -217,10 +216,6 @@ export function Approvals({
     ? approvals.filter((approval) => resolveApprovalLane(approval) === laneFilter)
     : approvals;
   const laneOptions = ['commercial', 'procurement', 'finance', 'legal', 'executive'];
-  const previewLabel = currentUser.previewRoleCodes?.map((roleCode) => ROLE_LABELS[roleCode]).join(' + ') || ROLE_LABELS[currentUser.systemRole];
-  const previewNotice = currentUser.isRolePreviewActive
-    ? buildRolePreviewNotice({ screen: 'approvals', previewLabel, approvalLane: laneFilter || undefined })
-    : null;
   const phaseActions = buildApprovalsActions(profile.personaMode, laneFilter, payload?.summary);
 
   useEffect(() => {
@@ -333,15 +328,6 @@ export function Approvals({
         <p style={{ margin: 0, fontSize: '14px', color: tokens.colors.textSecondary }}>
           {pageCopy.description}
         </p>
-        {previewNotice ? (
-          <div style={{ display: 'grid', gap: '6px', padding: '12px 14px', borderRadius: tokens.radius.lg, border: `1px solid ${previewNotice.tone === 'warning' ? tokens.colors.warning : tokens.colors.primary}`, background: previewNotice.tone === 'warning' ? tokens.colors.warningTint : tokens.colors.infoBg }}>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={previewNotice.tone === 'warning' ? ui.badge.warning : ui.badge.info}>Preview</span>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: tokens.colors.textPrimary }}>{previewNotice.title}</span>
-            </div>
-            <span style={{ fontSize: '12px', color: tokens.colors.textSecondary, lineHeight: 1.6 }}>{previewNotice.message}</span>
-          </div>
-        ) : null}
         {laneFilter ? (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <span data-testid={QA_TEST_IDS.approvals.focusBadge} style={ui.badge.warning}>QA focus lane: {laneFilter}</span>
@@ -394,24 +380,13 @@ export function Approvals({
           <div data-testid={QA_TEST_IDS.approvals.listSection} style={{ display: 'grid', gap: '10px' }}>{filteredApprovals.map((approval) => {
             const lane = approval.actionAvailability?.lane || resolveApprovalLane(approval);
             const isOwner = !approval.approverUserId || approval.approverUserId === currentUser.id;
-            const canPreviewDecide = Boolean(
-              currentUser.isRolePreviewActive
-              && currentUser.baseRoleCodes?.includes('admin')
-              && approval.status === 'pending'
-              && canApproveRequest(
-                currentUser.roleCodes,
-                { ...approval, approverUserId: null },
-                currentUser.systemRole,
-                null,
-              ),
-            );
             const canApprove = (
               approval.actionAvailability?.canDecide ?? (
                 approval.status === 'pending'
                 && isOwner
                 && canApproveRequest(currentUser.roleCodes, approval, currentUser.systemRole, currentUser.id)
               )
-            ) || canPreviewDecide;
+            );
             const availableDecisionsFromPayload = Array.isArray(approval.actionAvailability?.availableDecisions)
               ? approval.actionAvailability?.availableDecisions
               : [];

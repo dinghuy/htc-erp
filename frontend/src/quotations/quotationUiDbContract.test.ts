@@ -210,7 +210,7 @@ describe('Product UI → DB field contract', () => {
 // ── 5. Quotation line items → PDF export field contract ───────────────────────
 //
 // DB: QuotationLineItem(id, quotationId, sortOrder, sku, name, unit,
-//                        technicalSpecs, remarks, quantity, unitPrice)
+//                        currency, vatMode, vatRate, technicalSpecs, remarks, quantity, unitPrice, isOption)
 //
 // PDF maps:
 //   no   → idx + 1
@@ -230,6 +230,9 @@ describe('Quotation line item → PDF export field contract', () => {
       technicalSpecs: '3 tấn, 48V',
       remarks: 'Giao tại kho',
       unit: 'Chiếc',
+      currency: 'USD',
+      vatMode: 'included',
+      vatRate: 10,
       quantity: 2,
       unitPrice: 500000000,
     }];
@@ -241,8 +244,12 @@ describe('Quotation line item → PDF export field contract', () => {
     expect(item.technicalSpecs).toBe('3 tấn, 48V');
     expect(item.remarks).toBe('Giao tại kho');
     expect(item.unit).toBe('Chiếc');
+    expect(item.currency).toBe('USD');
+    expect(item.vatMode).toBe('included');
+    expect(item.vatRate).toBe(10);
     expect(item.quantity).toBe(2);
     expect(item.unitPrice).toBe(500000000);
+    expect(item.isOption).toBe(false);
   });
 
   it('line item amount formula: quantity × unitPrice equals expected total', () => {
@@ -297,6 +304,32 @@ describe('Quotation header → PDF export field contract', () => {
     const taxTotal = Math.round(subtotal * vatRate);
     const grandTotal = subtotal + taxTotal;
     expect(grandTotal).toBe(108_000_000);
+  });
+
+  it('financialConfig.calculateTotals is a persisted UI contract toggle', () => {
+    const persistedConfig = {
+      interestRate: 8.5,
+      exchangeRate: 25400,
+      loanTermMonths: 36,
+      markup: 15,
+      vatRate: 10,
+      calculateTotals: false,
+    };
+
+    expect(persistedConfig.calculateTotals).toBe(false);
+    expect(typeof persistedConfig.calculateTotals).toBe('boolean');
+  });
+
+  it('line item pricing contract now allows per-line currency and VAT semantics', () => {
+    const lineItem = {
+      currency: 'EUR',
+      vatMode: 'excluded',
+      vatRate: 8,
+    };
+
+    expect(lineItem.currency).toBe('EUR');
+    expect(lineItem.vatMode).toBe('excluded');
+    expect(lineItem.vatRate).toBe(8);
   });
 
   it('validUntil is stored as TEXT/DATETIME – UI sends ISO date string', () => {

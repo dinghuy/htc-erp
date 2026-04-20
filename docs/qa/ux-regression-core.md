@@ -4,12 +4,12 @@
 
 Browser-driven regression suite để khóa các UX trap ở giao điểm giữa:
 
-- role preview
+- seeded QA personas
 - route protection
 - navigation shell
 - workspace tab gating
 - approval lane permissions
-- escape hatches quay lại admin
+- login thật theo từng role
 
 Suite này ưu tiên `risk-based core first`, chưa exhaustive toàn bộ app.
 
@@ -39,11 +39,8 @@ Stable selectors nằm ở:
 
 Các điểm bắt buộc phải giữ ổn định khi sửa UI:
 
-- preview banner
-- preview preset buttons
-- preview open settings
-- preview back to admin
 - route shell root
+- settings lane navigation
 - approval lane controls
 - project workspace tabs
 - representative workspace modal
@@ -54,14 +51,14 @@ Manifest hiện tại nằm ở [ux-regression.manifest.mjs](../../frontend/scri
 
 Coverage vòng đầu:
 
-1. `admin -> viewer preview -> settings -> switch preset -> back to admin`
-2. `sales preview -> commercial focus -> representative workspace -> no finance/legal lane actions`
-3. `pm preview -> execution focus -> commercial stays read-only`
-4. `sales + pm preview -> unified queue/workspace`
-5. `procurement preview -> inbox procurement focus -> procurement workspace`
-6. `accounting preview -> finance lane actions only`
-7. `legal preview -> legal lane actions only`
-8. `director preview -> executive lane + reports drill-down`
+1. `qa_admin -> settings -> admin lanes only`
+2. `qa_sales -> commercial focus -> representative workspace -> no finance/legal lane actions`
+3. `qa_project_manager -> execution focus -> commercial stays read-only`
+4. `qa_sales_pm -> unified queue/workspace`
+5. `qa_procurement -> inbox procurement focus -> procurement workspace`
+6. `qa_accounting -> finance lane actions only`
+7. `qa_legal -> legal lane actions only`
+8. `qa_director -> executive lane + reports drill-down`
 9. Smoke navigation cho `Home`, `My Work`, `Inbox`, `Approvals`, `Projects`, `Tasks`, `Reports`, `Settings`, `Support`, `EventLog`
 
 ## How To Run
@@ -157,14 +154,13 @@ cd .
 
 ## Expected Invariants
 
-Mọi thay đổi chạm vào `navigation`, `role preview`, `workspace`, `approval`, `persona home`, hoặc `route protection` phải giữ các invariant sau:
+Mọi thay đổi chạm vào `navigation`, `workspace`, `approval`, `persona home`, hoặc `route protection` phải giữ các invariant sau:
 
-- luôn có đường thoát khỏi preview
-- `Mở Settings` từ preview không bị route guard chặn
-- `Back to Admin` luôn khả dụng khi preview active
-- preview chỉ đổi effective view, không tự cấp thêm business permission
+- persona chỉ đổi qua login hoặc seeded account thật, không qua runtime impersonation
+- `Settings` không được tự lộ lane admin nếu tài khoản thật không có role `admin`
+- persona change không tự cấp thêm business permission
 - route bị chặn phải rơi về màn hợp lệ, không kẹt người dùng
-- read-only badge / preview badge phải khớp capability thật
+- read-only badge và capability hint phải khớp capability thật
 
 ## Definition Of Done
 

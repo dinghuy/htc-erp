@@ -12,11 +12,108 @@ import {
   PREVIEW_PAGE_HEIGHT,
   PREVIEW_PAGE_WIDTH,
   PREVIEW_SCALE,
-  allowedTransitions,
+  computeLineItemPricing,
+  formatCurrencyValue,
   quotationStyles,
 } from './quotationShared';
 
 const S = quotationStyles;
+
+type SaveQuotationOptions = {
+  status?: string;
+  exportPdf?: boolean;
+};
+
+function PreviewTable({
+  title,
+  rows,
+  currency,
+}: {
+  title: string;
+  rows: any[];
+  currency: string;
+}) {
+  return (
+    <div style={{ width: `${PREVIEW_CONTENT_WIDTH.toFixed(2)}px`, marginBottom: '18px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 700, color: '#003F85', marginBottom: '6px' }}>{title}</div>
+      <table style={{ width: `${PREVIEW_CONTENT_WIDTH.toFixed(2)}px`, borderCollapse: 'collapse', fontSize: '9px', border: '0.9px solid #1A202C' }}>
+        <colgroup>
+          <col style={{ width: `${(22 * PREVIEW_SCALE).toFixed(2)}px` }} />
+          <col style={{ width: `${(68 * PREVIEW_SCALE).toFixed(2)}px` }} />
+          <col style={{ width: `${(140 * PREVIEW_SCALE).toFixed(2)}px` }} />
+          <col style={{ width: `${(28 * PREVIEW_SCALE).toFixed(2)}px` }} />
+          <col style={{ width: `${(25 * PREVIEW_SCALE).toFixed(2)}px` }} />
+          <col style={{ width: `${(85 * PREVIEW_SCALE).toFixed(2)}px` }} />
+          <col style={{ width: `${(75 * PREVIEW_SCALE).toFixed(2)}px` }} />
+          <col style={{ width: `${(52.28 * PREVIEW_SCALE).toFixed(2)}px` }} />
+        </colgroup>
+        <thead>
+          <tr style={{ background: '#5B9BD5', color: '#fff' }}>
+            {[
+              { en: 'No.', vi: 'Stt', align: 'left' },
+              { en: 'Part name', vi: 'Mã hàng', align: 'left' },
+              { en: 'Commodity', vi: 'Tên hàng hóa', align: 'left' },
+              { en: 'Unit', vi: 'ĐV', align: 'left' },
+              { en: 'Q.ty', vi: 'S.lg', align: 'left' },
+              { en: 'Unit price', vi: 'Đơn giá', align: 'right' },
+              { en: 'Total', vi: 'Thành tiền', align: 'right' },
+              { en: 'Remarks', vi: 'Ghi chú', align: 'left' },
+            ].map((header) => (
+              <th key={header.en} style={{ padding: '4px 4px', textAlign: header.align as any, fontWeight: 700, border: '0.9px solid #1A202C' }}>
+                <div style={{ lineHeight: 1.05 }}>{header.en}</div>
+                <div style={{ lineHeight: 1.05 }}>{header.vi}</div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={8} style={{ padding: '16px 6px', textAlign: 'center', color: '#CBD5E1', fontStyle: 'italic', border: '0.9px solid #1A202C' }}>
+                Chưa có dòng sản phẩm
+              </td>
+            </tr>
+          ) : (
+            rows.map((item: any, idx: number) => (
+              <tr key={`${item.id || item.sku || 'row'}-${idx}`}>
+                <td style={{ padding: '4px 4px', border: '0.9px solid #1A202C' }}>{idx + 1}</td>
+                <td style={{ padding: '4px 4px', color: '#003F85', fontWeight: 700, fontSize: '10.5px', border: '0.9px solid #1A202C' }}>{item.sku || '-'}</td>
+                <td style={{ padding: '4px 4px', whiteSpace: 'pre-line', lineHeight: 1.3, border: '0.9px solid #1A202C' }}>
+                  <strong>{item.name || '—'}</strong>
+                  {item.technicalSpecs ? `\n${item.technicalSpecs}` : ''}
+                  {(() => {
+                    const pricing = item.pricing || computeLineItemPricing(item);
+                    return `\nVAT: ${pricing.vatMode === 'included' ? 'Đã gồm' : 'Chưa VAT'} (${pricing.vatRate}%)`;
+                  })()}
+                </td>
+                <td style={{ padding: '4px 4px', textAlign: 'left', border: '0.9px solid #1A202C' }}>{item.unit || 'Chiếc'}</td>
+                <td style={{ padding: '4px 4px', textAlign: 'left', border: '0.9px solid #1A202C' }}>{item.quantity || 1}</td>
+                <td style={{ padding: '4px 4px', textAlign: 'right', fontSize: '10.5px', border: '0.9px solid #1A202C' }}>
+                  {(() => {
+                    const pricing = item.pricing || computeLineItemPricing(item);
+                    return formatCurrencyValue(pricing.unitPrice, pricing.currency);
+                  })()}
+                </td>
+                <td style={{ padding: '4px 4px', textAlign: 'right', fontWeight: 700, fontSize: '10.5px', border: '0.9px solid #1A202C' }}>
+                  {(() => {
+                    const pricing = item.pricing || computeLineItemPricing(item);
+                    return formatCurrencyValue(pricing.grossTotal, pricing.currency);
+                  })()}
+                </td>
+                <td style={{ padding: '4px 4px', fontSize: '9px', color: '#1A202C', border: '0.9px solid #1A202C' }}>{item.remarks || ''}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+      {rows.length > 0 && (
+        <div style={{ marginTop: '6px', textAlign: 'right', fontSize: '10px', color: '#64748B' }}>
+          Đơn vị tiền tệ / Currency: {currency}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function QuotationPreviewPanel({
   isMobile,
@@ -35,11 +132,14 @@ export function QuotationPreviewPanel({
   selectedContact,
   currency,
   subject,
-  items,
   totals,
   terms,
 }: any) {
   const { t } = useI18n();
+  const previewCurrencyLabel =
+    totals.mainCurrencyGroups?.length > 1 || totals.optionCurrencyGroups?.length > 1
+      ? 'MIXED'
+      : totals.mainCurrencyGroups?.[0]?.currency || totals.optionCurrencyGroups?.[0]?.currency || currency;
 
   return (
     <div
@@ -85,7 +185,6 @@ export function QuotationPreviewPanel({
       <div style={{ padding: '12px', maxHeight: '82vh', overflowY: 'auto', overflowX: 'auto' }}>
         <div
           style={{
-            // Keep a literal paper surface here: this preview intentionally simulates printable A4 output.
             background: '#fff',
             borderRadius: 'var(--radius-lg)',
             border: '1px solid #E2E8F0',
@@ -197,7 +296,7 @@ export function QuotationPreviewPanel({
                     </div>
                     <div style={{ display: 'flex' }}>
                       <div style={{ width: `${PREVIEW_LABEL_RIGHT.toFixed(2)}px`, color: '#64748B', fontWeight: 700 }}>Crcy / Tiền:</div>
-                      <div>{currency}</div>
+                      <div>{previewCurrencyLabel}</div>
                     </div>
                     <div style={{ display: 'flex' }}>
                       <div style={{ width: `${PREVIEW_LABEL_LEFT.toFixed(2)}px`, color: '#64748B', fontWeight: 700 }}>Phone / ĐT:</div>
@@ -216,85 +315,53 @@ export function QuotationPreviewPanel({
                     We are glad to offer you the quotation as following / Chúng tôi xin gửi đến quý công ty bảng chào giá như sau:
                   </div>
 
-                  <div style={{ width: `${PREVIEW_CONTENT_WIDTH.toFixed(2)}px`, marginBottom: '18px' }}>
-                    <table style={{ width: `${PREVIEW_CONTENT_WIDTH.toFixed(2)}px`, borderCollapse: 'collapse', fontSize: '9px', border: '0.9px solid #1A202C' }}>
-                      <colgroup>
-                        <col style={{ width: `${(22 * PREVIEW_SCALE).toFixed(2)}px` }} />
-                        <col style={{ width: `${(68 * PREVIEW_SCALE).toFixed(2)}px` }} />
-                        <col style={{ width: `${(140 * PREVIEW_SCALE).toFixed(2)}px` }} />
-                        <col style={{ width: `${(28 * PREVIEW_SCALE).toFixed(2)}px` }} />
-                        <col style={{ width: `${(25 * PREVIEW_SCALE).toFixed(2)}px` }} />
-                        <col style={{ width: `${(85 * PREVIEW_SCALE).toFixed(2)}px` }} />
-                        <col style={{ width: `${(75 * PREVIEW_SCALE).toFixed(2)}px` }} />
-                        <col style={{ width: `${(52.28 * PREVIEW_SCALE).toFixed(2)}px` }} />
-                      </colgroup>
-                      <thead>
-                        <tr style={{ background: '#5B9BD5', color: '#fff' }}>
-                          {[
-                            { en: 'No.', vi: 'Stt', align: 'left' },
-                            { en: 'Part name', vi: 'Mã hàng', align: 'left' },
-                            { en: 'Commodity', vi: 'Tên hàng hóa', align: 'left' },
-                            { en: 'Unit', vi: 'ĐV', align: 'left' },
-                            { en: 'Q.ty', vi: 'S.lg', align: 'left' },
-                            { en: 'Unit price', vi: 'Đơn giá', align: 'right' },
-                            { en: 'Total', vi: 'Thành tiền', align: 'right' },
-                            { en: 'Remarks', vi: 'Ghi chú', align: 'left' },
-                          ].map((header) => (
-                            <th key={header.en} style={{ padding: '4px 4px', textAlign: header.align as any, fontWeight: 700, border: '0.9px solid #1A202C' }}>
-                              <div style={{ lineHeight: 1.05 }}>{header.en}</div>
-                              <div style={{ lineHeight: 1.05 }}>{header.vi}</div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.length === 0 ? (
-                          <tr>
-                            <td colSpan={8} style={{ padding: '16px 6px', textAlign: 'center', color: '#CBD5E1', fontStyle: 'italic', border: '0.9px solid #1A202C' }}>
-                              {t('sales.quotations.preview.no_products')}
-                            </td>
-                          </tr>
-                        ) : (
-                          items.map((item: any, idx: number) => (
-                            <tr key={idx}>
-                              <td style={{ padding: '4px 4px', border: '0.9px solid #1A202C' }}>{idx + 1}</td>
-                              <td style={{ padding: '4px 4px', color: '#003F85', fontWeight: 700, fontSize: '10.5px', border: '0.9px solid #1A202C' }}>{item.sku}</td>
-                              <td style={{ padding: '4px 4px', whiteSpace: 'pre-line', lineHeight: 1.3, border: '0.9px solid #1A202C' }}>
-                                <strong>{item.name}</strong>
-                                {item.technicalSpecs ? '\n' + item.technicalSpecs : ''}
-                              </td>
-                              <td style={{ padding: '4px 4px', textAlign: 'left', border: '0.9px solid #1A202C' }}>{item.unit}</td>
-                              <td style={{ padding: '4px 4px', textAlign: 'left', border: '0.9px solid #1A202C' }}>{item.quantity}</td>
-                              <td style={{ padding: '4px 4px', textAlign: 'right', fontSize: '10.5px', border: '0.9px solid #1A202C' }}>
-                                {parseFloat(item.unitPrice || 0).toLocaleString()}
-                              </td>
-                              <td style={{ padding: '4px 4px', textAlign: 'right', fontWeight: 700, fontSize: '10.5px', border: '0.9px solid #1A202C' }}>
-                                {(parseFloat(item.unitPrice || 0) * parseInt(item.quantity || 1)).toLocaleString()}
-                              </td>
-                              <td style={{ padding: '4px 4px', fontSize: '9px', color: '#1A202C', border: '0.9px solid #1A202C' }}>{item.remarks}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                  {(totals.mainCurrencyGroups.length > 0 || (totals.mainItems.length === 0 && totals.optionItems.length === 0)) && (
+                    (totals.mainCurrencyGroups.length > 0
+                      ? totals.mainCurrencyGroups.map((group: any) => (
+                          <PreviewTable
+                            key={`main-${group.currency}`}
+                            title={`Main offer / Phương án chính · ${group.currency}`}
+                            rows={group.items}
+                            currency={group.currency}
+                          />
+                        ))
+                      : <PreviewTable title="Main offer / Phương án chính" rows={[]} currency={currency} />)
+                  )}
 
-                  <div style={{ marginLeft: 'auto', width: '260px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                      <span>{t('sales.quotations.preview.subtotal')}:</span>
-                      <strong>{totals.subtotal.toLocaleString()} {currency}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                      <span>{t('sales.quotations.preview.tax', { rate: 8 })}:</span>
-                      <strong>{totals.taxTotal.toLocaleString()} {currency}</strong>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: '#003F85', color: '#fff', marginTop: '8px' }}>
-                      <span style={{ fontWeight: 700 }}>{t('sales.quotations.preview.grand_total').toUpperCase()}:</span>
-                      <strong>{totals.grandTotal.toLocaleString()} {currency}</strong>
-                    </div>
-                  </div>
+                  {totals.optionCurrencyGroups.length > 0 && (
+                    totals.optionCurrencyGroups.map((group: any) => (
+                      <PreviewTable
+                        key={`option-${group.currency}`}
+                        title={`Alternative offer / Phương án tùy chọn · ${group.currency}`}
+                        rows={group.items}
+                        currency={group.currency}
+                      />
+                    ))
+                  )}
 
-                  <div style={{ marginTop: '24px' }}>
+                  {totals.shouldShowTotals && (
+                    <div style={{ marginLeft: 'auto', width: '320px', marginBottom: '24px', display: 'grid', gap: '12px' }}>
+                      {totals.mainCurrencyGroups.map((group: any) => (
+                        <div key={`summary-${group.currency}`} style={{ border: '1px solid #CBD5E1', padding: '10px 12px' }}>
+                          <div style={{ fontWeight: 700, color: '#003F85', marginBottom: '6px' }}>{group.currency}</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                            <span>{t('sales.quotations.preview.subtotal')}:</span>
+                            <strong>{formatCurrencyValue(group.netSubtotal, group.currency)} {group.currency}</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                            <span>VAT:</span>
+                            <strong>{formatCurrencyValue(group.vatTotal, group.currency)} {group.currency}</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: '#003F85', color: '#fff', marginTop: '8px' }}>
+                            <span style={{ fontWeight: 700 }}>{t('sales.quotations.preview.grand_total').toUpperCase()}:</span>
+                            <strong>{formatCurrencyValue(group.grossTotal, group.currency)} {group.currency}</strong>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: totals.shouldShowTotals ? '0' : '12px' }}>
                     {(terms.remarksEn || terms.remarks) && (
                       <div style={{ marginBottom: '18px' }}>
                         <div style={{ fontStyle: 'italic', fontWeight: 700, marginBottom: '6px' }}>Remark:</div>
@@ -332,6 +399,7 @@ export function QuotationPreviewPanel({
                 </div>
               </div>
             </div>
+
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
               {Array.from({ length: previewPageCount - 1 }).map((_, idx) => (
                 <div
@@ -357,34 +425,25 @@ export function QuotationPreviewPanel({
   );
 }
 
-export function QuotationActionButtons({ isReadOnly, showRemind, editingQuoteId, quoteStatus, updateStatus, saveQuotation, savingQuote }: any) {
+export function QuotationActionButtons({
+  isReadOnly,
+  quoteStatus,
+  saveQuotation,
+  savingQuote,
+}: {
+  isReadOnly: boolean;
+  editingQuoteId: string | null;
+  quoteStatus: string;
+  saveQuotation: (options?: SaveQuotationOptions) => Promise<void>;
+  savingQuote: boolean;
+}) {
   const { t } = useI18n();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px', position: 'relative', zIndex: 1, background: 'var(--bg-primary)' }}>
-      {isReadOnly && <div style={{ fontSize: '12px', color: tokens.colors.textMuted }}>{t('sales.quotations.read_only')}</div>}
-      {showRemind && <div style={{ fontSize: '12px', color: tokens.colors.warning }}>{t('sales.quotations.reminder')}</div>}
-      {editingQuoteId && !isReadOnly && allowedTransitions(quoteStatus).length > 0 && (
-        <select
-          style={{ ...S.select, padding: '6px 8px', fontSize: '12px' }}
-          onChange={(event: any) => {
-            const nextStatus = event.target.value;
-            if (nextStatus) updateStatus(editingQuoteId, quoteStatus, nextStatus);
-            event.target.value = '';
-          }}
-          defaultValue=""
-        >
-          <option value="" disabled>
-            {t('sales.quotations.change_status')}
-          </option>
-          {allowedTransitions(quoteStatus).map((status) => (
-            <option value={status}>{status.toUpperCase()}</option>
-          ))}
-        </select>
-      )}
       <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '12px' }}>
         <button
-          onClick={() => saveQuotation('draft')}
+          onClick={() => saveQuotation({ status: 'draft' })}
           disabled={savingQuote || isReadOnly}
           style={{
             ...S.btnPrimary,
@@ -405,14 +464,14 @@ export function QuotationActionButtons({ isReadOnly, showRemind, editingQuoteId,
           )}
         </button>
         <button
-          onClick={() => saveQuotation('sent')}
-          disabled={savingQuote || isReadOnly}
+          onClick={() => saveQuotation({ status: quoteStatus || 'draft', exportPdf: true })}
+          disabled={savingQuote}
           style={{
             ...S.btnPrimary,
             flex: '1 1 220px',
             background: tokens.colors.primaryDark,
-            opacity: savingQuote || isReadOnly ? 0.7 : 1,
-            cursor: savingQuote || isReadOnly ? 'not-allowed' : 'pointer',
+            opacity: savingQuote ? 0.7 : 1,
+            cursor: savingQuote ? 'not-allowed' : 'pointer',
           }}
         >
           {savingQuote ? (

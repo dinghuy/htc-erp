@@ -59,11 +59,7 @@ export const PREVIEW_LABEL_LEFT = 95 * PREVIEW_SCALE;
 export const PREVIEW_LABEL_RIGHT = 80 * PREVIEW_SCALE;
 
 export const statusBadgeStyle = (status?: string) => {
-  if (status === 'sent') return ui.badge.info;
-  if (status === 'accepted') return ui.badge.success;
-  if (status === 'rejected') return ui.badge.error;
-  if (status === 'draft') return ui.badge.neutral;
-  return ui.badge.neutral;
+  return getQuotationStatusMeta(status).style;
 };
 
 export const quotationStyles = {
@@ -126,15 +122,68 @@ export const WARRANTY_PRESETS = [
 
 export const UNITS = ['Chiếc', 'Bộ', 'Cái', 'Cặp', 'Hộp', 'Thùng', 'Kg', 'Gói'];
 export const CURRENCIES = ['VND', 'USD', 'EUR', 'JPY', 'CNY'];
-export const VALID_STATUSES = ['draft', 'sent', 'accepted', 'rejected'];
+export const VAT_MODES = ['excluded', 'included'] as const;
+export const VALID_STATUSES = ['draft', 'submitted_for_approval', 'revision_required', 'approved', 'rejected', 'won', 'lost'] as const;
+export const LEGACY_STATUS_ALIASES: Record<string, (typeof VALID_STATUSES)[number]> = {
+  sent: 'submitted_for_approval',
+  accepted: 'won',
+  expired: 'lost',
+};
 
-export const isLegacyStatus = (status?: string) => !status || !VALID_STATUSES.includes(status);
+function coerceBoolean(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
+export function normalizeQuotationStatus(status?: string | null) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if ((VALID_STATUSES as readonly string[]).includes(normalized)) return normalized;
+  return LEGACY_STATUS_ALIASES[normalized] || '';
+}
+
+export const isLegacyStatus = (status?: string) => !normalizeQuotationStatus(status);
 
 export const allowedTransitions = (status?: string) => {
-  if (status === 'draft') return ['sent'];
-  if (status === 'sent') return ['accepted', 'rejected'];
+  const normalized = normalizeQuotationStatus(status);
+  if (normalized === 'draft') return ['submitted_for_approval'];
+  if (normalized === 'submitted_for_approval') return ['approved', 'rejected', 'revision_required'];
+  if (normalized === 'revision_required') return ['submitted_for_approval'];
+  if (normalized === 'approved') return ['won', 'lost'];
   return [];
 };
+
+export function isReadOnlyQuotationStatus(status?: string | null) {
+  const normalized = normalizeQuotationStatus(status);
+  return !normalized || ['won', 'lost', 'rejected'].includes(normalized);
+}
+
+export function getQuotationStatusMeta(status?: string | null) {
+  const normalized = normalizeQuotationStatus(status);
+  if (normalized === 'submitted_for_approval') return { normalized, label: 'Chờ duyệt', style: ui.badge.info };
+  if (normalized === 'revision_required') return { normalized, label: 'Cần chỉnh sửa', style: ui.badge.warning };
+  if (normalized === 'approved') return { normalized, label: 'Đã duyệt', style: ui.badge.success };
+  if (normalized === 'won') return { normalized, label: 'Đã thắng', style: ui.badge.success };
+  if (normalized === 'lost') return { normalized, label: 'Đã mất', style: ui.badge.neutral };
+  if (normalized === 'rejected') return { normalized, label: 'Từ chối', style: ui.badge.error };
+  if (normalized === 'draft') return { normalized, label: 'Nháp', style: ui.badge.neutral };
+  return { normalized: '', label: status ? String(status) : 'Không rõ', style: ui.badge.neutral };
+}
+
+export function getApprovalStateMeta(status?: string | null) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'pending') return { label: 'Chờ duyệt thương mại', style: ui.badge.warning };
+  if (normalized === 'approved') return { label: 'Đã duyệt thương mại', style: ui.badge.success };
+  if (normalized === 'rejected') return { label: 'Duyệt bị từ chối', style: ui.badge.error };
+  if (normalized === 'not_requested') return { label: 'Chưa gửi duyệt', style: ui.badge.neutral };
+  return { label: 'Không có trạng thái duyệt', style: ui.badge.neutral };
+}
 
 const VN_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
@@ -182,7 +231,225 @@ export function normalizeQuotationLineItems(value: unknown) {
     quantity: (item?.quantity != null && Number.isFinite(Number(item.quantity))) ? Number(item.quantity) : 1,
     unitPrice: (item?.unitPrice != null && Number.isFinite(Number(item.unitPrice))) ? Number(item.unitPrice) : 0,
     sortOrder: item?.sortOrder ?? null,
+    isOption: coerceBoolean(item?.isOption, false),
+    currency: item?.currency || 'VND',
+    vatMode: item?.vatMode === 'included' ? 'included' : 'excluded',
+    vatRate: normalizeVatRate(item?.vatRate, 8),
   }));
+}
+
+export function normalizeVatRate(value: unknown, fallback = 8) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+export function normalizeCalculateTotals(value: unknown, fallback = true) {
+  return coerceBoolean(value, fallback);
+}
+
+export function calculateLineItemAmount(item: any) {
+  const quantity = Number.isFinite(Number(item?.quantity)) ? Number(item.quantity) : 1;
+  const unitPrice = Number.isFinite(Number(item?.unitPrice)) ? Number(item.unitPrice) : 0;
+  return quantity * unitPrice;
+}
+
+export function getCurrencyPrecision(currency?: string | null) {
+  return String(currency || 'VND').toUpperCase() === 'VND' ? 0 : 2;
+}
+
+export function roundCurrencyValue(value: unknown, currency?: string | null) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  const precision = getCurrencyPrecision(currency);
+  const factor = 10 ** precision;
+  return Math.round(numeric * factor) / factor;
+}
+
+export function formatCurrencyValue(value: unknown, currency?: string | null) {
+  const normalizedCurrency = String(currency || 'VND').toUpperCase();
+  return roundCurrencyValue(value, normalizedCurrency).toLocaleString('en-US', {
+    minimumFractionDigits: getCurrencyPrecision(normalizedCurrency),
+    maximumFractionDigits: getCurrencyPrecision(normalizedCurrency),
+  });
+}
+
+export function sanitizeCurrencyInput(value: unknown, currency?: string | null) {
+  const precision = getCurrencyPrecision(currency);
+  const source = String(value ?? '').replace(/,/g, '');
+  const hadDecimal = source.includes('.');
+  const cleaned = source.replace(/[^\d.]/g, '');
+  const [rawInteger = '', ...rest] = cleaned.split('.');
+  const integerPart = rawInteger.replace(/^0+(?=\d)/, '') || (rawInteger.startsWith('0') ? '0' : rawInteger);
+  if (precision === 0) {
+    return integerPart;
+  }
+  const fractionPart = rest.join('').slice(0, precision);
+  if (!hadDecimal) {
+    return integerPart;
+  }
+  return `${integerPart || '0'}.${fractionPart}`;
+}
+
+export function formatCurrencyInputDisplay(value: unknown, currency?: string | null) {
+  const sanitized = sanitizeCurrencyInput(value, currency);
+  if (!sanitized) return '';
+  const [integerPart = '', fractionPart = ''] = sanitized.split('.');
+  const groupedInteger = (integerPart || '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return sanitized.includes('.') ? `${groupedInteger}.${fractionPart}` : groupedInteger;
+}
+
+function countCurrencyTokens(value: string) {
+  return value.split('').filter((char) => /\d|\./.test(char)).length;
+}
+
+function resolveCaretFromTokenCount(value: string, tokenCount: number) {
+  if (tokenCount <= 0) return 0;
+  let seen = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (/\d|\./.test(value[index])) {
+      seen += 1;
+      if (seen >= tokenCount) return index + 1;
+    }
+  }
+  return value.length;
+}
+
+export function getCurrencyInputEditState(inputValue: string, selectionStart: number, currency?: string | null) {
+  const normalizedSelection = Number.isFinite(selectionStart) ? selectionStart : inputValue.length;
+  const tokenCountBeforeCaret = countCurrencyTokens(inputValue.slice(0, normalizedSelection));
+  const rawValue = sanitizeCurrencyInput(inputValue, currency);
+  const displayValue = formatCurrencyInputDisplay(rawValue, currency);
+  const caretPosition = resolveCaretFromTokenCount(displayValue, tokenCountBeforeCaret);
+  return {
+    rawValue,
+    displayValue,
+    caretPosition,
+  };
+}
+
+export function parseNumberInput(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const normalized = String(value ?? '')
+    .replace(/,/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+  if (!normalized) return 0;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+export function computeLineItemPricing(item: any) {
+  const quantity = Number.isFinite(Number(item?.quantity)) ? Number(item.quantity) : 1;
+  const currency = String(item?.currency || 'VND').toUpperCase();
+  const vatMode = item?.vatMode === 'included' ? 'included' : 'excluded';
+  const vatRate = normalizeVatRate(item?.vatRate, 8);
+  const unitPrice = parseNumberInput(item?.unitPrice);
+  const precision = getCurrencyPrecision(currency);
+  const factor = 10 ** precision;
+  const round = (value: number) => Math.round(value * factor) / factor;
+  const unitGross = vatMode === 'included' ? unitPrice : round(unitPrice * (1 + vatRate / 100));
+  const unitNet = vatMode === 'included' ? round(unitPrice / (1 + vatRate / 100)) : unitPrice;
+  const grossTotal = round(quantity * unitGross);
+  const netTotal = round(quantity * unitNet);
+  const vatTotal = round(grossTotal - netTotal);
+  return {
+    quantity,
+    currency,
+    vatMode,
+    vatRate,
+    unitPrice,
+    unitNet,
+    unitGross,
+    netTotal,
+    vatTotal,
+    grossTotal,
+  };
+}
+
+export function splitQuotationLineItems(value: unknown) {
+  const items = normalizeQuotationLineItems(value);
+  const mainItems = items.filter((item) => item.isOption !== true);
+  const optionItems = items.filter((item) => item.isOption === true);
+  return {
+    items,
+    mainItems,
+    optionItems,
+    hasMainItems: mainItems.length > 0,
+    hasOptionItems: optionItems.length > 0,
+    isAllOptional: mainItems.length === 0 && optionItems.length > 0,
+  };
+}
+
+export function serializeQuotationLineItems(value: unknown) {
+  const { mainItems, optionItems } = splitQuotationLineItems(value);
+  return [...mainItems, ...optionItems].map((item, index) => ({
+    ...item,
+    sortOrder: index,
+  }));
+}
+
+export function computeQuotationTotals(value: unknown, vatRate: unknown, calculateTotals: unknown) {
+  const { items, mainItems, optionItems, isAllOptional } = splitQuotationLineItems(value);
+  const normalizedVatRate = normalizeVatRate(vatRate);
+  const shouldCalculate = normalizeCalculateTotals(calculateTotals);
+  const decorate = (item: any) => {
+    const withDefaults = {
+      ...item,
+      currency: item?.currency || 'VND',
+      vatMode: item?.vatMode === 'included' ? 'included' : 'excluded',
+      vatRate: normalizeVatRate(item?.vatRate, normalizedVatRate),
+    };
+    return {
+      ...withDefaults,
+      pricing: computeLineItemPricing(withDefaults),
+    };
+  };
+  const decoratedMainItems = mainItems.map(decorate);
+  const decoratedOptionItems = optionItems.map(decorate);
+  const groupByCurrency = (rows: any[]) => {
+    const groups = new Map<string, any>();
+    rows.forEach((row) => {
+      const currencyKey = row.pricing.currency;
+      const current =
+        groups.get(currencyKey) || {
+          currency: currencyKey,
+          items: [],
+          netSubtotal: 0,
+          vatTotal: 0,
+          grossTotal: 0,
+        };
+      current.items.push(row);
+      current.netSubtotal = roundCurrencyValue(current.netSubtotal + row.pricing.netTotal, currencyKey);
+      current.vatTotal = roundCurrencyValue(current.vatTotal + row.pricing.vatTotal, currencyKey);
+      current.grossTotal = roundCurrencyValue(current.grossTotal + row.pricing.grossTotal, currencyKey);
+      groups.set(currencyKey, current);
+    });
+    return Array.from(groups.values());
+  };
+  const mainCurrencyGroups = groupByCurrency(decoratedMainItems);
+  const optionCurrencyGroups = groupByCurrency(decoratedOptionItems);
+  const singleMainCurrencyGroup = mainCurrencyGroups.length === 1 ? mainCurrencyGroups[0] : null;
+  const subtotal = singleMainCurrencyGroup?.netSubtotal || 0;
+  const taxTotal = shouldCalculate ? singleMainCurrencyGroup?.vatTotal || 0 : 0;
+  const grandTotal = shouldCalculate ? singleMainCurrencyGroup?.grossTotal || 0 : 0;
+  const optionValue = optionCurrencyGroups.length === 1 ? optionCurrencyGroups[0].grossTotal : 0;
+  const shouldShowTotals = shouldCalculate && decoratedMainItems.length > 0;
+
+  return {
+    items,
+    mainItems: decoratedMainItems,
+    optionItems: decoratedOptionItems,
+    subtotal,
+    taxTotal,
+    grandTotal,
+    optionValue,
+    vatRate: normalizedVatRate,
+    calculateTotals: shouldCalculate,
+    shouldShowTotals,
+    isAllOptional,
+    mainCurrencyGroups,
+    optionCurrencyGroups,
+  };
 }
 
 export function normalizeCommercialTerms(value: any) {
