@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { canManageUsers, fetchWithAuth, normalizeRoleCodes, type CurrentUser } from './auth';
+import { API_BASE } from './config';
 import { showNotify } from './Notification';
 import { useI18n } from './i18n';
 import { normalizeImportReport, buildImportSummary } from './shared/imports/importReport';
@@ -12,7 +13,7 @@ import { AddUserModal, EditUserModal } from './users/UserFormModal';
 import { UserTable } from './users/UserTable';
 import { getSupplementalRoles, useUserDirectoryData } from './users/userUiShared';
 
-const API = '/api';
+const API = API_BASE;
 
 type PanelTab = 'profile' | 'access' | 'security' | 'activity';
 
