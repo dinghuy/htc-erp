@@ -1,5 +1,6 @@
+import path from 'node:path';
 import type { Express, Response } from 'express';
-import { getDb } from '../../../sqlite-db';
+import { getDb, getDbPath } from '../../../sqlite-db';
 import type { AuthenticatedRequest } from '../../shared/auth/httpAuth';
 import { buildUxSeedContract, resetUxRegressionSeed } from './qaSeed';
 
@@ -43,11 +44,39 @@ function assertBootstrapRouteAvailable(req: any, res: Response) {
   return true;
 }
 
+function isTruthyEnv(value: string | undefined) {
+  return /^(1|true|yes|on)$/i.test(String(value || '').trim());
+}
+
+function evaluateQaResetSafety() {
+  const dbPath = getDbPath();
+  const resolvedDbPath = path.resolve(dbPath);
+  const dbName = path.basename(resolvedDbPath, path.extname(resolvedDbPath));
+  const looksLikeIsolatedQaDb = /(?:^|[-_.])(qa|seed|audit|test|spec|e2e)(?:[-_.]|$)/i.test(dbName);
+  const allowPrimaryDbReset = isTruthyEnv(process.env.QA_ALLOW_DB_RESET_MAIN_DB);
+
+  return {
+    ok: allowPrimaryDbReset || looksLikeIsolatedQaDb,
+    dbPath: resolvedDbPath,
+  };
+}
+
+function assertQaResetSafe(res: Response) {
+  const safety = evaluateQaResetSafety();
+  if (safety.ok) return true;
+
+  res.status(409).json({
+    error: `QA seed reset is blocked for the primary database at ${safety.dbPath}. Point DB_PATH at an isolated QA/test database or set QA_ALLOW_DB_RESET_MAIN_DB=true if you intentionally want to wipe this DB.`,
+  });
+  return false;
+}
+
 export function registerPlatformQaRoutes(app: Express, deps: RegisterPlatformQaRoutesDeps) {
   const { ah, requireAuth } = deps;
 
   app.post('/api/qa/bootstrap-ux-seed', ah(async (req: any, res: Response) => {
     if (!assertBootstrapRouteAvailable(req, res)) return;
+    if (!assertQaResetSafe(res)) return;
     const contract = await resetUxRegressionSeed(getDb());
     res.json({
       ok: true,
@@ -63,6 +92,7 @@ export function registerPlatformQaRoutes(app: Express, deps: RegisterPlatformQaR
 
   app.post('/api/qa/reset-ux-seed', requireAuth, ah(async (req: AuthenticatedRequest, res: Response) => {
     if (!assertQaRouteAvailable(req, res)) return;
+    if (!assertQaResetSafe(res)) return;
     const contract = await resetUxRegressionSeed(getDb());
     res.json({
       ok: true,

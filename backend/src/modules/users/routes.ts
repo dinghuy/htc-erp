@@ -12,6 +12,7 @@ type AsyncRouteFactory = (handler: (req: Request, res: Response) => Promise<unkn
 type RegisterUserRoutesDeps = {
   ah: AsyncRouteFactory;
   requireAuth: any;
+  requirePermission: (...permissionKeys: any[]) => any;
   requireRole: (...roles: string[]) => any;
   upload: any;
   avatarUpload: any;
@@ -29,6 +30,7 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
   const {
     ah,
     requireAuth,
+    requirePermission,
     requireRole,
     upload,
     avatarUpload,
@@ -92,7 +94,7 @@ export function registerUserRoutes(app: Express, deps: RegisterUserRoutesDeps) {
     res.json(mapGenderRecord(row));
   }));
 
-  app.delete('/api/users/:id', requireAuth, requireRole('admin'), ah(async (req: Request, res: Response) => {
+  app.delete('/api/users/:id', requireAuth, requirePermission('manage_users'), ah(async (req: Request, res: Response) => {
     const u = (req as any).user;
     const userId = routeParam(req.params.id);
     if (u.id === userId) return res.status(400).json({ error: 'Không thể xóa tài khoản đang đăng nhập' });

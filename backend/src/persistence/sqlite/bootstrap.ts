@@ -46,8 +46,12 @@ export async function bootstrapSqliteSchema(db: Database) {
       description TEXT,
       tag TEXT,
       country TEXT,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(assignedTo) REFERENCES User(id) ON DELETE SET NULL
+      FOREIGN KEY(assignedTo) REFERENCES User(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -63,8 +67,12 @@ export async function bootstrapSqliteSchema(db: Database) {
       email TEXT,
       phone TEXT,
       isPrimaryContact INTEGER DEFAULT 0,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(accountId) REFERENCES Account(id) ON DELETE CASCADE
+      FOREIGN KEY(accountId) REFERENCES Account(id) ON DELETE CASCADE,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -84,9 +92,13 @@ export async function bootstrapSqliteSchema(db: Database) {
       startDate TEXT,
       notes TEXT,
       contactId INTEGER,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(assignedTo) REFERENCES User(id) ON DELETE SET NULL,
-      FOREIGN KEY(contactId) REFERENCES Contact(id) ON DELETE SET NULL
+      FOREIGN KEY(contactId) REFERENCES Contact(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -112,6 +124,9 @@ export async function bootstrapSqliteSchema(db: Database) {
       qbuRateDate TEXT,
       qbuRateValue REAL,
       status TEXT DEFAULT 'available',
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -175,11 +190,15 @@ export async function bootstrapSqliteSchema(db: Database) {
       grandTotal REAL,
       status TEXT DEFAULT 'draft',
       validUntil DATETIME,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(accountId) REFERENCES Account(id) ON DELETE SET NULL,
       FOREIGN KEY(contactId) REFERENCES Contact(id) ON DELETE SET NULL,
-      FOREIGN KEY(parentQuotationId) REFERENCES Quotation(id) ON DELETE SET NULL
+      FOREIGN KEY(parentQuotationId) REFERENCES Quotation(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -196,9 +215,13 @@ export async function bootstrapSqliteSchema(db: Database) {
       attachments TEXT,
       changeReason TEXT,
       status TEXT DEFAULT 'active',
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(supplierId) REFERENCES Account(id) ON DELETE CASCADE,
-      FOREIGN KEY(linkedQuotationId) REFERENCES Quotation(id) ON DELETE SET NULL
+      FOREIGN KEY(linkedQuotationId) REFERENCES Quotation(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -235,10 +258,14 @@ export async function bootstrapSqliteSchema(db: Database) {
       startDate TEXT,
       endDate TEXT,
       status TEXT DEFAULT 'pending',
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (managerId) REFERENCES User(id) ON DELETE SET NULL,
-      FOREIGN KEY (accountId) REFERENCES Account(id) ON DELETE SET NULL
+      FOREIGN KEY (accountId) REFERENCES Account(id) ON DELETE SET NULL,
+      FOREIGN KEY (deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -268,12 +295,16 @@ export async function bootstrapSqliteSchema(db: Database) {
       resultLinks TEXT,
       output TEXT,
       reportDate TEXT,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (projectId) REFERENCES Project(id) ON DELETE CASCADE,
       FOREIGN KEY (parentTaskId) REFERENCES Task(id) ON DELETE SET NULL,
       FOREIGN KEY (assigneeId) REFERENCES User(id) ON DELETE SET NULL,
-      FOREIGN KEY (quotationId) REFERENCES Quotation(id) ON DELETE SET NULL
+      FOREIGN KEY (quotationId) REFERENCES Quotation(id) ON DELETE SET NULL,
+      FOREIGN KEY (deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -294,13 +325,17 @@ export async function bootstrapSqliteSchema(db: Database) {
       note TEXT,
       decidedAt TEXT,
       decidedBy INTEGER,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
       FOREIGN KEY(quotationId) REFERENCES Quotation(id) ON DELETE SET NULL,
       FOREIGN KEY(approverUserId) REFERENCES User(id) ON DELETE SET NULL,
       FOREIGN KEY(decidedBy) REFERENCES User(id) ON DELETE SET NULL,
-      FOREIGN KEY(requestedBy) REFERENCES User(id) ON DELETE SET NULL
+      FOREIGN KEY(requestedBy) REFERENCES User(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -323,12 +358,16 @@ export async function bootstrapSqliteSchema(db: Database) {
       reviewNote TEXT,
       storageKey TEXT,
       threadId INTEGER,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(projectId) REFERENCES Project(id) ON DELETE CASCADE,
       FOREIGN KEY(quotationId) REFERENCES Quotation(id) ON DELETE SET NULL,
       FOREIGN KEY(reviewerUserId) REFERENCES User(id) ON DELETE SET NULL,
-      FOREIGN KEY(threadId) REFERENCES EntityThread(id) ON DELETE SET NULL
+      FOREIGN KEY(threadId) REFERENCES EntityThread(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -565,6 +604,38 @@ export async function bootstrapSqliteSchema(db: Database) {
   `);
 
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS DeletedRecord (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      moduleKey TEXT NOT NULL,
+      entityType TEXT NOT NULL,
+      entityId TEXT NOT NULL,
+      entityLabel TEXT,
+      projectId TEXT,
+      routePath TEXT,
+      deleteMode TEXT DEFAULT 'soft',
+      status TEXT DEFAULT 'deleted',
+      snapshotJson TEXT,
+      reason TEXT,
+      deletedBy INTEGER,
+      actorRoles TEXT,
+      actingCapability TEXT,
+      sourceActivityId INTEGER,
+      adminNote TEXT,
+      reviewedAt TEXT,
+      reviewedBy INTEGER,
+      restoredAt TEXT,
+      restoredBy INTEGER,
+      purgedAt TEXT,
+      purgedBy INTEGER,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL,
+      FOREIGN KEY(reviewedBy) REFERENCES User(id) ON DELETE SET NULL,
+      FOREIGN KEY(restoredBy) REFERENCES User(id) ON DELETE SET NULL,
+      FOREIGN KEY(purgedBy) REFERENCES User(id) ON DELETE SET NULL
+    )
+  `);
+
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS ChatMessage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       userId INTEGER NOT NULL,
@@ -780,8 +851,12 @@ export async function bootstrapSqliteSchema(db: Database) {
       description TEXT,
       isDefault INTEGER DEFAULT 0,
       sortOrder INTEGER DEFAULT 0,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
-      updatedAt TEXT DEFAULT (datetime('now'))
+      updatedAt TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -793,10 +868,14 @@ export async function bootstrapSqliteSchema(db: Database) {
       parentId INTEGER,
       teamLeadId INTEGER,
       sortOrder INTEGER DEFAULT 0,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY(parentId) REFERENCES Department(id) ON DELETE SET NULL,
-      FOREIGN KEY(teamLeadId) REFERENCES User(id) ON DELETE SET NULL
+      FOREIGN KEY(teamLeadId) REFERENCES User(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -813,11 +892,15 @@ export async function bootstrapSqliteSchema(db: Database) {
       decidedBy INTEGER,
       decidedAt TEXT,
       note TEXT,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY(staffId) REFERENCES User(id) ON DELETE CASCADE,
       FOREIGN KEY(departmentId) REFERENCES Department(id) ON DELETE SET NULL,
-      FOREIGN KEY(decidedBy) REFERENCES User(id) ON DELETE SET NULL
+      FOREIGN KEY(decidedBy) REFERENCES User(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -828,8 +911,12 @@ export async function bootstrapSqliteSchema(db: Database) {
       description TEXT,
       holidayDate TEXT NOT NULL,
       departmentId INTEGER,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY(departmentId) REFERENCES Department(id) ON DELETE SET NULL
+      FOREIGN KEY(departmentId) REFERENCES Department(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -839,8 +926,12 @@ export async function bootstrapSqliteSchema(db: Database) {
       name TEXT NOT NULL,
       parentId INTEGER,
       sortOrder INTEGER DEFAULT 0,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY(parentId) REFERENCES ProductCategory(id) ON DELETE SET NULL
+      FOREIGN KEY(parentId) REFERENCES ProductCategory(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -851,8 +942,12 @@ export async function bootstrapSqliteSchema(db: Database) {
       channelType TEXT NOT NULL,
       value TEXT NOT NULL,
       isPrimary INTEGER DEFAULT 0,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY(contactId) REFERENCES Contact(id) ON DELETE CASCADE
+      FOREIGN KEY(contactId) REFERENCES Contact(id) ON DELETE CASCADE,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -878,10 +973,14 @@ export async function bootstrapSqliteSchema(db: Database) {
       reportDate TEXT NOT NULL,
       hours REAL NOT NULL DEFAULT 0,
       description TEXT,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY(taskId) REFERENCES Task(id) ON DELETE CASCADE,
-      FOREIGN KEY(userId) REFERENCES User(id) ON DELETE CASCADE
+      FOREIGN KEY(userId) REFERENCES User(id) ON DELETE CASCADE,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -893,11 +992,15 @@ export async function bootstrapSqliteSchema(db: Database) {
       kind TEXT NOT NULL DEFAULT 'relates_to',
       note TEXT,
       createdBy INTEGER,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY(taskId) REFERENCES Task(id) ON DELETE CASCADE,
       FOREIGN KEY(relatedTaskId) REFERENCES Task(id) ON DELETE CASCADE,
-      FOREIGN KEY(createdBy) REFERENCES User(id) ON DELETE SET NULL
+      FOREIGN KEY(createdBy) REFERENCES User(id) ON DELETE SET NULL,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 
@@ -933,9 +1036,13 @@ export async function bootstrapSqliteSchema(db: Database) {
       doneAt TEXT,
       entityType TEXT,
       entityId INTEGER,
+      deletedAt TEXT,
+      deletedBy INTEGER,
+      deleteReason TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       updatedAt TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY(userId) REFERENCES User(id) ON DELETE CASCADE
+      FOREIGN KEY(userId) REFERENCES User(id) ON DELETE CASCADE,
+      FOREIGN KEY(deletedBy) REFERENCES User(id) ON DELETE SET NULL
     )
   `);
 

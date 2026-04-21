@@ -761,10 +761,46 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Lead', 'startDate', 'startDate TEXT');
   await ensureColumn('Lead', 'notes', 'notes TEXT');
   await ensureColumn('Lead', 'contactId', 'contactId TEXT REFERENCES Contact(id) ON DELETE SET NULL');
+  await ensureColumn('Lead', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('Lead', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('Lead', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('Account', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('Account', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('Account', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('Contact', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('Contact', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('Contact', 'deleteReason', 'deleteReason TEXT');
   // Product: category hierarchy
   await ensureColumn('Product', 'categoryId', 'categoryId TEXT REFERENCES ProductCategory(id) ON DELETE SET NULL');
+  await ensureColumn('Product', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('Product', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('Product', 'deleteReason', 'deleteReason TEXT');
   // User: department
   await ensureColumn('User', 'departmentId', 'departmentId TEXT REFERENCES Department(id) ON DELETE SET NULL');
+  await ensureColumn('Project', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('Project', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('Project', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('SupplierQuote', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('SupplierQuote', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('SupplierQuote', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('Funnel', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('Funnel', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('Funnel', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('Department', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('Department', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('Department', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('HrRequest', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('HrRequest', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('HrRequest', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('PublicHoliday', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('PublicHoliday', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('PublicHoliday', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('ProductCategory', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('ProductCategory', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('ProductCategory', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('ContactChannel', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('ContactChannel', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('ContactChannel', 'deleteReason', 'deleteReason TEXT');
   // ─── Seed Department from User.department text and backfill departmentId ────
   const deptCount = await db.get<{ c: number }>('SELECT COUNT(*) as c FROM Department');
   if (deptCount && deptCount.c === 0) {
@@ -826,6 +862,9 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Activity', 'actingCapability', 'actingCapability TEXT');
   await ensureColumn('Activity', 'action', 'action TEXT');
   await ensureColumn('Activity', 'timestamp', 'timestamp TEXT');
+  await ensureColumn('ApprovalRequest', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('ApprovalRequest', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('ApprovalRequest', 'deleteReason', 'deleteReason TEXT');
   await ensureColumn('Task', 'target', 'target TEXT');
   await ensureColumn('Task', 'resultLinks', 'resultLinks TEXT');
   await ensureColumn('Task', 'output', 'output TEXT');
@@ -833,6 +872,9 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Task', 'taskType', 'taskType TEXT');
   await ensureColumn('Task', 'department', 'department TEXT');
   await ensureColumn('Task', 'blockedReason', 'blockedReason TEXT');
+  await ensureColumn('Task', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('Task', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('Task', 'deleteReason', 'deleteReason TEXT');
   await ensureColumn('ApprovalRequest', 'pricingQuotationId', 'pricingQuotationId TEXT');
   await ensureColumn('PricingQuotation', 'projectId', 'projectId TEXT');
   await ensureColumn('PricingQuotation', 'changeReason', 'changeReason TEXT');
@@ -885,6 +927,15 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Task', 'parentTaskId', 'parentTaskId TEXT');
   await ensureColumn('Task', 'leadId', 'leadId TEXT');
   await ensureColumn('Task', 'quotationId', 'quotationId TEXT');
+  await ensureColumn('TimeSpendReport', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('TimeSpendReport', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('TimeSpendReport', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('TaskDependency', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('TaskDependency', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('TaskDependency', 'deleteReason', 'deleteReason TEXT');
+  await ensureColumn('ToDo', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('ToDo', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('ToDo', 'deleteReason', 'deleteReason TEXT');
   await ensureColumn('Project', 'projectStage', "projectStage TEXT DEFAULT 'new'");
   await ensureColumn('Quotation', 'projectId', 'projectId TEXT');
   await ensureColumn('Quotation', 'revisionNo', 'revisionNo INTEGER DEFAULT 1');
@@ -900,6 +951,9 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('Quotation', 'calculateTotals', 'calculateTotals INTEGER DEFAULT 1');
   await ensureColumn('Quotation', 'remarksVi', 'remarksVi TEXT');
   await ensureColumn('Quotation', 'remarksEn', 'remarksEn TEXT');
+  await ensureColumn('Quotation', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('Quotation', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('Quotation', 'deleteReason', 'deleteReason TEXT');
   await ensureColumn('Quotation', 'updatedAt', 'updatedAt TEXT');
   await createTypedQuotationChildTables();
   await ensureColumn('QuotationLineItem', 'offerGroupKey', "offerGroupKey TEXT DEFAULT 'group-a'");
@@ -946,6 +1000,9 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureColumn('ProjectDocument', 'reviewNote', 'reviewNote TEXT');
   await ensureColumn('ProjectDocument', 'storageKey', 'storageKey TEXT');
   await ensureColumn('ProjectDocument', 'threadId', 'threadId TEXT');
+  await ensureColumn('ProjectDocument', 'deletedAt', 'deletedAt TEXT');
+  await ensureColumn('ProjectDocument', 'deletedBy', 'deletedBy TEXT');
+  await ensureColumn('ProjectDocument', 'deleteReason', 'deleteReason TEXT');
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS EntityThread (
@@ -973,6 +1030,51 @@ export async function finalizeSqliteSchema(db: Database) {
   `);
 
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS DeletedRecord (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      moduleKey TEXT NOT NULL,
+      entityType TEXT NOT NULL,
+      entityId TEXT NOT NULL,
+      entityLabel TEXT,
+      projectId TEXT,
+      routePath TEXT,
+      deleteMode TEXT DEFAULT 'soft',
+      status TEXT DEFAULT 'deleted',
+      snapshotJson TEXT,
+      reason TEXT,
+      deletedBy TEXT,
+      actorRoles TEXT,
+      actingCapability TEXT,
+      sourceActivityId TEXT,
+      adminNote TEXT,
+      reviewedAt TEXT,
+      reviewedBy TEXT,
+      restoredAt TEXT,
+      restoredBy TEXT,
+      purgedAt TEXT,
+      purgedBy TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_deletedrecord_module_created ON DeletedRecord (moduleKey, createdAt DESC);
+    CREATE INDEX IF NOT EXISTS idx_deletedrecord_entity ON DeletedRecord (entityType, entityId);
+    CREATE INDEX IF NOT EXISTS idx_deletedrecord_project ON DeletedRecord (projectId, createdAt DESC);
+    CREATE INDEX IF NOT EXISTS idx_deletedrecord_status ON DeletedRecord (status, createdAt DESC);
+    CREATE INDEX IF NOT EXISTS idx_account_deleted ON Account (deletedAt);
+    CREATE INDEX IF NOT EXISTS idx_contact_deleted ON Contact (deletedAt);
+    CREATE INDEX IF NOT EXISTS idx_lead_deleted ON Lead (deletedAt);
+    CREATE INDEX IF NOT EXISTS idx_supplierquote_deleted ON SupplierQuote (deletedAt);
+    CREATE INDEX IF NOT EXISTS idx_funnel_deleted ON Funnel (deletedAt);
+    CREATE INDEX IF NOT EXISTS idx_department_deleted ON Department (deletedAt);
+    CREATE INDEX IF NOT EXISTS idx_hrrequest_deleted ON HrRequest (deletedAt);
+    CREATE INDEX IF NOT EXISTS idx_publicholiday_deleted ON PublicHoliday (deletedAt);
+    CREATE INDEX IF NOT EXISTS idx_productcategory_deleted ON ProductCategory (deletedAt);
+    CREATE INDEX IF NOT EXISTS idx_contactchannel_deleted ON ContactChannel (deletedAt);
+  `);
+
+  await db.exec(`
     CREATE INDEX IF NOT EXISTS idx_pricing_quote_project ON PricingQuotation (projectId, batchNo);
     CREATE INDEX IF NOT EXISTS idx_pricing_quote_parent ON PricingQuotation (parentPricingQuotationId, batchNo);
     CREATE INDEX IF NOT EXISTS idx_pricing_quote_stage ON PricingQuotation (qbuWorkflowStage, updatedAt);
@@ -983,19 +1085,38 @@ export async function finalizeSqliteSchema(db: Database) {
   await ensureUniqueIndexIfNoDuplicates('User', 'username', 'idx_user_username_unique');
   await nullifyInvalidRefs('Account', 'assignedTo', 'User', 'id');
   await nullifyInvalidRefs('Project', 'managerId', 'User', 'id');
+  await nullifyInvalidRefs('Project', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('Account', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('Contact', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('Lead', 'deletedBy', 'User', 'id');
   await nullifyInvalidRefs('Task', 'assigneeId', 'User', 'id');
+  await nullifyInvalidRefs('Task', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('TimeSpendReport', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('TaskDependency', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('ToDo', 'deletedBy', 'User', 'id');
   await nullifyInvalidRefs('Task', 'parentTaskId', 'Task', 'id');
+  await nullifyInvalidRefs('Product', 'deletedBy', 'User', 'id');
   await nullifyInvalidRefs('Quotation', 'accountId', 'Account', 'id');
   await nullifyInvalidRefs('Quotation', 'contactId', 'Contact', 'id');
   await nullifyInvalidRefs('Quotation', 'projectId', 'Project', 'id');
   await nullifyInvalidRefs('Quotation', 'parentQuotationId', 'Quotation', 'id');
+  await nullifyInvalidRefs('Quotation', 'deletedBy', 'User', 'id');
   await nullifyInvalidRefs('SupplierQuote', 'projectId', 'Project', 'id');
   await nullifyInvalidRefs('SupplierQuote', 'linkedQuotationId', 'Quotation', 'id');
+  await nullifyInvalidRefs('SupplierQuote', 'deletedBy', 'User', 'id');
   await nullifyInvalidRefs('ApprovalRequest', 'projectId', 'Project', 'id');
   await nullifyInvalidRefs('ApprovalRequest', 'quotationId', 'Quotation', 'id');
   await nullifyInvalidRefs('ApprovalRequest', 'approverUserId', 'User', 'id');
+  await nullifyInvalidRefs('ApprovalRequest', 'deletedBy', 'User', 'id');
   await nullifyInvalidRefs('ProjectDocument', 'projectId', 'Project', 'id');
   await nullifyInvalidRefs('ProjectDocument', 'quotationId', 'Quotation', 'id');
+  await nullifyInvalidRefs('ProjectDocument', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('Funnel', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('Department', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('HrRequest', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('PublicHoliday', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('ProductCategory', 'deletedBy', 'User', 'id');
+  await nullifyInvalidRefs('ContactChannel', 'deletedBy', 'User', 'id');
   await nullifyInvalidRefs('SalesOrder', 'accountId', 'Account', 'id');
   await nullifyInvalidRefs('SalesOrder', 'quotationId', 'Quotation', 'id');
 
@@ -1017,6 +1138,7 @@ export async function finalizeSqliteSchema(db: Database) {
         { from: 'contactId', toTable: 'Contact', toColumn: 'id', onDelete: 'SET NULL' },
         { from: 'projectId', toTable: 'Project', toColumn: 'id', onDelete: 'SET NULL' },
         { from: 'parentQuotationId', toTable: 'Quotation', toColumn: 'id', onDelete: 'SET NULL' },
+        { from: 'deletedBy', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
       ],
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_quotation_status ON Quotation (status)',
@@ -1026,6 +1148,7 @@ export async function finalizeSqliteSchema(db: Database) {
         'CREATE INDEX IF NOT EXISTS idx_quotation_project ON Quotation (projectId)',
         'CREATE INDEX IF NOT EXISTS idx_quotation_revision ON Quotation (projectId, revisionNo)',
         'CREATE INDEX IF NOT EXISTS idx_quotation_parent ON Quotation (parentQuotationId)',
+        'CREATE INDEX IF NOT EXISTS idx_quotation_deleted ON Quotation (deletedAt)',
       ],
     },
     {
@@ -1044,10 +1167,14 @@ export async function finalizeSqliteSchema(db: Database) {
     },
     {
       table: 'Project',
-      foreignKeys: [{ from: 'managerId', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' }],
+      foreignKeys: [
+        { from: 'managerId', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
+        { from: 'deletedBy', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
+      ],
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_project_manager ON Project (managerId)',
         'CREATE INDEX IF NOT EXISTS idx_project_stage ON Project (projectStage)',
+        'CREATE INDEX IF NOT EXISTS idx_project_deleted ON Project (deletedAt)',
       ],
     },
     {
@@ -1057,6 +1184,7 @@ export async function finalizeSqliteSchema(db: Database) {
         { from: 'parentTaskId', toTable: 'Task', toColumn: 'id', onDelete: 'SET NULL' },
         { from: 'assigneeId', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
         { from: 'quotationId', toTable: 'Quotation', toColumn: 'id', onDelete: 'SET NULL' },
+        { from: 'deletedBy', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
       ],
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_task_project ON Task (projectId)',
@@ -1072,6 +1200,7 @@ export async function finalizeSqliteSchema(db: Database) {
         'CREATE INDEX IF NOT EXISTS idx_task_quotation ON Task (quotationId)',
         'CREATE INDEX IF NOT EXISTS idx_task_type ON Task (taskType)',
         'CREATE INDEX IF NOT EXISTS idx_task_department ON Task (department)',
+        'CREATE INDEX IF NOT EXISTS idx_task_deleted ON Task (deletedAt)',
       ],
     },
     {
@@ -1092,6 +1221,7 @@ export async function finalizeSqliteSchema(db: Database) {
         { from: 'projectId', toTable: 'Project', toColumn: 'id', onDelete: 'CASCADE' },
         { from: 'quotationId', toTable: 'Quotation', toColumn: 'id', onDelete: 'SET NULL' },
         { from: 'approverUserId', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
+        { from: 'deletedBy', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
       ],
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_approval_project ON ApprovalRequest (projectId)',
@@ -1100,6 +1230,7 @@ export async function finalizeSqliteSchema(db: Database) {
         'CREATE INDEX IF NOT EXISTS idx_approval_approver_user ON ApprovalRequest (approverUserId)',
         'CREATE INDEX IF NOT EXISTS idx_approval_status ON ApprovalRequest (status)',
         'CREATE INDEX IF NOT EXISTS idx_approval_department ON ApprovalRequest (department)',
+        'CREATE INDEX IF NOT EXISTS idx_approval_deleted ON ApprovalRequest (deletedAt)',
       ],
     },
     {
@@ -1107,6 +1238,7 @@ export async function finalizeSqliteSchema(db: Database) {
       foreignKeys: [
         { from: 'projectId', toTable: 'Project', toColumn: 'id', onDelete: 'CASCADE' },
         { from: 'quotationId', toTable: 'Quotation', toColumn: 'id', onDelete: 'SET NULL' },
+        { from: 'deletedBy', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
       ],
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_projectdocument_project ON ProjectDocument (projectId)',
@@ -1115,6 +1247,7 @@ export async function finalizeSqliteSchema(db: Database) {
         'CREATE INDEX IF NOT EXISTS idx_projectdocument_department ON ProjectDocument (department)',
         'CREATE INDEX IF NOT EXISTS idx_projectdocument_review_status ON ProjectDocument (reviewStatus)',
         'CREATE INDEX IF NOT EXISTS idx_projectdocument_thread ON ProjectDocument (threadId)',
+        'CREATE INDEX IF NOT EXISTS idx_projectdocument_deleted ON ProjectDocument (deletedAt)',
       ],
     },
     {
@@ -1131,6 +1264,43 @@ export async function finalizeSqliteSchema(db: Database) {
       indexes: [
         'CREATE INDEX IF NOT EXISTS idx_notification_user_read_created ON Notification (userId, readAt, createdAt)',
         'CREATE INDEX IF NOT EXISTS idx_notification_user_created ON Notification (userId, createdAt)',
+      ],
+    },
+    {
+      table: 'TimeSpendReport',
+      foreignKeys: [
+        { from: 'taskId', toTable: 'Task', toColumn: 'id', onDelete: 'CASCADE' },
+        { from: 'userId', toTable: 'User', toColumn: 'id', onDelete: 'CASCADE' },
+        { from: 'deletedBy', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
+      ],
+      indexes: [
+        'CREATE INDEX IF NOT EXISTS idx_timespend_task ON TimeSpendReport (taskId, reportDate)',
+        'CREATE INDEX IF NOT EXISTS idx_timespend_user ON TimeSpendReport (userId, reportDate)',
+        'CREATE INDEX IF NOT EXISTS idx_timespend_deleted ON TimeSpendReport (deletedAt)',
+      ],
+    },
+    {
+      table: 'TaskDependency',
+      foreignKeys: [
+        { from: 'taskId', toTable: 'Task', toColumn: 'id', onDelete: 'CASCADE' },
+        { from: 'relatedTaskId', toTable: 'Task', toColumn: 'id', onDelete: 'CASCADE' },
+        { from: 'createdBy', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
+        { from: 'deletedBy', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
+      ],
+      indexes: [
+        'CREATE INDEX IF NOT EXISTS idx_taskdependency_task ON TaskDependency (taskId, createdAt)',
+        'CREATE INDEX IF NOT EXISTS idx_taskdependency_deleted ON TaskDependency (deletedAt)',
+      ],
+    },
+    {
+      table: 'ToDo',
+      foreignKeys: [
+        { from: 'userId', toTable: 'User', toColumn: 'id', onDelete: 'CASCADE' },
+        { from: 'deletedBy', toTable: 'User', toColumn: 'id', onDelete: 'SET NULL' },
+      ],
+      indexes: [
+        'CREATE INDEX IF NOT EXISTS idx_todo_entity ON ToDo (entityType, entityId)',
+        'CREATE INDEX IF NOT EXISTS idx_todo_deleted ON ToDo (deletedAt)',
       ],
     },
     {

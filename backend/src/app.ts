@@ -17,7 +17,7 @@ import jwt from 'jsonwebtoken';
 import { normalizeGender } from '../gender';
 import { createOperationalServices } from './bootstrap/createOperationalServices';
 import { startServer } from './bootstrap/startServer';
-import { getJwtSecret, requireAuth, requireRole } from './shared/auth/httpAuth';
+import { getJwtSecret, requireAuth, requirePermission, requireRole } from './shared/auth/httpAuth';
 import { asyncHandler } from './shared/http/asyncHandler';
 import { parseLimitParam } from './shared/http/params';
 import { HttpApiError, buildApiError } from './shared/errors/apiError';
@@ -32,7 +32,10 @@ import { registerErpRoutes } from './modules/erp/routes';
 import { registerAuthRoutes } from './modules/auth/routes';
 import { registerCollaborationRoutes } from './modules/collaboration/routes';
 import { registerCrmRoutes } from './modules/crm/routes';
+import { registerContactChannelRoutes } from './modules/crm/channelRoutes';
 import { registerExchangeRateRoutes } from './modules/exchange-rates/routes';
+import { registerFunnelRoutes } from './modules/funnel/routes';
+import { registerHrRoutes } from './modules/hr/routes';
 import { registerProjectContractRoutes } from './modules/projects/contractRoutes';
 import { registerProjectGovernanceRoutes } from './modules/projects/governanceRoutes';
 import { registerProjectLogisticsRoutes } from './modules/projects/logisticsRoutes';
@@ -41,6 +44,7 @@ import { registerProjectSupplierQuoteRoutes } from './modules/projects/supplierQ
 import { createSupplierQuote } from './modules/projects/supplierQuoteService';
 import { registerProjectWorkflowRoutes } from './modules/projects/workflowRoutes';
 import { registerProductRoutes } from './modules/products/routes';
+import { registerProductCategoryRoutes } from './modules/products/categoryRoutes';
 import { registerProjectWriteRoutes } from './modules/projects/writeRoutes';
 import {
   buildRevisionLabel,
@@ -340,11 +344,15 @@ registerPlatformCalculatorRoutes(app, { ah });
 registerPlatformQaRoutes(app, { ah, requireAuth });
 registerPlatformReportingRoutes(app, { ah, requireAuth, reportingServices: platformReportingServices });
 registerPlatformWorkspaceRoutes(app, { ah, requireAuth, workspaceServices: platformWorkspaceServices });
-registerPlatformSystemRoutes(app, { ah, requireAuth, requireRole });
-registerCrmRoutes(app, { ah, requireAuth, requireRole, upload: importUpload, mapGenderRecord, mapGenderRecords, logAct });
+registerPlatformSystemRoutes(app, { ah, requireAuth, requirePermission, requireRole, logAct });
+registerCrmRoutes(app, { ah, requireAuth, requirePermission, requireRole, upload: importUpload, mapGenderRecord, mapGenderRecords, logAct });
+registerContactChannelRoutes(app, { ah, requireAuth, requirePermission });
+registerFunnelRoutes(app, { ah, requireAuth, requirePermission, logAct });
+registerHrRoutes(app, { ah, requireAuth, requirePermission, logAct });
 registerProductRoutes(app, {
   ah,
   requireAuth,
+  requirePermission,
   requireRole,
   upload: importUpload,
   assetUpload: productAssetUpload,
@@ -352,23 +360,31 @@ registerProductRoutes(app, {
   parseJsonObject: crmSerializationServices.parseJsonObject,
   stringifyNormalizedJson: crmSerializationServices.stringifyNormalizedJson,
   getLatestExchangeRatePayload,
+  logAct,
 });
+registerProductCategoryRoutes(app, { ah, requireAuth, requirePermission, logAct });
 registerSupplierRoutes(app, {
   ah,
   requireAuth,
+  requirePermission,
   requireRole,
   upload: importUpload,
   serializeSupplierTags: crmSerializationServices.serializeSupplierTags,
   hydrateSupplier: crmSerializationServices.hydrateSupplier,
+  logAct,
 });
 registerSupplierQuoteRoutes(app, {
   ah,
+  requireAuth,
+  requirePermission,
   createSupplierQuote,
+  logAct,
 });
-registerSalespersonRoutes(app, { ah, requireAuth, requireRole });
+registerSalespersonRoutes(app, { ah, requireAuth, requirePermission, requireRole });
 registerUserRoutes(app, {
   ah,
   requireAuth,
+  requirePermission,
   requireRole,
   upload: importUpload,
   avatarUpload,
@@ -387,6 +403,7 @@ registerExchangeRateRoutes(app, {
 registerQuotationRoutes(app, {
   ah,
   requireAuth,
+  requirePermission,
   requireRole,
   getCurrentUserId: (req) => getCurrentUserId(req),
   autoCreateProjectForQuotation,
@@ -444,8 +461,10 @@ registerProjectReadRoutes(app, {
 registerProjectWriteRoutes(app, {
   ah,
   requireAuth,
+  requirePermission,
   requireRole,
   normalizeProjectStage,
+  logAct,
 });
 registerProjectContractRoutes(app, {
   ah,
@@ -480,6 +499,7 @@ registerProjectLogisticsRoutes(app, {
 registerProjectGovernanceRoutes(app, {
   ah,
   requireAuth,
+  requirePermission,
   requireRole,
   getCurrentUserId,
   handleQbuApprovalDecision,
@@ -511,21 +531,27 @@ registerProjectWorkflowRoutes(app, {
 registerTaskRoutes(app, {
   ah,
   requireAuth,
+  requirePermission,
   requireRole,
   appendDateRangeFilter,
   getCurrentUserId,
   resolveAssigneeId,
   getTaskWithLinksById,
+  logAct,
 });
 registerTaskDependencyRoutes(app, {
   ah,
   requireAuth,
+  requirePermission,
   getCurrentUserId,
+  logAct,
 });
 registerTimeSpendRoutes(app, {
   ah,
   requireAuth,
+  requirePermission,
   getCurrentUserId,
+  logAct,
 });
 
 registerPricingRoutes(app);
